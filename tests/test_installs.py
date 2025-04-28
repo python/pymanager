@@ -147,6 +147,7 @@ def test_get_install_to_run_with_default_platform(patched_installs):
     assert i["id"] == "PythonCore-2.0-64"
     assert i["executable"].match("python.exe")
 
+
 def test_get_install_to_run_with_default_platform_prerelease(patched_installs2):
     # Specifically testing issue #25, where a native prerelease is preferred
     # over a non-native stable release. We should prefer the stable release
@@ -158,3 +159,12 @@ def test_get_install_to_run_with_default_platform_prerelease(patched_installs2):
     assert i["id"] == "PythonCore-1.0-32"
     i = installs.get_install_to_run("<none>", None, None, default_platform="-arm64")
     assert i["id"] == "PythonCore-1.0-32"
+
+
+def test_get_install_to_run_with_range(patched_installs):
+    i = installs.get_install_to_run("<none>", None, "<=1.0")
+    assert i["id"] == "PythonCore-1.0"
+    assert i["executable"].match("python.exe")
+    i = installs.get_install_to_run("<none>", None, ">1.0")
+    assert i["id"] == "PythonCore-2.0-64"
+    assert i["executable"].match("python.exe")

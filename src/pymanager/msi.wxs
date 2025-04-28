@@ -18,7 +18,6 @@
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="PyManager">
-        <Directory Id="BUNDLED" Name="bundled" />
         <Directory Id="RUNTIME" Name="runtime" />
         <Directory Id="TEMPLATES" Name="templates" />
       </Directory>
@@ -26,7 +25,6 @@
 
     <Feature Id="Core">
       <ComponentRef Id="ProductComponent" />
-      <ComponentRef Id="BundledComponent" />
       <ComponentRef Id="RuntimeComponent" />
       <ComponentRef Id="TemplatesComponent" />
     </Feature>
@@ -81,12 +79,6 @@
           <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
-    </Component>
-
-    <Component Id="BundledComponent" Directory="BUNDLED" Guid="F51B5F28-A6B4-4C73-AF7B-B58D2247520B">
-      <!-- HACK: Included for test purposes only -->
-      <File Source="bundled\index.json" Name="index.json" />
-      <File Source="bundled\index-legacy.json" Name="index-legacy.json" />
     </Component>
 
     <Component Id="RuntimeComponent" Directory="RUNTIME" Guid="5F682EE9-7D21-4B67-9F63-D85758A45836">

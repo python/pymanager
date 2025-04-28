@@ -42,11 +42,9 @@ run([sys.executable, "-m", "pymsbuild", "wheel"],
     cwd=DIRS["root"],
     env={**os.environ, "BUILD_SOURCEBRANCH": ref})
 
-# Overwrite bundled feed. This will be removed eventually
-run([sys.executable, "scripts/generate-nuget-index.py", LAYOUT / "bundled" / "index.json"])
-
 # Bundle current latest release
 run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", TEMP / "bundle", "default"])
+(LAYOUT / "bundled").mkdir(parents=True, exist_ok=True)
 (TEMP / "bundle" / "index.json").rename(LAYOUT / "bundled" / "fallback-index.json")
 for f in (TEMP / "bundle").iterdir():
     f.rename(LAYOUT / "bundled" / f.name)

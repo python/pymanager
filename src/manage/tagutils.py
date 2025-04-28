@@ -219,7 +219,7 @@ class CompanyTag:
         return hash(self._sortkey)
 
     def __eq__(self, other):
-        if other is None:
+        if not isinstance(other, type(self)):
             return False
         if self._company != other._company:
             return False
@@ -232,6 +232,8 @@ class CompanyTag:
     def __gt__(self, other):
         if other is None:
             return True
+        if not isinstance(other, type(self)):
+            return False
         if self._company != other._company:
             return self._company > other._company
         if self._sortkey != other._sortkey:
@@ -243,6 +245,8 @@ class CompanyTag:
     def matches_bound(self, other):
         if other is None:
             return True
+        if not isinstance(other, type(self)):
+            return False
         if not self._company.startswith(other._company):
             return False
         if other.platform not in (self.platform, ""):
@@ -260,6 +264,8 @@ class CompanyTag:
     def above_lower_bound(self, other):
         if other is None:
             return True
+        if not isinstance(other, type(self)):
+            return False
         if not self._company.startswith(other._company):
             return False
         if other.platform not in (self.platform, ""):
@@ -275,7 +281,7 @@ class CompanyTag:
         return True
 
     def __lt__(self, other):
-        if other is None:
+        if not isinstance(other, type(self)):
             return False
         if self._company != other._company:
             return self._company < other._company
@@ -288,6 +294,8 @@ class CompanyTag:
     def below_upper_bound(self, other):
         if other is None:
             return True
+        if not isinstance(other, type(self)):
+            return False
         if not self._company.startswith(other._company):
             return False
         if other.platform not in (self.platform, ""):

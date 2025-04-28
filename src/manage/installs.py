@@ -155,7 +155,10 @@ def get_matching_install_tags(
                 exact_matches.append((i, t))
                 matched_any = True
             elif not tag or tag.satisfied_by(ct):
-                if tag and not companies_match(tag.company, i["company"]):
+                if (
+                    isinstance(tag, CompanyTag)
+                    and not companies_match(tag.company, i["company"])
+                ):
                     fallback_matches.append((i, t))
                     matched_any = True
                 elif i.get("unmanaged"):

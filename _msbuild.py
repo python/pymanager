@@ -139,7 +139,7 @@ PACKAGE = Package('python-manager',
     # Default index feed, mainly for testing right now
     Package(
         'bundled',
-        File('src/index*.json'),
+        File('src/index*.json', allow_none=True),
     ),
 
     # Directory for template files

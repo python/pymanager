@@ -23,6 +23,15 @@ def irm(url, method="GET", headers={}):
 
 NUGET_SOURCE = "https://api.nuget.org/v3/index.json"
 
+# Earlier versions than this go into "legacy.json"
+CURRENT_VERSION = Version("3.10")
+
+SKIP_OLD_PRERELEASE = True
+
+# Indentation for output files
+INDENT = None
+
+
 SCHEMA = {
     "python": {
         "schema": 1,
@@ -35,6 +44,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$-64",
             "$XVERSIONNOPRE$-64",
             "$XYVERSIONDEV$-64",
+            "$XVERSIONDEV$-64",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$-64", "target": "python.exe"},
@@ -80,7 +90,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -108,6 +118,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$-32",
             "$XVERSIONNOPRE$-32",
             "$XYVERSIONDEV$-32",
+            "$XVERSIONDEV$-32",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$-32", "target": "python.exe"},
@@ -153,7 +164,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -181,6 +192,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$-arm64",
             "$XVERSIONNOPRE$-arm64",
             "$XYVERSIONDEV$-arm64",
+            "$XVERSIONDEV$-arm64",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$-arm64", "target": "python.exe"},
@@ -226,7 +238,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -254,6 +266,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$t-64",
             "$XVERSIONNOPRE$t-64",
             "$XYVERSIONDEV$t-64",
+            "$XVERSIONDEV$t-64",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$t-64", "target": "python$XYVERSION$t.exe"},
@@ -299,7 +312,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -327,6 +340,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$t-32",
             "$XVERSIONNOPRE$t-32",
             "$XYVERSIONDEV$t-32",
+            "$XVERSIONDEV$t-32",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$t-32", "target": "python$XYVERSION$t.exe"},
@@ -372,7 +386,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -400,6 +414,7 @@ SCHEMA = {
             "$XYVERSIONNOPRE$t-arm64",
             "$XVERSIONNOPRE$t-arm64",
             "$XYVERSIONDEV$t-arm64",
+            "$XVERSIONDEV$t-arm64",
         ],
         "run-for": [
             {"tag": "$FULLVERSION$t-arm64", "target": "python$XYVERSION$t.exe"},
@@ -445,7 +460,7 @@ SCHEMA = {
                         "Icon": "%PREFIX%python.exe",
                     },
                     {
-                        "Name": "Python $XYVERSION$ Documentation",
+                        "Name": "Python $XYVERSION$ Online Documentation",
                         "Icon": r"%SystemRoot%\System32\SHELL32.dll",
                         "IconIndex": 13,
                         "Target": "https://docs.python.org/$XYVERSION$/",
@@ -499,9 +514,6 @@ BASE_URL = RESOURCES["PackageBaseAddress/3.0.0"].rstrip("/")
 INDEX_OLD = {"versions": []}
 INDEX_CURRENT = {"versions": [], "next": ""}
 
-# Earlier versions than this go into "legacy.json"
-CURRENT_VERSION = Version("3.12")
-
 for name, schema in SCHEMA.items():
     data = irm(f"{BASE_URL}/{name}/index.json")
 
@@ -509,6 +521,8 @@ for name, schema in SCHEMA.items():
 
     last_v = None
     for v in all_versions:
+        if v.is_prerelease and v < CURRENT_VERSION and SKIP_OLD_PRERELEASE:
+            continue
         if v.is_prerelease and last_v and v.to_python_style(3, False) == last_v:
             continue
         subs = {
@@ -518,6 +532,7 @@ for name, schema in SCHEMA.items():
             "XYVERSIONDEV": (v.to_python_style(2, False) + "-dev") if v.is_prerelease else None,
             "XVERSION": v.to_python_style(1, False),
             "XVERSIONNOPRE": None if v.is_prerelease else v.to_python_style(1, False),
+            "XVERSIONDEV": (v.to_python_style(1, False) + "-dev") if v.is_prerelease else None,
             "PACKAGEURL": f"{BASE_URL}/{name}/{v}/{name}.{v}.nupkg",
         }
         index = INDEX_CURRENT if v >= CURRENT_VERSION else INDEX_OLD
@@ -525,14 +540,17 @@ for name, schema in SCHEMA.items():
         last_v = subs["FULLVERSION"]
 
 
+INDEX_CURRENT["versions"].sort(key=lambda i: (Version(i["sort-version"]), i["id"]), reverse=True)
+INDEX_OLD["versions"].sort(key=lambda i: (Version(i["sort-version"]), i["id"]), reverse=True)
+
 for file in map(Path, sys.argv[1:]):
     legacy_name = f"{file.stem}-legacy.json"
     INDEX_CURRENT["next"] = legacy_name
     file.parent.mkdir(exist_ok=True, parents=True)
     with open(file, "w", encoding="utf-8") as f:
-        json.dump(INDEX_CURRENT, f, indent=2)
+        json.dump(INDEX_CURRENT, f, indent=INDENT)
     with open(file.with_name(legacy_name), "w", encoding="utf-8") as f:
-        json.dump(INDEX_OLD, f, indent=2)
+        json.dump(INDEX_OLD, f, indent=INDENT)
 
 
 if not sys.argv[1:]:

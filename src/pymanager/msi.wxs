@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Language="1033"
+           Manufacturer="Python Software Foundation"
+           Name="Python Install Manager"
+           UpgradeCode="E8B0C18E-35FD-4D63-BDEF-CE8B9E322FE5"
+           Scope="perMachine"
+           Version="$(var.version)">
+
+    <MajorUpgrade DowngradeErrorMessage="A later version of [ProductName] is already installed. Setup will now exit." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="ARPIcon" SourceFile="_resources\python.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ARPIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="DISABLEADVTSHORTCUTS" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="PyManager">
+        <Directory Id="BUNDLED" Name="bundled" />
+        <Directory Id="RUNTIME" Name="runtime" />
+        <Directory Id="TEMPLATES" Name="templates" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Core">
+      <ComponentRef Id="ProductComponent" />
+      <ComponentRef Id="BundledComponent" />
+      <ComponentRef Id="RuntimeComponent" />
+      <ComponentRef Id="TemplatesComponent" />
+    </Feature>
+
+    <util:BroadcastEnvironmentChange />
+
+    <Component Id="ProductComponent" Directory="INSTALLFOLDER" Guid="8BEC1259-B220-499B-9656-DC59B7F5BE24">
+      <File KeyPath="yes" Source="py-manager.exe" Name="python.exe" Id="python.exe" />
+      <File Source="pymanager.exe" Name="pymanager.exe" />
+      <File Source="py.exe" Name="py.exe" />
+      <File Source="python3.exe" Name="python3.exe" />
+      <File Source="pythonw.exe" Name="pythonw.exe" Id="pythonw.exe" />
+      <File Source="pywmanager.exe" Name="pywmanager.exe" />
+      <File Source="pyw.exe" Name="pyw.exe" />
+      <File Source="pymanager.json" />
+
+      <File Source="vcruntime140.dll" />
+      <File Source="vcruntime140_1.dll" />
+
+      <File Source="version.txt" />
+      <Environment Id="PATH" Action="set" Name="PATH" Part="last" System="yes" Value="[INSTALLFOLDER]" />
+
+      <File Source="_resources\py.ico" Name="py.ico" Id="py.ico" />
+      <File Source="_resources\pyc.ico" Name="pyc.ico" Id="pyc.ico" />
+      <File Source="_resources\pyd.ico" Name="pyd.ico" Id="pyd.ico" />
+
+      <ProgId Id="Python.File" Description="Python Script" Advertise="no" Icon="py.ico">
+        <Extension Id="py" ContentType="text/x-python">
+            <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
+        </Extension>
+      </ProgId>
+      <ProgId Id="Python.NoConFile" Description="Python Script (Windowed)" Advertise="no" Icon="py.ico">
+        <Extension Id="pyw" ContentType="text/x-python">
+            <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
+        </Extension>
+      </ProgId>
+      <ProgId Id="Python.CompiledFile" Description="Compiled Python Script" Advertise="no" Icon="pyc.ico">
+        <Extension Id="pyc" ContentType="application/x-python-code">
+          <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
+        </Extension>
+      </ProgId>
+      <ProgId Id="Python.Extension" Description="Python Extension Module" Advertise="no" Icon="pyd.ico">
+        <Extension Id="pyd" ContentType="application/x-python-pyd" />
+      </ProgId>
+      <ProgId Id="Python.ArchiveFile" Description="Python Application" Advertise="no" Icon="python.exe">
+        <Extension Id="pyz" ContentType="application/x-python-zipapp">
+          <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
+        </Extension>
+      </ProgId>
+      <ProgId Id="Python.NoConArchiveFile" Description="Python Application (Windowed)" Advertise="no" Icon="pythonw.exe">
+        <Extension Id="pyzw" ContentType="application/x-python-zipapp">
+          <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
+        </Extension>
+      </ProgId>
+    </Component>
+
+    <Component Id="BundledComponent" Directory="BUNDLED" Guid="F51B5F28-A6B4-4C73-AF7B-B58D2247520B">
+      <!-- HACK: Included for test purposes only -->
+      <File Source="bundled\index.json" Name="index.json" />
+      <File Source="bundled\index-legacy.json" Name="index-legacy.json" />
+    </Component>
+
+    <Component Id="RuntimeComponent" Directory="RUNTIME" Guid="5F682EE9-7D21-4B67-9F63-D85758A45836">
+      <File Source="runtime\manage.$(var.pydsuffix)" />
+      <File Source="runtime\_native.$(var.pydsuffix)" />
+      <File Source="runtime\$(var.pythondllname).dll" />
+      <File Source="runtime\$(var.pythondllname).zip" />
+      <File Source="runtime\$(var.pythondllname)._pth" />
+    </Component>
+
+    <Component Id="TemplatesComponent" Directory="TEMPLATES" Guid="3ACC110C-5C33-45C8-9843-A446718930A0">
+      <File KeyPath="yes" Source="templates\launcher.exe" Name="launcher.exe" />
+      <File Source="templates\launcherw.exe" Name="launcherw.exe" />
+    </Component>
+
+  </Package>
+</Wix>

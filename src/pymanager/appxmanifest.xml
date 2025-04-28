@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package IgnorableNamespaces="desktop4 desktop6 desktop7 uap13 uap17"
+    xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+    xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+    xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+    xmlns:rescap4="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/4"
+    xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+    xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
+    xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
+    xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+    xmlns:uap13="http://schemas.microsoft.com/appx/manifest/uap/windows10/13"
+    xmlns:uap17="http://schemas.microsoft.com/appx/manifest/uap/windows10/17">
+    <Identity Name="PythonSoftwareFoundation.PythonManager"
+              Version="1.0.0.0"
+              Publisher="CN=00000000-0000-0000-0000-000000000000"
+              ProcessorArchitecture="x64" />
+    <Properties>
+        <DisplayName>Python Install Manager</DisplayName>
+        <PublisherDisplayName>Python Software Foundation</PublisherDisplayName>
+        <Description>Installs and launches Python runtimes.</Description>
+        <Logo>_resources/pythonx50.png</Logo>
+        <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+        <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+        <uap13:AutoUpdate>
+            <uap13:AppInstaller File="pymanager.appinstaller" />
+        </uap13:AutoUpdate>
+        <uap17:UpdateWhileInUse>defer</uap17:UpdateWhileInUse>
+    </Properties>
+    <Resources>
+        <Resource Language="en-US" />
+    </Resources>
+    <Dependencies>
+        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+    </Dependencies>
+    <Capabilities>
+        <rescap:Capability Name="runFullTrust" />
+        <rescap:Capability Name="unvirtualizedResources" />
+    </Capabilities>
+    <Applications>
+        <Application Id="Py.Manager.Exe"
+                     Executable="py-manager.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="console">
+            <uap:VisualElements DisplayName="Python install manager"
+                                Description="Add, remove, list and launch Python runtimes."
+                                Square150x150Logo="_resources/pythonx150.png"
+                                Square44x44Logo="_resources/pythonx44.png"
+                                BackgroundColor="transparent" />
+        </Application>
+        <Application Id="Pyw.Manager.Exe"
+                     Executable="pyw-manager.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="windows">
+            <uap:VisualElements DisplayName="Python install manager (windowed)"
+                                Description="Add, remove and launch Python without creating a console window."
+                                Square150x150Logo="_resources/pythonwx150.png"
+                                Square44x44Logo="_resources/pythonwx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+        </Application>
+
+        <Application Id="Pymanager.Exe"
+                     Executable="pymanager.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="console">
+            <uap:VisualElements DisplayName="Python install manager"
+                                Description="Add, remove, list and launch Python runtimes."
+                                Square150x150Logo="_resources/pythonx150.png"
+                                Square44x44Logo="_resources/pythonx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="console">
+                        <uap5:ExecutionAlias Alias="pymanager.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+            </Extensions>
+        </Application>
+
+        <Application Id="Pywmanager.Exe"
+                     Executable="pywmanager.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="windows">
+            <uap:VisualElements DisplayName="Python install manager (windowed)"
+                                Description="Add, remove and launch Python without creating a console window."
+                                Square150x150Logo="_resources/pythonwx150.png"
+                                Square44x44Logo="_resources/pythonwx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="windows">
+                        <uap5:ExecutionAlias Alias="pywmanager.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+            </Extensions>
+        </Application>
+
+        <Application Id="Py.Exe"
+                     Executable="py.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="console">
+            <uap:VisualElements DisplayName="Python install manager"
+                                Description="Add, remove, list and launch Python runtimes."
+                                Square150x150Logo="_resources/pythonx150.png"
+                                Square44x44Logo="_resources/pythonx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="console">
+                        <uap5:ExecutionAlias Alias="py.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+            </Extensions>
+        </Application>
+        <Application Id="Pyw.Exe"
+                     Executable="pyw.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="windows">
+            <uap:VisualElements DisplayName="Python install manager (windowed)"
+                                Description="Add, remove and launch Python without creating a console window."
+                                Square150x150Logo="_resources/pythonwx150.png"
+                                Square44x44Logo="_resources/pythonwx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="windows">
+                        <uap5:ExecutionAlias Alias="pyw.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+            </Extensions>
+        </Application>
+
+        <Application Id="Python.Exe"
+                     Executable="python.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="console">
+            <uap:VisualElements DisplayName="Python (default)"
+                                Description="Launch your default Python runtime"
+                                Square150x150Logo="_resources/pythonx150.png"
+                                Square44x44Logo="_resources/pythonx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="console">
+                        <uap5:ExecutionAlias Alias="python.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="py">
+                        <uap:DisplayName>Python Script</uap:DisplayName>
+                        <uap:InfoTip>Python Script</uap:InfoTip>
+                        <uap:Logo>_resources/pyx256.png</uap:Logo>
+                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="text/x-python"
+                                          uap4:ShellNewFileName="templates\template.py">.py</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyc">
+                        <uap:DisplayName>Compiled Python Script</uap:DisplayName>
+                        <uap:InfoTip>Compiled Python Script</uap:InfoTip>
+                        <desktop7:Logo>_resources/pyc.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-code">.pyc</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyd">
+                        <uap:DisplayName>Python Extension Module</uap:DisplayName>
+                        <uap:InfoTip>Python Extension Module</uap:InfoTip>
+                        <desktop7:Logo>_resources/pyd.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-pyd">.pyd</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyz">
+                        <uap:DisplayName>Python Application</uap:DisplayName>
+                        <uap:InfoTip>Python Application</uap:InfoTip>
+                        <uap:Logo>_resources/pythonx150.png</uap:Logo>
+                        <desktop7:Logo>_resources/python.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-zipapp">.pyz</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+            </Extensions>
+        </Application>
+
+        <Application Id="Python3.Exe"
+                     Executable="python3.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="console">
+            <uap:VisualElements DisplayName="Python (default)"
+                                Description="Launch your default Python 3 runtime"
+                                Square150x150Logo="_resources/pythonx150.png"
+                                Square44x44Logo="_resources/pythonx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="console">
+                        <uap5:ExecutionAlias Alias="python3.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+            </Extensions>
+        </Application>
+
+        <Application Id="Pythonw.Exe"
+                     Executable="pythonw.exe"
+                     EntryPoint="Windows.FullTrustApplication"
+                     desktop4:SupportsMultipleInstances="true"
+                     desktop4:Subsystem="windows">
+            <uap:VisualElements DisplayName="Python (default windowed)"
+                                Description="Launch your default Python without creating a console window."
+                                Square150x150Logo="_resources/pythonwx150.png"
+                                Square44x44Logo="_resources/pythonwx44.png"
+                                BackgroundColor="transparent"
+                                AppListEntry="none" />
+            <Extensions>
+                <uap5:Extension Category="windows.appExecutionAlias">
+                    <uap5:AppExecutionAlias desktop4:Subsystem="windows">
+                        <uap5:ExecutionAlias Alias="pythonw.exe" />
+                    </uap5:AppExecutionAlias>
+                </uap5:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyw">
+                        <uap:DisplayName>Python Script (Windowed)</uap:DisplayName>
+                        <uap:InfoTip>Python Script (Windowed)</uap:InfoTip>
+                        <uap:Logo>_resources/pyx256.png</uap:Logo>
+                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="text/x-python">.pyw</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyzw">
+                        <uap:DisplayName>Python Application (Windowed)</uap:DisplayName>
+                        <uap:InfoTip>Python Application (Windowed)</uap:InfoTip>
+                        <uap:Logo>_resources/pythonwx150.png</uap:Logo>
+                        <desktop7:Logo>_resources/pythonw.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-zipapp">.pyzw</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+            </Extensions>
+        </Application>
+    </Applications>
+    <Extensions>
+    </Extensions>
+</Package>

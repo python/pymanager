@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller
+    xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+    Version="${Version}"
+    Uri="${Url}/pymanager.appinstaller">
+
+    <MainPackage
+        Name="PythonSoftwareFoundation.PythonManager"
+        Publisher="${Publisher}"
+        Version="${Version}"
+        ProcessorArchitecture="x64"
+        Uri="${Url}/${Filename}" />
+
+    <UpdateSettings>
+        <OnLaunch HoursBetweenUpdateChecks="24"/>
+        <ForceUpdateFromAnyVersion>true</ForceUpdateFromAnyVersion>
+    </UpdateSettings>
+
+</AppInstaller>

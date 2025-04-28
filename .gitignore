@@ -1,0 +1,22 @@
+/bin/
+/build/
+/dist/
+/download/
+/env*/
+/python-manager/
+/pythons/
+
+# Can't seem to stop WiX from creating this directory...
+/src/pymanager/obj
+
+*.exe
+*.pyc
+*.pyd
+*.pdb
+*.so
+*.dylib
+*.msix
+*.appxsym
+*.zip
+*.msi
+__pycache__

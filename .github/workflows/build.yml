@@ -1,0 +1,152 @@
+name: 'Build and Test'
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: true
+  PIP_NO_COLOR: true
+  PIP_NO_INPUT: true
+  PIP_PROGRESS_BAR: off
+  PIP_REQUIRE_VIRTUALENV: false
+  PIP_VERBOSE: true
+  PYMSBUILD_VERBOSE: true
+
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: 'Remove existing PyManager install'
+      run: |
+        # Ensure we aren't currently installed
+        $msix = Get-AppxPackage PythonSoftwareFoundation.PythonManager -EA SilentlyContinue
+        if ($msix) {
+          "Removing $($msix.Name)"
+          Remove-AppxPackage $msix
+        }
+      shell: powershell
+
+    - name: Set up Python 3.14
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.14-dev
+
+    - name: Install build dependencies
+      run: python -m pip install pymsbuild
+
+    - name: 'Install test runner'
+      run: python -m pip install pytest
+
+    - name: 'Build test module'
+      run: python -m pymsbuild -c _msbuild_test.py
+
+    - name: 'Run pre-test'
+      run: python -m pytest -vv
+
+    - name: 'Build package'
+      run: python make.py
+      env:
+        PYMSBUILD_TEMP_DIR: ${{ runner.temp }}/bin
+        PYMSBUILD_DIST_DIR: ${{ runner.temp }}/dist
+        PYMSBUILD_LAYOUT_DIR: ${{ runner.temp }}/layout
+        TEST_MSIX_DIR: ${{ runner.temp }}/test_msix
+
+    - name: 'Build MSIX package'
+      run: python make-msix.py
+      env:
+        PYMSBUILD_TEMP_DIR: ${{ runner.temp }}/bin
+        PYMSBUILD_DIST_DIR: ${{ runner.temp }}/dist
+        PYMSBUILD_LAYOUT_DIR: ${{ runner.temp }}/layout
+        TEST_MSIX_DIR: ${{ runner.temp }}/test_msix
+
+    - name: 'Build MSI package'
+      run: python make-msi.py
+      env:
+        PYMSBUILD_TEMP_DIR: ${{ runner.temp }}/bin
+        PYMSBUILD_DIST_DIR: ${{ runner.temp }}/dist
+        PYMSBUILD_LAYOUT_DIR: ${{ runner.temp }}/layout
+        TEST_MSIX_DIR: ${{ runner.temp }}/test_msix
+
+    - name: 'Register unsigned MSIX'
+      run: |
+        $msix = dir "${env:PYMSBUILD_DIST_DIR}\*.msix" `
+            | ?{ -not ($_.BaseName -match '.+-store') } `
+            | select -first 1
+        cp $msix "${msix}.zip"
+        Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX_DIR)
+        Add-AppxPackage -Register "${env:TEST_MSIX_DIR}\appxmanifest.xml"
+        Get-AppxPackage PythonSoftwareFoundation.PythonManager
+      env:
+        PYMSBUILD_TEMP_DIR: ${{ runner.temp }}/bin
+        PYMSBUILD_DIST_DIR: ${{ runner.temp }}/dist
+        PYMSBUILD_LAYOUT_DIR: ${{ runner.temp }}/layout
+        TEST_MSIX_DIR: ${{ runner.temp }}/test_msix
+      shell: powershell
+
+    - name: 'Ensure global commands are present'
+      run: |
+        gcm pymanager
+        gcm pywmanager
+        # These are likely present due to the machine configuration,
+        # but we'll check for them anyway.
+        gcm py
+        gcm python
+        gcm pyw
+        gcm pythonw
+
+    - name: 'Show help output'
+      run: pymanager
+
+    - name: 'Install default runtime'
+      run: pymanager install default
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'List installed runtimes'
+      run: pymanager list
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'List installed runtimes (legacy)'
+      run: pymanager --list-paths
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'Launch default runtime'
+      run: pymanager exec -m site
+
+    - name: 'Emulate first launch'
+      run: |
+        $i = (mkdir -force test_installs)
+        ConvertTo-Json @{
+            install_dir="$i";
+            download_dir="$i\_cache";
+            global_dir="$i\_bin";
+        } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
+        pymanager exec
+        if ($?) { pymanager list }
+      env:
+        PYTHON_MANAGER_INCLUDE_UNMANAGED: false
+        PYTHON_MANAGER_CONFIG: .\test-config.json
+        PYMANAGER_DEBUG: true
+
+    - name: 'Offline bundle download and install'
+      run: |
+        pymanager list --online 3 3-32 3-64 3-arm64
+        pymanager install --download .\bundle 3 3-32 3-64 3-arm64
+        pymanager list --source .\bundle
+        pymanager install --source .\bundle 3 3-32 3-64 3-arm64
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'Remove MSIX'
+      run: |
+        Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
+      shell: powershell

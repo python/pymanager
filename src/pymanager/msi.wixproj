@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Project Sdk="WixToolset.Sdk/5.0.1">
+  <PropertyGroup>
+    <DefineConstants>
+      $(DefineConstants);
+      version=$(Version);
+      pythondllname=$(PythonDLLName);
+      pydsuffix=$(PydSuffix);
+    </DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="5.*" />
+    <LinkerBindInputPaths Include="$(LayoutDir)" />
+  </ItemGroup>
+</Project>

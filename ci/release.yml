@@ -196,7 +196,7 @@ jobs:
     displayName: Publish distribution artifacts
 
   - ${{ if eq(parameters.PostTest, 'true') }}:
-    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+    - ${{ if eq(parameters.Sign, 'true') }}:
       - powershell: |
           $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
           Add-AppxPackage $msix
@@ -279,7 +279,7 @@ jobs:
         Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
       displayName: 'Remove MSIX'
 
-  - ${{ if and(eq(parameters.Publish, 'true'), or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true'))) }}:
+  - ${{ if and(eq(parameters.Publish, 'true'), eq(parameters.Sign, 'true')) }}:
     - powershell: |
         Write-Host "TODO: Publish packages"
       displayName: 'TODO: Publish packages'

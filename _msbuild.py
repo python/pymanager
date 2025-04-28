@@ -228,17 +228,24 @@ def get_commands():
 
 
 def _make_xyzw_version(v, sep="."):
+    """Calculate a suitable x.y.z.w version from our user-friendly version.
+
+    For MSIX in the Microsoft Store, the fourth field must be 0.
+
+    For MSI, the first field must be <256.
+
+    If the explicit version contains a non-zero field 3, it will override the
+    one that is calculated from prerelease markers.
+    """
     from packaging.version import parse
     v = parse(v)
-    if not v.pre:
-        return "{0}{4}{1}{4}{2}{4}{3}".format(v.major, v.minor, v.micro, 0xF0, sep)
-    return "{0}{4}{1}{4}{2}{4}{3}".format(
-        v.major,
-        v.minor,
-        v.micro,
-        {"a": 0xA0, "b": 0xB0, "rc": 0xC0}.get(v.pre[0].lower(), 0) | v.pre[1],
-        sep,
-    )
+    micro = 0xF0
+    if v.pre:
+        micro = {"a": 0xA0, "b": 0xB0, "rc": 0xC0}.get(v.pre[0].lower(), 0) | v.pre[1]
+    if v.micro:
+        print("[WARNING]Overriding calculated version field 3 with", v)
+        micro = v.micro
+    return sep.join(map(str, (v.major, v.minor, micro, 0)))
 
 
 def _patch_appx_identity(source, dest, **new):

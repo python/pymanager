@@ -11,7 +11,7 @@
 
     <MediaTemplate EmbedCab="yes" />
 
-    <Icon Id="ARPIcon" SourceFile="_resources\python.ico" />
+    <Icon Id="ARPIcon" SourceFile="setup.ico" />
     <Property Id="ARPPRODUCTICON" Value="ARPIcon" />
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="DISABLEADVTSHORTCUTS" Value="1" />

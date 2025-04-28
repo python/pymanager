@@ -45,8 +45,8 @@
                      desktop4:Subsystem="console">
             <uap:VisualElements DisplayName="Python install manager"
                                 Description="Add, remove, list and launch Python runtimes."
-                                Square150x150Logo="_resources/pythonx150.png"
-                                Square44x44Logo="_resources/pythonx44.png"
+                                Square150x150Logo="_resources/setupx150.png"
+                                Square44x44Logo="_resources/setupx44.png"
                                 BackgroundColor="transparent" />
         </Application>
         <Application Id="Pyw.Manager.Exe"
@@ -56,8 +56,8 @@
                      desktop4:Subsystem="windows">
             <uap:VisualElements DisplayName="Python install manager (windowed)"
                                 Description="Add, remove and launch Python without creating a console window."
-                                Square150x150Logo="_resources/pythonwx150.png"
-                                Square44x44Logo="_resources/pythonwx44.png"
+                                Square150x150Logo="_resources/setupx150.png"
+                                Square44x44Logo="_resources/setupx44.png"
                                 BackgroundColor="transparent"
                                 AppListEntry="none" />
         </Application>

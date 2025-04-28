@@ -79,7 +79,7 @@ build manager for Windows for CPython.
 
 Copyright © 2025 Python Software Foundation.  All rights reserved.
 
-See the `LICENSE <https://github.com/python/pymanager/blob/main/LICENSE>`_ for
+See the [LICENSE](https://github.com/python/pymanager/blob/main/LICENSE) for
 information on the history of this software, terms & conditions for usage, and a
 DISCLAIMER OF ALL WARRANTIES.
 

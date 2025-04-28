@@ -75,6 +75,18 @@ the release schedule is "as needed".
 The release manager for the Python Install Manager on Windows is whoever is the
 build manager for Windows for CPython.
 
+## Versioning
+
+PyManager uses the two digit year as the first part of the version,
+with the second part incrementing for each release.
+This is to avoid any sense of features being tied to the version number,
+and to avoid any direct association with Python releases.
+
+The two digit year is used because MSI does not support major version fields
+over 256. If/when we completely drop the MSI, we could switch to four digit
+years, but as long as it exists we have to handle its compatibility constraints.
+
+
 # Copyright and License Information
 
 Copyright © 2025 Python Software Foundation.  All rights reserved.

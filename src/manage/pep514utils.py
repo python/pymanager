@@ -201,6 +201,7 @@ def _is_tag_managed(company_key, tag_name, *, creating=False):
             except PermissionError:
                 LOGGER.debug("Failed to rename %s to %s", orig_name, new_name,
                              exc_info=True)
+                # Continue, hopefully the next new_name is available
             except OSError:
                 LOGGER.debug("Unexpected error while renaming %s to %s",
                              orig_name, new_name, exc_info=True)

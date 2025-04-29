@@ -1,5 +1,4 @@
 import os
-import sys
 from pymsbuild import *
 from pymsbuild.dllpack import *
 
@@ -25,7 +24,7 @@ METADATA = {
         "Sources, https://github.com/python/pymanager",
         "Issues, https://github.com/python/pymanager",
     ],
-    "Summary": "Proof of concept for Python install manager app",
+    "Summary": "The Python Install Manager app",
     "Description": File("README.md"),
     "Description-Content-Type": "text/markdown",
     "Keywords": "python,install,manager",

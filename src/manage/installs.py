@@ -210,13 +210,17 @@ def get_matching_install_tags(
     # If none or only prereleases, keep them all
     if default_platform:
         default_platform = default_platform.casefold()
+        all_pre = all(Version(i["sort-version"]).is_prerelease for i, t in best)
         best2 = best
         best = [(i, t) for i, t in best
                 if i.get("__any-platform")
                 or t["tag"].casefold().endswith(default_platform)]
         LOGGER.debug("default_platform '%s' matched %s %s", default_platform,
                      len(best), "install" if len(best) == 1 else "installs")
-        if not best or all(Version(i["sort-version"]).is_prerelease for i, t in best):
+        if (
+            not best or
+            (not all_pre and all(Version(i["sort-version"]).is_prerelease for i, t in best))
+        ):
             LOGGER.debug("Reusing unfiltered list")
             best = best2
 

@@ -6,10 +6,10 @@ from manage import installs
 
 
 def make_install(tag, **kwargs):
-    run_for = [
-        {"tag": tag, "target": kwargs.get("target", "python.exe")},
-        {"tag": tag, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1},
-    ]
+    run_for = []
+    for t in kwargs.get("run_for", [tag]):
+        run_for.append({"tag": t, "target": kwargs.get("target", "python.exe")})
+        run_for.append({"tag": t, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1})
 
     return {
         "company": kwargs.get("company", "PythonCore"),
@@ -40,9 +40,9 @@ def fake_get_installs(install_dir):
 
 def fake_get_installs2(install_dir):
     yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1")
-    yield make_install("3.0a1-64", sort_version="3.0a1")
-    yield make_install("3.0a1-arm64", sort_version="3.0a1")
+    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3-32", "3.0-32", "3.0a1-32"])
+    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3-64", "3.0-64", "3.0a1-64"])
+    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3-arm64", "3.0-arm64", "3.0a1-arm64"])
 
 
 def fake_get_unmanaged_installs():
@@ -159,6 +159,15 @@ def test_get_install_to_run_with_default_platform_prerelease(patched_installs2):
     assert i["id"] == "PythonCore-1.0-32"
     i = installs.get_install_to_run("<none>", None, None, default_platform="-arm64")
     assert i["id"] == "PythonCore-1.0-32"
+
+
+def test_get_install_to_run_with_platform_prerelease(patched_installs2):
+    i = installs.get_install_to_run("<none>", None, "3", default_platform="-32")
+    assert i["id"] == "PythonCore-3.0a1-32"
+    i = installs.get_install_to_run("<none>", None, "3-32", default_platform="-64")
+    assert i["id"] == "PythonCore-3.0a1-32"
+    i = installs.get_install_to_run("<none>", None, "3-32", default_platform="-arm64")
+    assert i["id"] == "PythonCore-3.0a1-32"
 
 
 def test_get_install_to_run_with_range(patched_installs):

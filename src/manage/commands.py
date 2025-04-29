@@ -22,7 +22,7 @@ LOGGER = logging.LOGGER
 # or check out the docs for administrative controls:
 #    https://docs.python.org/using/windows
 DEFAULT_SOURCE_URL = "https://www.python.org/ftp/python/index-windows.json"
-DEFAULT_TAG = "3.14-dev"
+DEFAULT_TAG = "3.14"
 
 
 COPYRIGHT = f"""Python installation manager {__version__}

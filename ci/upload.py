@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from urllib import Request, urlopen
+from urllib.request import Request, urlopen
 from xml.etree import ElementTree as ET
 
 UPLOAD_URL_PREFIX = os.getenv("UPLOAD_URL_PREFIX", "https://www.python.org/ftp/")

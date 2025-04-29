@@ -3,8 +3,6 @@
 #
 # This build can run for every commit, as by default it does no signing.
 # When run manually, signing should be enabled.
-#
-# Releases must be uploaded manually - the 'Publish' option has no effect.
 
 name: $(Date:yyyyMMdd).$(Rev:r)
 

@@ -180,4 +180,6 @@ def test_select_package():
         ],
     })
     assert select_package([index], "3.13", "-64")["tag"] == "3.13.0-64"
+    assert select_package([index], "3.13-32", "-64")["tag"] == "3.13.0-32"
     assert select_package([index], "3.13", "-32")["tag"] == "3.13.0-32"
+    assert select_package([index], "3.13-64", "-32")["tag"] == "3.13.0-64"

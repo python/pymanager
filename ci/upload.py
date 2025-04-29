@@ -2,6 +2,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from urllib import Request, urlopen
 from xml.etree import ElementTree as ET
 
 UPLOAD_URL_PREFIX = os.getenv("UPLOAD_URL_PREFIX", "https://www.python.org/ftp/")
@@ -76,7 +77,7 @@ def _run(*args):
 
 
 def call_ssh(*args, allow_fail=True):
-    if not UPLOAD_HOST or NO_UPLOAD or LOCAL_INDEX:
+    if not UPLOAD_HOST or NO_UPLOAD:
         print("Skipping", args, "because UPLOAD_HOST is missing")
         return
     try:
@@ -87,7 +88,7 @@ def call_ssh(*args, allow_fail=True):
 
 
 def upload_ssh(source, dest):
-    if not UPLOAD_HOST or NO_UPLOAD or LOCAL_INDEX:
+    if not UPLOAD_HOST or NO_UPLOAD:
         print("Skipping upload of", source, "because UPLOAD_HOST is missing")
         return
     _run(*_std_args(PSCP), source, f"{UPLOAD_USER}@{UPLOAD_HOST}:{dest}")
@@ -103,7 +104,7 @@ def download_ssh(source, dest):
 
 
 def ls_ssh(dest):
-    if not UPLOAD_HOST or LOCAL_INDEX:
+    if not UPLOAD_HOST:
         print("Skipping ls of", dest, "because UPLOAD_HOST is missing")
         return
     try:
@@ -120,8 +121,6 @@ def url2path(url):
     if not url:
         raise ValueError("Unexpected empty URL")
     if not url.startswith(UPLOAD_URL_PREFIX):
-        if LOCAL_INDEX:
-            return url
         raise ValueError(f"Unexpected URL: {url}")
     return UPLOAD_PATH_PREFIX + url[len(UPLOAD_URL_PREFIX) :]
 

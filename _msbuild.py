@@ -83,6 +83,7 @@ NATIVE_PYD = DllPackage(
     CFunction('fd_supports_vt100'),
     CFunction('date_as_str'),
     CFunction('datetime_as_str'),
+    CFunction('reg_rename_key'),
     source='src/_native',
     RootNamespace='_native',
 )

@@ -95,4 +95,28 @@ PyObject *datetime_as_str(PyObject *, PyObject *, PyObject *) {
     return PyUnicode_FromWideChar(buffer, cch - 1);
 }
 
+PyObject *reg_rename_key(PyObject *, PyObject *args, PyObject *kwargs) {
+    static const char * keywords[] = {"handle", "name1", "name2", NULL};
+    PyObject *handle_obj;
+    wchar_t *name1 = NULL;
+    wchar_t *name2 = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO&O&:reg_rename_key", keywords,
+        &handle_obj, as_utf16, &name1, as_utf16, &name2)) {
+        return NULL;
+    }
+    PyObject *r = NULL;
+    HKEY h;
+    if (PyLong_AsNativeBytes(handle_obj, &h, sizeof(h), -1) >= 0) {
+        int err = (int)RegRenameKey(h, name1, name2);
+        if (!err) {
+            r = Py_GetConstant(Py_CONSTANT_NONE);
+        } else {
+            PyErr_SetFromWindowsErr(err);
+        }
+    }
+    PyMem_Free(name1);
+    PyMem_Free(name2);
+    return r;
+}
+
 }

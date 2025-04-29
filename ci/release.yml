@@ -280,11 +280,12 @@ jobs:
       displayName: 'Remove MSIX'
 
   - ${{ if eq(parameters.Publish, 'true') }}:
-    - task: DownloadSecureFile@1
-      name: sshkey
-      inputs:
-        secureFile: pydotorg-ssh.ppk
-      displayName: 'Download PuTTY key'
+    - ${{ if eq(parameters.Sign, 'true') }}:
+      - task: DownloadSecureFile@1
+        name: sshkey
+        inputs:
+          secureFile: pydotorg-ssh.ppk
+        displayName: 'Download PuTTY key'
 
     - powershell: |
         git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"

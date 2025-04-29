@@ -55,6 +55,8 @@ jobs:
 
     - name: 'Upload coverage'
       uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_ORG_TOKEN }}
 
     - name: 'Build package'
       run: python make.py

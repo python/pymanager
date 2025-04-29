@@ -279,7 +279,30 @@ jobs:
         Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
       displayName: 'Remove MSIX'
 
-  - ${{ if and(eq(parameters.Publish, 'true'), eq(parameters.Sign, 'true')) }}:
+  - ${{ if eq(parameters.Publish, 'true') }}:
+    - task: DownloadSecureFile@1
+      name: sshkey
+      inputs:
+        secureFile: pydotorg-ssh.ppk
+      displayName: 'Download PuTTY key'
+
     - powershell: |
-        Write-Host "TODO: Publish packages"
-      displayName: 'TODO: Publish packages'
+        git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
+        "##vso[task.prependpath]$(gi putty)"
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: 'Download PuTTY binaries'
+
+    - powershell: |
+        python ci\upload.py
+      displayName: 'Publish packages'
+      env:
+        UPLOAD_URL: $(PyDotOrgUrlPrefix)python/pymanager
+        UPLOAD_DIR: $(DIST_DIR)
+        UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
+        UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
+        UPLOAD_HOST: $(PyDotOrgServer)
+        UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
+        UPLOAD_USER: $(PyDotOrgUsername)
+        UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+        ${{ if ne(parameters.Sign, 'true') }}:
+          NO_UPLOAD: 1

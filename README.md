@@ -1,5 +1,7 @@
 # Python Install Manager
 
+[![Codecov](https://codecov.io/gh/python/pymanager/graph/badge.svg)](https://codecov.io/gh/python/pymanager)
+
 This is the source code for the Python Install Manager app.
 
 For information about how to use the Python install manager,

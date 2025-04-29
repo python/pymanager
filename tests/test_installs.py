@@ -120,7 +120,7 @@ def test_get_install_to_run_with_platform(patched_installs):
     assert i["executable"].match("python.exe")
 
 
-def test_get_install_to_run_with_platform(patched_installs):
+def test_get_install_to_run_with_platform_windowed(patched_installs):
     i = installs.get_install_to_run("<none>", None, "1.0-32", windowed=True)
     assert i["id"] == "PythonCore-1.0-32"
     assert i["executable"].match("pythonw.exe")

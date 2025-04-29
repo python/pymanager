@@ -55,10 +55,22 @@ shortcut_create(PyObject *, PyObject *args, PyObject *kwargs)
         err_SetFromWindowsErrWithMessage(hr, "Setting shortcut icon");
         goto done;
     }
-    if (FAILED(hr = lnk->QueryInterface(&persist)) ||
-        FAILED(hr = persist->Save(path, 0))) {
-        err_SetFromWindowsErrWithMessage(hr, "Writing shortcut");
+    if (FAILED(hr = lnk->QueryInterface(&persist))) {
+        err_SetFromWindowsErrWithMessage(hr, "Getting persist interface");
         goto done;
+    }
+    // gh-15: Apparently ERROR_USER_MAPPED_FILE can occur here, which suggests
+    // contention on the file. We should be able to sleep and retry to handle it
+    // in most cases.
+    for (int retries = 5; retries; --retries) {
+        if (SUCCEEDED(hr = persist->Save(path, 0))) {
+            break;
+        }
+        if (retries == 1 || hr != HRESULT_FROM_WIN32(ERROR_USER_MAPPED_FILE)) {
+            err_SetFromWindowsErrWithMessage(hr, "Writing shortcut");
+            goto done;
+        }
+        Sleep(10);
     }
 
     r = Py_NewRef(Py_None);

@@ -1,3 +1,15 @@
 [build-system]
 requires = ['pymsbuild>=1.1.1,<2.0']
 build-backend = "pymsbuild"
+
+[tool.coverage.run]
+branch = true
+disable_warnings = [
+  "no-sysmon",
+]
+omit = [
+  "src/manage/__main__.py",
+]
+
+[tool.coverage.html]
+show_contexts = true

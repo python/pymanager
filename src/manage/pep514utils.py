@@ -136,7 +136,7 @@ def _update_reg_values(key, data, install, exclude=set()):
             winreg.SetValueEx(key, k, None, v_kind, v)
 
 
-def _is_tag_managed(company_key, tag_name):
+def _is_tag_managed(company_key, tag_name, *, creating=False):
     try:
         tag = winreg.OpenKey(company_key, tag_name)
     except FileNotFoundError:
@@ -147,7 +147,69 @@ def _is_tag_managed(company_key, tag_name):
                 return True
         except FileNotFoundError:
             pass
-    return False
+        if not creating:
+            return False
+
+        # gh-11: Clean up invalid entries from other installers
+        # It's highly likely that our old MSI installer wouldn't properly remove
+        # its registry keys on uninstall, so we'll check for the InstallPath
+        # subkey and if it's missing, back up the key and then use it ourselves.
+        try:
+            with _reg_open(tag, "InstallPath") as subkey:
+                if subkey:
+                    # if InstallPath refers to a directory that exists,
+                    # leave it alone.
+                    p = winreg.QueryValueEx(subkey, None)[0]
+                    if p and Path(p).exists():
+                        return False
+        except FileNotFoundError:
+            pass
+        except OSError:
+            # If we couldn't access it for some reason, leave it alone.
+            return False
+
+    # Existing key is almost certainly not valid, so let's rename it,
+    # warn the user, and then continue.
+    LOGGER.debug("Key %s appears invalid, so moving it and taking it for this "
+                 "new install", tag_name)
+    try:
+        from _native import reg_rename_key
+    except ImportError:
+        LOGGER.debug("Failed to import reg_rename_key", exc_info=True)
+        return False
+
+    parent_name, _, orig_name = tag_name.replace("/", "\\").rpartition("\\")
+    with _reg_open(company_key, parent_name, writable=True) as tag:
+        if not tag:
+            # Key is no longer there, so we can use it
+            return True
+        for i in range(1000):
+            try:
+                new_name = f"{orig_name}.{i}"
+                # Raises standard PermissionError (5) if new_name exists
+                reg_rename_key(tag.handle, orig_name, new_name)
+                LOGGER.warn("An existing registry key for %s was renamed to %s "
+                            "because it appeared to be invalid. If this is "
+                            "correct, the registry key can be safely deleted. "
+                            "To avoid this in future, ensure that the "
+                            "InstallPath key refers to a valid path.",
+                            tag_name, new_name)
+                break
+            except FileNotFoundError:
+                LOGGER.debug("Original key disappeared, so we will claim it")
+                return True
+            except PermissionError:
+                LOGGER.debug("Failed to rename %s to %s", orig_name, new_name,
+                             exc_info=True)
+            except OSError:
+                LOGGER.debug("Unexpected error while renaming %s to %s",
+                             orig_name, new_name, exc_info=True)
+                raise
+        else:
+            LOGGER.warn("Attempted to clean up invalid registry key %s but "
+                        "failed after too many attempts.", tag_name);
+            return False
+        return True
 
 
 def _split_root(root_name):
@@ -166,7 +228,7 @@ def _split_root(root_name):
 def update_registry(root_name, install, data):
     hive, name = _split_root(root_name)
     with winreg.CreateKey(hive, name) as root:
-        if _is_tag_managed(root, data["Key"]):
+        if _is_tag_managed(root, data["Key"], creating=True):
             with winreg.CreateKey(root, data["Key"]) as tag:
                 LOGGER.debug("Creating/updating %s\\%s", root_name, data["Key"])
                 winreg.SetValueEx(tag, "ManagedByPyManager", None, winreg.REG_DWORD, 1)

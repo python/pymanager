@@ -519,18 +519,16 @@ class BaseCommand:
         else:
             usage_docs = PYMANAGER_USAGE_DOCS
 
-        usage_docs.extend(
-            [
-                (
-                    f"{EXE_NAME} " + getattr(COMMANDS[cmd], "USAGE_LINE", cmd),
-                    getattr(COMMANDS[cmd], "HELP_LINE", "")
-                )
-                for cmd in sorted(COMMANDS)
-                if cmd[:1].isalpha()
-            ]
-        )
+        usage_docs = usage_docs + [
+            (
+                f"{EXE_NAME} " + getattr(COMMANDS[cmd], "USAGE_LINE", cmd),
+                getattr(COMMANDS[cmd], "HELP_LINE", "")
+            )
+            for cmd in sorted(COMMANDS)
+            if cmd[:1].isalpha()
+        ]
 
-        usage_docs = [("    " + x.lstrip(), y) for x, y in usage_docs]
+        usage_docs = [(f"    {x.lstrip()}", y) for x, y in usage_docs]
 
         usage_ljust = max(len(logging.strip_colour(i[0])) for i in usage_docs if not i[0].endswith("\n"))
         if usage_ljust % 4:
@@ -555,8 +553,8 @@ class BaseCommand:
                 LOGGER.print(r)
 
         LOGGER.print()
-        # TODO: Remove the 3.14 for stable release
-        LOGGER.print("Find additional information at !B!https://docs.python.org/3.14/using/windows!W!.")
+        # TODO: Remove the /dev/ for stable release
+        LOGGER.print("Find additional information at !B!https://docs.python.org/dev/using/windows!W!.")
         LOGGER.print()
 
     @classmethod

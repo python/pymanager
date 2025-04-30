@@ -299,7 +299,7 @@ stages:
           # We don't want the Store MSIX on python.org, so just delete it
           # It's already been archived in the earlier publish step, and is bundled
           # into the .msixupload file.
-          del "$(UPLOAD_DIR)\*-store.msix" -ErrorAction SilentlyContinue
+          del "${env:UPLOAD_DIR}\*-store.msix" -ErrorAction SilentlyContinue
           python ci\upload.py
         displayName: 'Publish packages'
         env:

@@ -1,6 +1,15 @@
 import os
 import sys
 
+# For convenient changing in the future. With a bit of luck, we will always
+# depend on this constant dynamically, and so could update it at runtime, but
+# don't assume that if you're adding that feature!
+# Note that this only applies to deliberate formatting tasks. In general, we
+# write entire lines of text unwrapped and let the console handle it, but some
+# tasks (e.g. progress bars, tables) need to know the width.
+CONSOLE_MAX_WIDTH = 80
+
+
 DEBUG = 10
 VERBOSE = 15
 INFO = 20
@@ -174,8 +183,10 @@ LOGGER = Logger()
 
 
 class ProgressPrinter:
-    def __init__(self, operation, maxwidth=80):
+    def __init__(self, operation, maxwidth=...):
         self.operation = operation or "Progress"
+        if maxwidth is ...:
+            maxwidth = CONSOLE_MAX_WIDTH
         self.width = maxwidth - 3 - len(self.operation)
         self._dots_shown = 0
         self._started = False

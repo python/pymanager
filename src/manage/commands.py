@@ -33,15 +33,53 @@ Copyright (c) Python Software Foundation. All Rights Reserved.
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 """
 
+# The 'py help' or 'pymanager help' output is constructed by these default docs,
+# with individual subcommand docs added in usage_text_lines().
+#
+# Descriptive text (tuple element 1) will be aligned and rewrapped across all
+# commands.
+#
+# Where a command summary (tuple element 0) ends with a newline, it allows the
+# wrapping algorithm to start the description on the following line if the
+# command is too long.
+PY_USAGE_DOCS = [
+    (f"{EXE_NAME} !B!<regular Python options>!W!\n",
+     "Launch the default runtime with specified options. " +
+     "This is the equivalent of the !G!python!W! command."),
+    (f"{EXE_NAME} -V:!B!<TAG>!W!",
+     "Launch runtime identified by !B!<TAG>!W!, which should include the " +
+     "company name if not !B!PythonCore!W!. Regular Python options may " +
+     "follow this option."),
+    (f"{EXE_NAME} -3!B!<VERSION>!W!",
+     r"Equivalent to -V:PythonCore\3!B!<VERSION>!W!. The version must begin " +
+     "with the digit 3, platform overrides are permitted, and regular Python " +
+     "options may follow. " +
+     "!G!py -3!W! is the equivalent of the !G!python3!W! command."),
+]
 
-# The help text of subcommands is generated below - look for 'subcommands_list'
 
-GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options:!W!
+PYMANAGER_USAGE_DOCS = [
+    (f"{EXE_NAME} exec !B!<regular Python options>!W!\n",
+     "Launch the default runtime with specified options, installing it if needed. " +
+     "This is the equivalent of the !G!python!W! command, but with auto-install."),
+    (f"{EXE_NAME} exec -V:!B!<TAG>!W!",
+     "Launch runtime identified by !B!<TAG>!W!, which should include the " +
+     "company name if not !B!PythonCore!W!. Regular Python options may " +
+     "follow this option. The runtime will be installed if needed."),
+    (f"{EXE_NAME} exec -3!B!<VERSION>!W!\n",
+     r"Equivalent to -V:PythonCore\3!B!<VERSION>!W!. The version must begin " +
+     "with a '3', platform overrides are permitted, and regular Python " +
+     "options may follow. The runtime will be installed if needed."),
+]
+
+
+GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must come after a command)!W!
     -v, --verbose    Increased output (!B!log_level={logging.INFO}!W!)
     -vv              Further increased output (!B!log_level={logging.DEBUG}!W!)
     -q, --quiet      Less output (!B!log_level={logging.WARN}!W!)
     -qq              Even less output (!B!log_level={logging.ERROR}!W!)
     -y, --yes        Always confirm prompts (!B!confirm=false!W!)
+    -h, -?, --help   Show help for a specific command
     --config=!B!<PATH>!W!  Override configuration with JSON file
 """
 
@@ -476,35 +514,40 @@ class BaseCommand:
 
     @classmethod
     def usage_text_lines(cls):
-        usage_docs = [
-            (f"    {EXE_NAME} -V:!B!<TAG>!W!",
-             "Launch runtime identified by !B!<TAG>!W!, which should include the " +
-             "company name if not !B!PythonCore!W!. Regular Python options may " +
-             "follow this option."),
-            (f"    {EXE_NAME} -!B!<VERSION>!W!",
-             r"Equivalent to -V:PythonCore\!B!<VERSION>!W!. The version must " +
-             "begin with the digit 3, platform overrides are permitted, " +
-             "and regular Python options may follow." +
-             (" !G!py -3!W! is the equivalent of the !G!python3!W! command." if EXE_NAME == "py" else "")),
-            (f"    {EXE_NAME} !B!<COMMAND>!W!",
-             "Run a specific command (see list below)."),
-        ]
+        if EXE_NAME.casefold() in ("py".casefold(), "pyw".casefold()):
+            usage_docs = PY_USAGE_DOCS
+        else:
+            usage_docs = PYMANAGER_USAGE_DOCS
 
-        usage_ljust = max(len(logging.strip_colour(i[0])) for i in usage_docs)
+        usage_docs.extend(
+            [
+                (
+                    f"{EXE_NAME} " + getattr(COMMANDS[cmd], "USAGE_LINE", cmd),
+                    getattr(COMMANDS[cmd], "HELP_LINE", "")
+                )
+                for cmd in sorted(COMMANDS)
+                if cmd[:1].isalpha()
+            ]
+        )
+
+        usage_docs = [("    " + x.lstrip(), y) for x, y in usage_docs]
+
+        usage_ljust = max(len(logging.strip_colour(i[0])) for i in usage_docs if not i[0].endswith("\n"))
         if usage_ljust % 4:
             usage_ljust += 4 - (usage_ljust % 4)
         usage_ljust = max(usage_ljust, 16) + 1
         sp = " " * usage_ljust
 
         yield "!G!Usage:!W!"
-        if EXE_NAME.casefold() in ("py".casefold(), "pyw".casefold()):
-            yield f"    {EXE_NAME} !B!<regular Python options>!W!"
-            yield sp + "Launch the default runtime with specified options."
-            yield sp + "This is the equivalent of the !G!python!W! command."
         for k, d in usage_docs:
-            r = k.ljust(usage_ljust + len(k) - len(logging.strip_colour(k)))
+            if k.endswith("\n") and len(logging.strip_colour(k)) >= usage_ljust:
+                yield k.rstrip()
+                r = sp
+            else:
+                k = k.rstrip()
+                r = k.ljust(usage_ljust + len(k) - len(logging.strip_colour(k)))
             for b in d.split(" "):
-                if len(r) >= 80:
+                if len(r) >= logging.CONSOLE_MAX_WIDTH:
                     yield r.rstrip()
                     r = sp
                 r += b + " "
@@ -512,28 +555,13 @@ class BaseCommand:
                 yield r
 
         yield ""
-        yield "Find additional information at !B!https://docs.python.org/using/windows.html!W!."
+        # TODO: Remove the 3.14 for stable release
+        yield "Find additional information at !B!https://docs.python.org/3.14/using/windows!W!."
         yield ""
 
     @classmethod
     def usage_text(cls):
         return "\n".join(cls.usage_text_lines())
-
-    @classmethod
-    def subcommands_list(cls):
-        usage_ljust = len(EXE_NAME) + 1 + max(len(cmd) for cmd in sorted(COMMANDS) if cmd[:1].isalpha())
-        if usage_ljust % 4:
-            usage_ljust += 4 - (usage_ljust % 4)
-        usage_ljust = max(usage_ljust, 16)
-        cmd_help = [
-            "    {:<{}} {}".format(f"{EXE_NAME} {cmd}", usage_ljust, getattr(COMMANDS[cmd], "HELP_LINE", ""))
-            for cmd in sorted(COMMANDS)
-            if cmd[:1].isalpha()
-        ]
-        return fr"""
-!G!Commands:!W!
-{'\n'.join(cmd_help)}
-""".lstrip().replace("\r\n", "\n")
 
     @classmethod
     def help_text(cls):
@@ -542,7 +570,6 @@ class BaseCommand:
     def help(self):
         if type(self) is BaseCommand:
             LOGGER.print(self.usage_text())
-            LOGGER.print(self.subcommands_list())
         LOGGER.print(self.help_text())
         try:
             LOGGER.print(self.HELP_TEXT.lstrip())
@@ -616,7 +643,9 @@ class BaseCommand:
 
 class ListCommand(BaseCommand):
     CMD = "list"
-    HELP_LINE = "Shows all installed Python runtimes"
+    HELP_LINE = ("Shows installed Python runtimes, optionally filtering by " +
+                 "!B!<FILTER>!W!.")
+    USAGE_LINE = "list !B![<FILTER>]!W!"
     HELP_TEXT = r"""!G!List command!W!
 > py list !B![options] [<FILTER> ...]!W!
 
@@ -691,7 +720,9 @@ class ListPathsLegacyCommand(ListLegacyCommand):
 
 class InstallCommand(BaseCommand):
     CMD = "install"
-    HELP_LINE = "Download new Python runtimes"
+    HELP_LINE = ("Download new Python runtimes, or pass !B!--update!W! to " +
+                 "update existing installs.")
+    USAGE_LINE = "install !B!<TAG>!W!"
     HELP_TEXT = r"""!G!Install command!W!
 > py install !B![options] <TAG> [<TAG>] ...!W!
 
@@ -768,7 +799,9 @@ class InstallCommand(BaseCommand):
 
 class UninstallCommand(BaseCommand):
     CMD = "uninstall"
-    HELP_LINE = "Remove runtimes from your machine"
+    HELP_LINE = ("Remove one or more runtimes from your machine. Pass " +
+                 "!B!--purge!W! to clean up all runtimes and cached files.")
+    USAGE_LINE = "uninstall !B!<TAG>!W!"
     HELP_TEXT = r"""!G!Uninstall command!W!
 > py uninstall !B![options] <TAG> [<TAG>] ...!W!
 
@@ -809,6 +842,7 @@ class UninstallCommand(BaseCommand):
 class HelpCommand(BaseCommand):
     CMD = "help"
     HELP_LINE = "Show help for Python installation manager commands"
+    USAGE_LINE = "help !B![<CMD>]!W!"
     HELP_TEXT = r"""!G!Help command!W!
 > py help !B![<CMD>] ...!W!
 
@@ -824,7 +858,6 @@ class HelpCommand(BaseCommand):
         self.show_welcome(copyright=False)
         if not self.args:
             LOGGER.print(BaseCommand.usage_text())
-            LOGGER.print(BaseCommand.subcommands_list())
         LOGGER.print(BaseCommand.help_text())
         for a in self.args:
             try:
@@ -846,7 +879,6 @@ class HelpWithErrorCommand(HelpCommand):
         LOGGER.print(COPYRIGHT)
         self.show_welcome(copyright=False)
         LOGGER.print(BaseCommand.usage_text())
-        LOGGER.print(BaseCommand.subcommands_list())
         LOGGER.print(f"The command !R!{EXE_NAME} {' '.join(self.args)}!W! was not recognized.")
 
 

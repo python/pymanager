@@ -513,7 +513,7 @@ class BaseCommand:
         raise NotImplementedError(f"'{type(self).__name__}' does not implement 'execute()'")
 
     @classmethod
-    def usage_text_lines(cls):
+    def show_usage(cls):
         if EXE_NAME.casefold() in ("py".casefold(), "pyw".casefold()):
             usage_docs = PY_USAGE_DOCS
         else:
@@ -538,30 +538,26 @@ class BaseCommand:
         usage_ljust = max(usage_ljust, 16) + 1
         sp = " " * usage_ljust
 
-        yield "!G!Usage:!W!"
+        LOGGER.print("!G!Usage:!W!")
         for k, d in usage_docs:
             if k.endswith("\n") and len(logging.strip_colour(k)) >= usage_ljust:
-                yield k.rstrip()
+                LOGGER.print(k.rstrip())
                 r = sp
             else:
                 k = k.rstrip()
                 r = k.ljust(usage_ljust + len(k) - len(logging.strip_colour(k)))
             for b in d.split(" "):
                 if len(r) >= logging.CONSOLE_MAX_WIDTH:
-                    yield r.rstrip()
+                    LOGGER.print(r.rstrip())
                     r = sp
                 r += b + " "
             if r.rstrip():
-                yield r
+                LOGGER.print(r)
 
-        yield ""
+        LOGGER.print()
         # TODO: Remove the 3.14 for stable release
-        yield "Find additional information at !B!https://docs.python.org/3.14/using/windows!W!."
-        yield ""
-
-    @classmethod
-    def usage_text(cls):
-        return "\n".join(cls.usage_text_lines())
+        LOGGER.print("Find additional information at !B!https://docs.python.org/3.14/using/windows!W!.")
+        LOGGER.print()
 
     @classmethod
     def help_text(cls):
@@ -569,7 +565,7 @@ class BaseCommand:
 
     def help(self):
         if type(self) is BaseCommand:
-            LOGGER.print(self.usage_text())
+            self.show_usage()
         LOGGER.print(self.help_text())
         try:
             LOGGER.print(self.HELP_TEXT.lstrip())
@@ -857,7 +853,7 @@ class HelpCommand(BaseCommand):
         LOGGER.print(COPYRIGHT)
         self.show_welcome(copyright=False)
         if not self.args:
-            LOGGER.print(BaseCommand.usage_text())
+            self.show_usage()
         LOGGER.print(BaseCommand.help_text())
         for a in self.args:
             try:
@@ -884,7 +880,7 @@ class HelpWithErrorCommand(HelpCommand):
         LOGGER.print(f"!R!Unknown command: {' '.join(args)}!W!")
         LOGGER.print(COPYRIGHT)
         self.show_welcome(copyright=False)
-        LOGGER.print(BaseCommand.usage_text())
+        self.show_usage()
         LOGGER.print(f"The command !R!{' '.join(args)}!W! was not recognized.")
 
 

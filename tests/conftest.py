@@ -21,6 +21,10 @@ import manage
 manage.EXE_NAME = "pymanager-pytest"
 
 
+import manage.commands
+manage.commands.WELCOME = ""
+
+
 from manage.logging import LOGGER, DEBUG
 LOGGER.level = DEBUG
 

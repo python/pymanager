@@ -247,13 +247,14 @@ def get_install_to_run(
     if not installs:
         raise NoInstallsError
 
-    if not tag:
+    if not tag or tag.casefold() == "default".casefold():
         # We know we want default, so try filtering first. If any are explicitly
         # tagged (e.g. active venv), they will be the only candidates.
         # Otherwise, we'll do a regular search as if 'default_tag' was provided.
         default_installs = [i for i in installs if i.get("default")]
         if default_installs:
             installs = default_installs
+            tag = None
         else:
             tag = tag_or_range(default_tag)
         used_default = True

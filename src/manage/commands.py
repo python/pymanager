@@ -55,6 +55,9 @@ PY_USAGE_DOCS = [
      "with the digit 3, platform overrides are permitted, and regular Python " +
      "options may follow. " +
      "!G!py -3!W! is the equivalent of the !G!python3!W! command."),
+    (f"{EXE_NAME} exec !B!<any of the above>!W!\n",
+     "Equivalent to any of the above launch options, and the requested runtime " +
+     "will be installed if needed."),
 ]
 
 
@@ -519,14 +522,19 @@ class BaseCommand:
         else:
             usage_docs = PYMANAGER_USAGE_DOCS
 
-        usage_docs = usage_docs + [
-            (
-                f"{EXE_NAME} " + getattr(COMMANDS[cmd], "USAGE_LINE", cmd),
-                getattr(COMMANDS[cmd], "HELP_LINE", "")
-            )
-            for cmd in sorted(COMMANDS)
-            if cmd[:1].isalpha()
-        ]
+        usage_docs = list(usage_docs)
+        for cmd in sorted(COMMANDS):
+            if not cmd[:1].isalpha():
+                continue
+            try:
+                usage_docs.append(
+                    (
+                        f"{EXE_NAME} " + getattr(COMMANDS[cmd], "USAGE_LINE", cmd),
+                        COMMANDS[cmd].HELP_LINE
+                    )
+                )
+            except AttributeError:
+                pass
 
         usage_docs = [(f"    {x.lstrip()}", y) for x, y in usage_docs]
 
@@ -637,10 +645,12 @@ class BaseCommand:
 
 class ListCommand(BaseCommand):
     CMD = "list"
-    HELP_LINE = ("Shows installed Python runtimes, optionally filtering by " +
+    HELP_LINE = ("Show installed Python runtimes, optionally filtering by " +
                  "!B!<FILTER>!W!.")
     USAGE_LINE = "list !B![<FILTER>]!W!"
     HELP_TEXT = r"""!G!List command!W!
+Shows installed Python runtimes, optionally filtered or formatted.
+
 > py list !B![options] [<FILTER> ...]!W!
 
 !G!Options:!W!
@@ -718,6 +728,8 @@ class InstallCommand(BaseCommand):
                  "update existing installs.")
     USAGE_LINE = "install !B!<TAG>!W!"
     HELP_TEXT = r"""!G!Install command!W!
+Downloads new Python runtimes and sets up shortcuts and other registration.
+
 > py install !B![options] <TAG> [<TAG>] ...!W!
 
 !G!Options:!W!
@@ -797,12 +809,16 @@ class UninstallCommand(BaseCommand):
                  "!B!--purge!W! to clean up all runtimes and cached files.")
     USAGE_LINE = "uninstall !B!<TAG>!W!"
     HELP_TEXT = r"""!G!Uninstall command!W!
+Removes one or more runtimes from your machine.
+
 > py uninstall !B![options] <TAG> [<TAG>] ...!W!
 
 !G!Options:!W!
-    --purge          Remove all runtimes, shortcuts, and cached files. Ignores tags.
-    --by-id          Require TAG to exactly match the install ID. (For advanced use.)
-    !B!<TAG> <TAG>!W! ...  One or more runtimes to uninstall (Company\Tag format)
+    --purge         Remove all runtimes, shortcuts, and cached files. Ignores tags.
+    --by-id         Require TAG to exactly match the install ID. (For advanced use.)
+    !B!<TAG> <TAG>!W! ... One or more runtimes to uninstall (Company\Tag format)
+                    Each tag will only remove a single runtime, even if it matches
+                    more than one.
 
 !B!EXAMPLE:!W! Uninstall Python 3.12 32-bit
 > py uninstall 3.12-32
@@ -838,6 +854,8 @@ class HelpCommand(BaseCommand):
     HELP_LINE = "Show help for Python installation manager commands"
     USAGE_LINE = "help !B![<CMD>]!W!"
     HELP_TEXT = r"""!G!Help command!W!
+Shows help for specific commands.
+
 > py help !B![<CMD>] ...!W!
 
 !G!Options:!W!
@@ -880,6 +898,36 @@ class HelpWithErrorCommand(HelpCommand):
         self.show_welcome(copyright=False)
         self.show_usage()
         LOGGER.print(f"The command !R!{' '.join(args)}!W! was not recognized.")
+
+
+# This command exists solely to provide help.
+# When it is specified, it gets handled in main.cpp
+class ExecCommand(BaseCommand):
+    CMD = "exec"
+    HELP_TEXT = f"""!G!Execute command!W!
+Launches the specified (or default) runtime. This command is optional when
+launching through !G!py!W!, as the default behaviour is to launch a runtime.
+When used explicitly, this command will automatically install the requested
+runtime if it is not available.
+
+> {EXE_NAME} exec -V:!B!<TAG>!W! ...
+> {EXE_NAME} exec -3!B!<VERSION>!W! ...
+> {EXE_NAME} exec ...
+> py [ -V:!B!<TAG>!W! | -3!B!<VERSION>!W! ] ...
+
+!G!Options:!W!
+    -V:!B!<TAG>!W!        Launch runtime identified by !B!<TAG>!W!, which should include
+                    the company name if not !B!PythonCore!W!. Regular Python options
+                    may follow this option. The runtime will be installed if needed.
+    -3!B!<VERSION>!W!     Equivalent to -V:PythonCore\3!B!<VERSION>!W!. The version must
+                    begin with a '3', platform overrides are permitted, and regular
+                    Python options may follow. The runtime will be installed if needed.
+"""
+
+    def __init__(self, args, root=None):
+        # Essentially disable argument processing for this command
+        super().__init__(args[:1], root)
+        self.args = args[1:]
 
 
 class DefaultConfig(BaseCommand):

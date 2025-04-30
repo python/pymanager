@@ -49,263 +49,267 @@ variables:
     OVERRIDE_REF: refs/tags/${{ parameters.OverrideRef }}
 
 
-jobs:
-- job: Build
+stages:
+- stage: PyManagerRelease
+  displayName: 'PyManager Release'
 
-  pool:
-    vmImage: 'windows-latest'
+  jobs:
+  - job: Build
 
-  variables:
-  - ${{ if eq(parameters.Sign, 'true') }}:
-    - group: CPythonSign
-  - ${{ if eq(parameters.TestSign, 'true') }}:
-    - group: CPythonTestSign
-  - ${{ if eq(parameters.Publish, 'true') }}:
-    - group: PythonOrgPublish
+    pool:
+      vmImage: 'windows-latest'
+
+    variables:
+    - ${{ if eq(parameters.Sign, 'true') }}:
+      - group: CPythonSign
+    - ${{ if eq(parameters.TestSign, 'true') }}:
+      - group: CPythonTestSign
+    - ${{ if eq(parameters.Publish, 'true') }}:
+      - group: PythonOrgPublish
 
 
-  steps:
-  - checkout: self
-
-  - powershell: |
-      # Ensure we aren't currently installed
-      $msix = Get-AppxPackage PythonSoftwareFoundation.PythonManager -EA SilentlyContinue
-      if ($msix) {
-        Remove-AppxPackage $msix
-      }
-    displayName: 'Remove existing PyManager install'
-
-  - task: NugetToolInstaller@0
-    displayName: 'Install Nuget'
-
-  - powershell: |
-      nuget install -o host_python -x -noninteractive -prerelease python
-      Write-Host "##vso[task.prependpath]$(gi host_python\python\tools)"
-    displayName: 'Install host Python'
-    workingDirectory: $(Build.BinariesDirectory)
-
-  - powershell: |
-      python -m pip install pymsbuild
-    displayName: 'Install build dependencies'
-
-  - ${{ if eq(parameters.PreTest, 'true') }}:
-    - powershell: |
-        python -m pip install pytest
-      displayName: 'Install test runner'
+    steps:
+    - checkout: self
 
     - powershell: |
-        python -m pymsbuild -c _msbuild_test.py
-      displayName: 'Build test module'
+        # Ensure we aren't currently installed
+        $msix = Get-AppxPackage PythonSoftwareFoundation.PythonManager -EA SilentlyContinue
+        if ($msix) {
+          Remove-AppxPackage $msix
+        }
+      displayName: 'Remove existing PyManager install'
+
+    - task: NugetToolInstaller@0
+      displayName: 'Install Nuget'
 
     - powershell: |
-        python -m pytest -vv
-      displayName: 'Run pre-test'
-
-  - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-    - powershell: |
-        dotnet tool install --global --prerelease sign
-        cd (mkdir -Force signing)
-        "*.exe", "*.pyd" | Out-File -Encoding UTF8 "signlist1.txt"
-        Write-Host "##vso[task.setvariable variable=SIGNLIST1]$(gi signlist1.txt)"
-        "*.msix" | Out-File -Encoding UTF8 "signlist2.txt"
-        Write-Host "##vso[task.setvariable variable=SIGNLIST2]$(gi signlist2.txt)"
-        "*.msi" | Out-File -Encoding UTF8 "signlist3.txt"
-        Write-Host "##vso[task.setvariable variable=SIGNLIST3]$(gi signlist3.txt)"
-      displayName: 'Install signing tool and generate files'
+        nuget install -o host_python -x -noninteractive -prerelease python
+        Write-Host "##vso[task.prependpath]$(gi host_python\python\tools)"
+      displayName: 'Install host Python'
       workingDirectory: $(Build.BinariesDirectory)
 
-  - powershell: |
-      python make.py
-    displayName: 'Build package'
-    env:
-      PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
-      PYMSBUILD_DIST_DIR: $(DIST_DIR)
-      ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+    - powershell: |
+        python -m pip install pymsbuild
+      displayName: 'Install build dependencies'
 
-  - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-    - powershell: >
-        dir -r *.exe, *.pyd | %{
-        sign code trusted-signing "$_"
-        -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-        -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-        -d "PyManager $(Build.BuildNumber)"
-        -fl $env:SIGNLIST1
-        }
-      displayName: 'Sign binaries'
-      workingDirectory: $(LAYOUT_DIR)
-      env:
-        AZURE_CLIENT_ID: $(TrustedSigningClientId)
-        AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-        AZURE_TENANT_ID: $(TrustedSigningTenantId)
-
-  - powershell: |
-      python make-msix.py
-    displayName: 'Build MSIX package'
-    env:
-      PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
-      PYMSBUILD_DIST_DIR: $(DIST_DIR)
-      ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
-      PYMANAGER_APPX_STORE_PUBLISHER: 'CN=4975D53F-AA7E-49A5-8B49-EA4FDC1BB66B'
-
-  - powershell: |
-      python make-msi.py
-    displayName: 'Build MSI package'
-    env:
-      PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
-      PYMSBUILD_DIST_DIR: $(DIST_DIR)
-      ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
-
-  - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-    - powershell: >
-        dir *.msix | %{
-        sign code trusted-signing "$_"
-        -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-        -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-        -d "PyManager $(Build.BuildNumber)"
-        -fl $env:SIGNLIST2
-        }
-      displayName: 'Sign MSIX package'
-      workingDirectory: $(DIST_DIR)
-      env:
-        AZURE_CLIENT_ID: $(TrustedSigningClientId)
-        AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-        AZURE_TENANT_ID: $(TrustedSigningTenantId)
-
-    - powershell: >
-        dir *.msi | %{
-        sign code trusted-signing "$_"
-        -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-        -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-        -d "PyManager $(Build.BuildNumber)"
-        -fl $env:SIGNLIST3
-        }
-      displayName: 'Sign MSI package'
-      workingDirectory: $(DIST_DIR)
-      env:
-        AZURE_CLIENT_ID: $(TrustedSigningClientId)
-        AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-        AZURE_TENANT_ID: $(TrustedSigningTenantId)
-
-  - publish: $(DIST_DIR)
-    artifact: dist
-    displayName: Publish distribution artifacts
-
-  - ${{ if eq(parameters.PostTest, 'true') }}:
-    - ${{ if eq(parameters.Sign, 'true') }}:
+    - ${{ if eq(parameters.PreTest, 'true') }}:
       - powershell: |
-          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
-          Add-AppxPackage $msix
-          Get-AppxPackage PythonSoftwareFoundation.PythonManager
-        displayName: 'Install signed MSIX'
+          python -m pip install pytest
+        displayName: 'Install test runner'
 
-    - ${{ else }}:
       - powershell: |
-          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
-          cp $msix "${msix}.zip"
-          Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
-          Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
-          Get-AppxPackage PythonSoftwareFoundation.PythonManager
-        displayName: 'Register unsigned MSIX'
+          python -m pymsbuild -c _msbuild_test.py
+        displayName: 'Build test module'
+
+      - powershell: |
+          python -m pytest -vv
+        displayName: 'Run pre-test'
+
+    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+      - powershell: |
+          dotnet tool install --global --prerelease sign
+          cd (mkdir -Force signing)
+          "*.exe", "*.pyd" | Out-File -Encoding UTF8 "signlist1.txt"
+          Write-Host "##vso[task.setvariable variable=SIGNLIST1]$(gi signlist1.txt)"
+          "*.msix" | Out-File -Encoding UTF8 "signlist2.txt"
+          Write-Host "##vso[task.setvariable variable=SIGNLIST2]$(gi signlist2.txt)"
+          "*.msi" | Out-File -Encoding UTF8 "signlist3.txt"
+          Write-Host "##vso[task.setvariable variable=SIGNLIST3]$(gi signlist3.txt)"
+        displayName: 'Install signing tool and generate files'
+        workingDirectory: $(Build.BinariesDirectory)
+
+    - powershell: |
+        python make.py
+      displayName: 'Build package'
+      env:
+        PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
+        PYMSBUILD_DIST_DIR: $(DIST_DIR)
+        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+
+    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+      - powershell: >
+          dir -r *.exe, *.pyd | %{
+          sign code trusted-signing "$_"
+          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
+          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
+          -d "PyManager $(Build.BuildNumber)"
+          -fl $env:SIGNLIST1
+          }
+        displayName: 'Sign binaries'
+        workingDirectory: $(LAYOUT_DIR)
         env:
-          TEST_MSIX: $(TEST_MSIX_DIR)
+          AZURE_CLIENT_ID: $(TrustedSigningClientId)
+          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
+          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
     - powershell: |
-        gcm pymanager
-        gcm pywmanager
-        # These are likely present due to the machine configuration,
-        # but we'll check for them anyway.
-        gcm py
-        gcm python
-        gcm pyw
-        gcm pythonw
-      displayName: 'Ensure global commands are present'
-
-    - powershell: |
-        pymanager
-      displayName: 'Show help output'
-
-    - powershell: |
-        pymanager install -vv default
-      displayName: 'Install default runtime'
+        python make-msix.py
+      displayName: 'Build MSIX package'
       env:
-        PYMANAGER_DEBUG: true
+        PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
+        PYMSBUILD_DIST_DIR: $(DIST_DIR)
+        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+        PYMANAGER_APPX_STORE_PUBLISHER: 'CN=4975D53F-AA7E-49A5-8B49-EA4FDC1BB66B'
 
     - powershell: |
-        pymanager list
-      displayName: 'List installed runtimes'
+        python make-msi.py
+      displayName: 'Build MSI package'
       env:
-        PYMANAGER_DEBUG: true
+        PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
+        PYMSBUILD_DIST_DIR: $(DIST_DIR)
+        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
-    - powershell: |
-        pymanager --list-paths
-      displayName: 'List installed runtimes (legacy)'
-      env:
-        PYMANAGER_DEBUG: true
+    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+      - powershell: >
+          dir *.msix | %{
+          sign code trusted-signing "$_"
+          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
+          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
+          -d "PyManager $(Build.BuildNumber)"
+          -fl $env:SIGNLIST2
+          }
+        displayName: 'Sign MSIX package'
+        workingDirectory: $(DIST_DIR)
+        env:
+          AZURE_CLIENT_ID: $(TrustedSigningClientId)
+          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
+          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
-    - powershell: |
-        pymanager exec -m site
-      displayName: 'Launch default runtime'
+      - powershell: >
+          dir *.msi | %{
+          sign code trusted-signing "$_"
+          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
+          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
+          -d "PyManager $(Build.BuildNumber)"
+          -fl $env:SIGNLIST3
+          }
+        displayName: 'Sign MSI package'
+        workingDirectory: $(DIST_DIR)
+        env:
+          AZURE_CLIENT_ID: $(TrustedSigningClientId)
+          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
+          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
-    - powershell: |
-        $i = (mkdir -force test_installs)
-        ConvertTo-Json @{
-            install_dir="$i";
-            download_dir="$i\_cache";
-            global_dir="$i\_bin";
-        } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
-        pymanager exec
-        if ($?) { pymanager list }
-      displayName: 'Emulate first launch'
-      env:
-        PYTHON_MANAGER_INCLUDE_UNMANAGED: false
-        PYTHON_MANAGER_CONFIG: .\test-config.json
-        PYMANAGER_DEBUG: true
+    - publish: $(DIST_DIR)
+      artifact: dist
+      displayName: Publish distribution artifacts
 
-    - powershell: |
-        pymanager list --online 3 3-32 3-64 3-arm64
-        pymanager install --download .\bundle 3 3-32 3-64 3-arm64
-        pymanager list --source .\bundle
-        pymanager install --source .\bundle 3 3-32 3-64 3-arm64
-      displayName: 'Offline bundle download and install'
-      env:
-        PYMANAGER_DEBUG: true
+    - ${{ if eq(parameters.PostTest, 'true') }}:
+      - ${{ if eq(parameters.Sign, 'true') }}:
+        - powershell: |
+            $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+            Add-AppxPackage $msix
+            Get-AppxPackage PythonSoftwareFoundation.PythonManager
+          displayName: 'Install signed MSIX'
 
-    - powershell: |
-        Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
-      displayName: 'Remove MSIX'
+      - ${{ else }}:
+        - powershell: |
+            $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+            cp $msix "${msix}.zip"
+            Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
+            Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
+            Get-AppxPackage PythonSoftwareFoundation.PythonManager
+          displayName: 'Register unsigned MSIX'
+          env:
+            TEST_MSIX: $(TEST_MSIX_DIR)
 
-  - ${{ if eq(parameters.Publish, 'true') }}:
-    - ${{ if eq(parameters.Sign, 'true') }}:
-      - task: DownloadSecureFile@1
-        name: sshkey
-        inputs:
-          secureFile: pydotorg-ssh.ppk
-        displayName: 'Download PuTTY key'
+      - powershell: |
+          gcm pymanager
+          gcm pywmanager
+          # These are likely present due to the machine configuration,
+          # but we'll check for them anyway.
+          gcm py
+          gcm python
+          gcm pyw
+          gcm pythonw
+        displayName: 'Ensure global commands are present'
 
-    - powershell: |
-        git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
-        "##vso[task.prependpath]$(gi putty)"
-      workingDirectory: $(Pipeline.Workspace)
-      displayName: 'Download PuTTY binaries'
+      - powershell: |
+          pymanager
+        displayName: 'Show help output'
 
-    - powershell: |
-        # We don't want the Store MSIX on python.org, so just delete it
-        # It's already been archived in the earlier publish step, and is bundled
-        # into the .msixupload file.
-        del "$(UPLOAD_DIR)\*-store.msix" -ErrorAction SilentlyContinue
-        python ci\upload.py
-      displayName: 'Publish packages'
-      env:
-        UPLOAD_URL: $(PyDotOrgUrlPrefix)python/pymanager
-        UPLOAD_DIR: $(DIST_DIR)
-        UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
-        UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
-        UPLOAD_HOST: $(PyDotOrgServer)
-        UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
-        UPLOAD_USER: $(PyDotOrgUsername)
-        UPLOAD_KEYFILE: $(sshkey.secureFilePath)
-        ${{ if ne(parameters.Sign, 'true') }}:
-          NO_UPLOAD: 1
+      - powershell: |
+          pymanager install -vv default
+        displayName: 'Install default runtime'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager list
+        displayName: 'List installed runtimes'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager --list-paths
+        displayName: 'List installed runtimes (legacy)'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager exec -m site
+        displayName: 'Launch default runtime'
+
+      - powershell: |
+          $i = (mkdir -force test_installs)
+          ConvertTo-Json @{
+              install_dir="$i";
+              download_dir="$i\_cache";
+              global_dir="$i\_bin";
+          } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
+          pymanager exec
+          if ($?) { pymanager list }
+        displayName: 'Emulate first launch'
+        env:
+          PYTHON_MANAGER_INCLUDE_UNMANAGED: false
+          PYTHON_MANAGER_CONFIG: .\test-config.json
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager list --online 3 3-32 3-64 3-arm64
+          pymanager install --download .\bundle 3 3-32 3-64 3-arm64
+          pymanager list --source .\bundle
+          pymanager install --source .\bundle 3 3-32 3-64 3-arm64
+        displayName: 'Offline bundle download and install'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
+        displayName: 'Remove MSIX'
+
+    - ${{ if eq(parameters.Publish, 'true') }}:
+      - ${{ if eq(parameters.Sign, 'true') }}:
+        - task: DownloadSecureFile@1
+          name: sshkey
+          inputs:
+            secureFile: pydotorg-ssh.ppk
+          displayName: 'Download PuTTY key'
+
+      - powershell: |
+          git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
+          "##vso[task.prependpath]$(gi putty)"
+        workingDirectory: $(Pipeline.Workspace)
+        displayName: 'Download PuTTY binaries'
+
+      - powershell: |
+          # We don't want the Store MSIX on python.org, so just delete it
+          # It's already been archived in the earlier publish step, and is bundled
+          # into the .msixupload file.
+          del "$(UPLOAD_DIR)\*-store.msix" -ErrorAction SilentlyContinue
+          python ci\upload.py
+        displayName: 'Publish packages'
+        env:
+          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/pymanager
+          UPLOAD_DIR: $(DIST_DIR)
+          UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
+          UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
+          UPLOAD_HOST: $(PyDotOrgServer)
+          UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
+          UPLOAD_USER: $(PyDotOrgUsername)
+          UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+          ${{ if ne(parameters.Sign, 'true') }}:
+            NO_UPLOAD: 1

@@ -25,11 +25,31 @@ from manage.logging import LOGGER, DEBUG
 LOGGER.level = DEBUG
 
 class LogCaptureHandler(list):
+    def skip_until(self, pattern, args=()):
+        return ('until', pattern, args)
+
     def __call__(self, *cmp):
-        for x, y in zip(self, cmp):
-            assert re.match(y[0], x[0])
-            assert x[1] == y[1]
-        assert len(self) == len(cmp)
+        it1 = iter(self)
+        for y in cmp:
+            if not isinstance(y, tuple):
+                op, pat, args = None, y, []
+            elif len(y) == 3:
+                op, pat, args = y
+            elif len(y) == 2:
+                op = None
+                pat, args = y
+
+            while True:
+                try:
+                    x = next(it1)
+                except StopIteration:
+                    pytest.fail(f"Not enough elements were logged looking for {pat}")
+                if op == 'until' and not re.match(pat, x[0]):
+                    continue
+                assert re.match(pat, x[0])
+                assert tuple(x[1]) == tuple(args)
+                break
+
 
 @pytest.fixture
 def assert_log():

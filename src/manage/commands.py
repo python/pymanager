@@ -874,12 +874,18 @@ class HelpCommand(BaseCommand):
 class HelpWithErrorCommand(HelpCommand):
     CMD = "__help_with_error"
 
+    def __init__(self, args, root=None):
+        # Essentially disable argument processing for this command
+        super().__init__(args[:1], root)
+        self.args = args[1:]
+
     def execute(self):
-        LOGGER.print(f"!R!Unknown command: {EXE_NAME} {' '.join(self.args)}!W!")
+        args = [EXE_NAME, *self.args]
+        LOGGER.print(f"!R!Unknown command: {' '.join(args)}!W!")
         LOGGER.print(COPYRIGHT)
         self.show_welcome(copyright=False)
         LOGGER.print(BaseCommand.usage_text())
-        LOGGER.print(f"The command !R!{EXE_NAME} {' '.join(self.args)}!W! was not recognized.")
+        LOGGER.print(f"The command !R!{' '.join(args)}!W! was not recognized.")
 
 
 class DefaultConfig(BaseCommand):

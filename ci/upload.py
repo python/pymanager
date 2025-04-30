@@ -199,3 +199,6 @@ for f, u, p in UPLOADS:
     upload_ssh(f, p)
     print("Purge", u)
     purge(u)
+
+# Purge the upload directory so that the FTP browser is up to date
+purge(UPLOAD_URL)

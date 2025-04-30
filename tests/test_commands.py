@@ -16,3 +16,8 @@ def test_help_with_error_command(assert_log, monkeypatch):
         r"Python installation manager \d+\.\d+.*",
         assert_log.skip_until(rf"The command .*?pymanager-pytest {expect} -v -q.*"),
     )
+
+
+def test_exec_with_literal_default():
+    cmd = commands.load_default_config(None)
+    assert cmd.get_install_to_run("default", None)

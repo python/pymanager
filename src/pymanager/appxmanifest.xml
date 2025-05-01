@@ -197,7 +197,7 @@
                 <com:Extension Category="windows.comServer">
                     <com:ComServer>
                         <com:SurrogateServer AppId="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand">
-                            <com:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" Path="pyshellext.dll" ThreadingModel="both"/>
+                            <com:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" Path="pyshellext.dll" ThreadingModel="Both"/>
                         </com:SurrogateServer>
                     </com:ComServer>
                 </com:Extension>

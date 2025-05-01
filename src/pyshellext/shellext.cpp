@@ -84,9 +84,12 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM 
             break;
         }
 
-        IdleData data = {
-            .title = std::wstring(L"IDLE ") + name
-        };
+        IdleData data;
+
+        err = RegReadStr(hkTag, L"DisplayName", data.title);
+        if (err) {
+            data.title = std::wstring(L"Python ") + name;
+        }
 
         err = RegReadStr(hkInstall, L"WindowedExecutablePath", data.exe);
         if (err == ERROR_FILE_NOT_FOUND || err == ERROR_INVALID_DATA) {

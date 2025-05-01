@@ -189,7 +189,10 @@ def format_bare_prefix(cmd, installs):
 
 def format_bare_url(cmd, installs):
     for i in installs:
-        print(i["url"])
+        try:
+            print(i["url"])
+        except KeyError:
+            pass
 
 
 def format_legacy(cmd, installs, paths=False):

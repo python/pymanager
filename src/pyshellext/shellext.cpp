@@ -59,26 +59,26 @@ static LRESULT RegReadStr(HKEY key, LPCWSTR valueName, std::wstring& result)
 }
 
 
-static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM flags)
+static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hkPython, LPCWSTR company, REGSAM flags)
 {
-    HKEY hkPythonCore = NULL, hkTag = NULL, hkInstall = NULL;
+    HKEY hkCompany = NULL, hkTag = NULL, hkInstall = NULL;
     LSTATUS err = RegOpenKeyExW(
-        hive,
-        L"Software\\Python\\PythonCore",
+        hkPython,
+        company,
         0,
         KEY_READ | flags,
-        &hkPythonCore
+        &hkCompany
     );
 
     for (DWORD i = 0; !err && i < 64; ++i) {
-        wchar_t name[128];
+        wchar_t name[512];
         DWORD cchName = sizeof(name) / sizeof(name[0]);
-        err = RegEnumKeyExW(hkPythonCore, i, name, &cchName, NULL, NULL, NULL, NULL);
+        err = RegEnumKeyExW(hkCompany, i, name, &cchName, NULL, NULL, NULL, NULL);
         if (!err) {
-            err = RegOpenKeyExW(hkPythonCore, name, 0, KEY_READ, &hkTag);
+            err = RegOpenKeyExW(hkCompany, name, 0, KEY_READ | flags, &hkTag);
         }
         if (!err) {
-            err = RegOpenKeyExW(hkTag, L"InstallPath", 0, KEY_READ, &hkInstall);
+            err = RegOpenKeyExW(hkTag, L"InstallPath", 0, KEY_READ | flags, &hkInstall);
         }
         if (err) {
             break;
@@ -111,12 +111,15 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM 
 
         err = RegReadStr(hkInstall, L"IdlePath", data.idle);
         if (err == ERROR_FILE_NOT_FOUND || err == ERROR_INVALID_DATA) {
-            err = RegReadStr(hkInstall, NULL, data.idle);
-            if (!err) {
-                if (data.idle.back() != L'\\') {
-                    data.idle += L"\\Lib\\idlelib\\idle.pyw";
-                } else {
-                    data.idle += L"Lib\\idlelib\\idle.pyw";
+            if (0 == wcsicmp(company, L"PythonCore")) {
+                // Only use fallback logic for PythonCore
+                err = RegReadStr(hkInstall, NULL, data.idle);
+                if (!err) {
+                    if (data.idle.back() != L'\\') {
+                        data.idle += L"\\Lib\\idlelib\\idle.pyw";
+                    } else {
+                        data.idle += L"Lib\\idlelib\\idle.pyw";
+                    }
                 }
             }
         }
@@ -129,7 +132,9 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM 
         RegCloseKey(hkTag);
         hkTag = NULL;
 
-        if (GetFileAttributesW(data.exe.c_str()) != INVALID_FILE_ATTRIBUTES
+        if (!data.exe.empty()
+            && !data.idle.empty()
+            && GetFileAttributesW(data.exe.c_str()) != INVALID_FILE_ATTRIBUTES
             && GetFileAttributesW(data.idle.c_str()) != INVALID_FILE_ATTRIBUTES) {
             idles.push_back(data);
         }
@@ -140,13 +145,38 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM 
     if (hkTag) {
         RegCloseKey(hkTag);
     }
-    if (hkPythonCore) {
-        RegCloseKey(hkPythonCore);
+    if (hkCompany) {
+        RegCloseKey(hkCompany);
     }
     if (err && err != ERROR_NO_MORE_ITEMS && err != ERROR_FILE_NOT_FOUND) {
         return HRESULT_FROM_WIN32(err);
     }
     return S_OK;
+}
+
+static HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM flags)
+{
+    HKEY hkPython = NULL;
+    HRESULT hr = S_OK;
+    LSTATUS err = RegOpenKeyExW(hive, L"Software\\Python", 0, KEY_READ | flags, &hkPython);
+
+    for (DWORD i = 0; !err && hr == S_OK && i < 64; ++i) {
+        wchar_t name[512];
+        DWORD cchName = sizeof(name) / sizeof(name[0]);
+        err = RegEnumKeyExW(hkPython, i, name, &cchName, NULL, NULL, NULL, NULL);
+        if (!err) {
+            hr = ReadIdleInstalls(idles, hkPython, name, flags);
+        }
+    }
+
+    if (hkPython) {
+        RegCloseKey(hkPython);
+    }
+
+    if (err && err != ERROR_NO_MORE_ITEMS && err != ERROR_FILE_NOT_FOUND) {
+        return HRESULT_FROM_WIN32(err);
+    }
+    return hr;
 }
 
 class DECLSPEC_UUID(CLSID_LAUNCH_COMMAND) LaunchCommand
@@ -319,12 +349,12 @@ public:
             iconPath += L",-4";
         }
 
-        hr = ReadIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY);
+        hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY);
         if (SUCCEEDED(hr)) {
-            hr = ReadIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY);
+            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY);
         }
         if (SUCCEEDED(hr)) {
-            hr = ReadIdleInstalls(idles, HKEY_CURRENT_USER, 0);
+            hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, 0);
         }
 
         if (FAILED(hr)) {

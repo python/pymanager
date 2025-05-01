@@ -1,6 +1,7 @@
 import pytest
 import secrets
 from manage import commands
+from manage.exceptions import NoInstallsError
 
 
 def test_pymanager_help_command(assert_log):
@@ -46,4 +47,11 @@ def test_help_with_error_command(assert_log):
 
 def test_exec_with_literal_default():
     cmd = commands.load_default_config(None)
-    assert cmd.get_install_to_run("default", None)
+    try:
+        assert cmd.get_install_to_run("default", None)
+    except ValueError:
+        # This is our failure case!
+        raise
+    except NoInstallsError:
+        # This is also an okay result, if the default runtime isn't installed
+        pass

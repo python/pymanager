@@ -322,6 +322,7 @@ def init_METADATA():
     fileversion = _make_xyzw_version(METADATA["Version"], ",")
     for vi in PACKAGE.findall("**/VersionInfo"):
         vi.from_metadata(METADATA)
+        vi.options["LegalCopyright"] = "Copyright (c) Python Software Foundation. All Rights Reserved."
         vi.options["FILEVERSION"] = fileversion
 
 

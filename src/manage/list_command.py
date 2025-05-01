@@ -139,12 +139,22 @@ CSV_EXPAND = ["run-for", "alias"]
 
 def _csv_filter_and_expand(installs):
     for i in installs:
-        i = {k: v for k, v in i.items() if k not in CSV_EXCLUDE}
-        to_expand = {k: i.pop(k, ()) for k in CSV_EXPAND}
-        yield i
-        for k2, vlist in to_expand.items():
-            for vv in vlist:
-                yield {f"{k2}.{k}": v for k, v in vv.items()}
+        filtered = {}
+        to_expand = {k: [] for k in CSV_EXPAND}
+        for k, v in i.items():
+            if k in CSV_EXCLUDE:
+                continue
+            elif k in to_expand:
+                for vv in v:
+                    expanded = {f"{k}.{k2}": vvv for k2, vvv in vv.items()}
+                    to_expand[k].append(expanded)
+            else:
+                filtered[k] = v
+
+        yield filtered
+        for k in CSV_EXPAND:
+            for expanded in to_expand[k]:
+                yield filtered | expanded
 
 
 def format_csv(cmd, installs):
@@ -152,9 +162,7 @@ def format_csv(cmd, installs):
     installs = list(_csv_filter_and_expand(installs))
     if not installs:
         return
-    s = set()
-    columns = [c for i in installs for c in i
-               if c not in s and (s.add(c) or True)]
+    columns = list(dict.fromkeys(col for i in installs for col in i))
     writer = csv.DictWriter(sys.stdout, columns)
     writer.writeheader()
     writer.writerows(installs)

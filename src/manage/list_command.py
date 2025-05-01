@@ -251,7 +251,8 @@ def execute(cmd):
         LOGGER.debug("Get formatter %s", cmd.format)
         formatter = FORMATTERS[cmd.format]
     except LookupError:
-        expect = ", ".join(sorted(FORMATTERS))
+        formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
+        expect = ", ".join(sorted(formatters))
         raise ArgumentError(f"'{cmd.format}' is not a valid format; expect one of: {expect}") from None
 
     from .tagutils import tag_or_range, install_matches_any

@@ -44,6 +44,11 @@
       <File Source="vcruntime140.dll" />
       <File Source="vcruntime140_1.dll" />
 
+      <File Source="pyshellext.dll">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
+               Context="InprocServer32" ThreadingModel="apartment" />
+      </File>
+
       <File Source="version.txt" />
       <Environment Id="PATH" Action="set" Name="PATH" Part="last" System="yes" Value="[INSTALLFOLDER]" />
 
@@ -56,6 +61,11 @@
             <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
+      <RegistryValue Root="HKCR" Key="Python.File\shell\EditWithIDLE"
+                     Name="ExplorerCommandHandler"
+                     Value="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}"
+                     Type="string" />
+
       <ProgId Id="Python.NoConFile" Description="Python Script (Windowed)" Advertise="no" Icon="py.ico">
         <Extension Id="pyw" ContentType="text/x-python">
             <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />

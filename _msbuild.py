@@ -202,6 +202,28 @@ PACKAGE = Package('python-manager',
     mainw_exe("pythonw"),
     main_exe("python3"),
     mainw_exe("pythonw3"),
+
+    CProject("pyshellext",
+        VersionInfo(
+            FileDescription="Python shell extension",
+            OriginalFilename="pyshellext.dll",
+        ),
+        Property('DynamicLibcppLinkage', 'true'),
+        ItemDefinition('ClCompile',
+            LanguageStandard='stdcpp20',
+            RuntimeLibrary='MultiThreaded',
+        ),
+        ItemDefinition('Link',
+            AdditionalDependencies=Prepend("RuntimeObject.lib;"),
+            SubSystem='WINDOWS',
+            ModuleDefinitionFile='$(SourceRootDir)src\\pyshellext\\pyshellext.def',
+        ),
+        Manifest('default.manifest'),
+        CSourceFile('shellext.cpp'),
+        ResourceFile('pyshellext.rc'),
+        SourceFile('pyshellext.def'),
+        source='src/pyshellext',
+    )
 )
 
 

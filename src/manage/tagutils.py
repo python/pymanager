@@ -185,7 +185,7 @@ class CompanyTag:
 
     def __add__(self, other):
         if isinstance(other, str):
-            return type(self)(self._company, self.tag + other)
+            return type(self)(self._company, self.tag + self.platform + other)
         return NotImplemented
 
     def match(self, pattern):

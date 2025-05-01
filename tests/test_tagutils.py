@@ -129,3 +129,9 @@ def test_tag_range_company():
     assert not TagRange(r">=Company\3.10").satisfied_by(CompanyTag("OtherCompany", "3.10"))
 
     assert TagRange("=Company\\").satisfied_by(CompanyTag("Company", "3.11"))
+
+
+def test_tag_concatenate():
+    assert CompanyTag("3.13") + "-64" == CompanyTag("3.13-64")
+    assert CompanyTag("3.13-64") + "-64" == CompanyTag("3.13-64-64")
+    assert CompanyTag("3.13-arm64") + "-64" == CompanyTag("3.13-arm64-64")

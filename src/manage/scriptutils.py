@@ -87,17 +87,20 @@ def _parse_shebang(cmd, line):
         if cmd.shebang_can_run_anything or cmd.shebang_can_run_anything_silently:
             i = _find_on_path(cmd, full_cmd)
             if not cmd.shebang_can_run_anything_silently:
-                LOGGER.warn("A shebang '%s' was found, but could not be matched "
-                            "to an installed runtime.", full_cmd)
-                LOGGER.warn("Arbitrary command was found on PATH instead. Configure "
-                            "'shebang_can_run_anything' to disable this.")
+                LOGGER.warn("A shebang '%s' was found but could not be matched "
+                            "to an installed runtime, so it will be treated as "
+                            "an arbitrary command.", full_cmd)
+                LOGGER.warn("To prevent execution of programs that are not "
+                            "Python runtimes, set 'shebang_can_run_anything' to "
+                            "'false' in your configuration file.")
             return i
                 
         else:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)
-            LOGGER.warn("Arbitrary command execution is disabled. Reconfigure "
-                        "'shebang_can_run_anything' to enable it. "
+            LOGGER.warn("Arbitrary command execution is disabled. Configure "
+                        "'shebang_can_run_anything' to 'true' in your "
+                        "configuration file to enable it. "
                         "Launching with default runtime.")
             raise LookupError
 
@@ -114,16 +117,19 @@ def _parse_shebang(cmd, line):
             pass
         if cmd.shebang_can_run_anything or cmd.shebang_can_run_anything_silently:
             if not cmd.shebang_can_run_anything_silently:
-                LOGGER.warn("A shebang '%s' was found, but does not match any "
-                            "supported template (e.g. '/usr/bin/python').", full_cmd)
-                LOGGER.warn("Using the shebang as an arbitrary command instead. "
-                            "Configure 'shebang_can_run_anything' to disable this.")
+                LOGGER.warn("A shebang '%s' was found but does not match any "
+                            "supported template (e.g. '/usr/bin/python'), so it "
+                            "will be treated as an arbitrary command.", full_cmd)
+                LOGGER.warn("To prevent execution of programs that are not "
+                            "Python runtimes, set 'shebang_can_run_anything' to "
+                            "'false' in your configuration file.")
             return _find_on_path(cmd, full_cmd)
         else:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)
-            LOGGER.warn("Arbitrary command execution is disabled. Reconfigure "
-                        "'shebang_can_run_anything' to enable it. "
+            LOGGER.warn("Arbitrary command execution is disabled. Change "
+                        "'shebang_can_run_anything' to 'true' in your "
+                        "configuration file to enable it. "
                         "Launching with default runtime.")
             raise LookupError
 
@@ -153,7 +159,7 @@ def _read_script(cmd, script, encoding):
         # This involves finding '# /// script' followed by
         # a line with '# requires-python = <spec>'.
         # That spec needs to be processed as a version constraint, which
-        # is currently entirely unsupported.
+        # cmd.get_install_to_run() can handle.
     raise LookupError(script)
 
 

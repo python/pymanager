@@ -46,7 +46,7 @@
 
       <File Source="pyshellext.dll">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
-               Context="InprocServer32" ThreadingModel="apartment" />
+               Context="InprocServer32" ThreadingModel="both" />
       </File>
 
       <File Source="version.txt" />

@@ -17,6 +17,14 @@ if not hasattr(_native, "coinitialize"):
             setattr(_native, k, getattr(_native_test, k))
 
 
+import manage
+manage.EXE_NAME = "pymanager-pytest"
+
+
+import manage.commands
+manage.commands.WELCOME = ""
+
+
 from manage.logging import LOGGER, DEBUG
 LOGGER.level = DEBUG
 

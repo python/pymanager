@@ -1,8 +1,10 @@
 import json
 import sys
 
+from . import logging
 from .exceptions import ArgumentError
-from .logging import LOGGER
+
+LOGGER = logging.LOGGER
 
 
 def _exe_partition(n):
@@ -101,6 +103,10 @@ def format_table(cmd, installs):
                 show_truncated_warning = True
         except LookupError:
             pass
+
+    while sum(cwidth.values()) > logging.CONSOLE_MAX_WIDTH:
+        # TODO: Some kind of algorithm for reducing column widths to fit
+        break
 
     LOGGER.print("!B!%s!W!", "  ".join(columns[c].ljust(cwidth[c]) for c in columns), always=True)
 

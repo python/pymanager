@@ -215,6 +215,9 @@ def get_commands():
         # Check if a subclass of BaseCommand
         if not any(b.id in command_bases for b in cls.bases):
             continue
+        # Ignore exec command - it gets handled separately.
+        if cls.name == "ExecCommand":
+            continue
         command_bases.add(cls.name)
         for a in filter(lambda s: isinstance(s, ast.Assign), cls.body):
             if not any(t.id == "CMD" for t in a.targets):

@@ -171,6 +171,9 @@ def format_json_lines(cmd, installs):
 
 def format_bare_id(cmd, installs):
     for i in installs:
+        # Don't print useless values (__active-virtual-env, __unmanaged-)
+        if i["id"].startswith("__"):
+            continue
         print(i["id"])
 
 

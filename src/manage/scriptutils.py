@@ -142,7 +142,7 @@ def _read_script(cmd, script, encoding):
     except OSError as ex:
         raise LookupError(script) from ex
     with f:
-        first_line = next(f).rstrip()
+        first_line = next(f, "").rstrip()
         if first_line.startswith("#!"):
             try:
                 return _parse_shebang(cmd, first_line)

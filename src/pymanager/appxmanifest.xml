@@ -2,7 +2,7 @@
 <Package IgnorableNamespaces="desktop4 desktop6 desktop7 uap13 uap17"
     xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-    xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+    xmlns:com4="http://schemas.microsoft.com/appx/manifest/com/windows10/4"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
     xmlns:rescap4="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/4"
     xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
@@ -194,13 +194,6 @@
                         </uap:SupportedFileTypes>
                     </uap:FileTypeAssociation>
                 </uap:Extension>
-                <com:Extension Category="windows.comServer">
-                    <com:ComServer>
-                        <com:SurrogateServer AppId="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand">
-                            <com:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" Path="pyshellext.dll" ThreadingModel="Both"/>
-                        </com:SurrogateServer>
-                    </com:ComServer>
-                </com:Extension>
                 <desktop4:Extension Category="windows.fileExplorerContextMenus">
                     <desktop4:FileExplorerContextMenus>
                         <desktop4:ItemType Type=".py">
@@ -208,6 +201,13 @@
                         </desktop4:ItemType>
                     </desktop4:FileExplorerContextMenus>
                 </desktop4:Extension>
+                <com4:Extension Category="windows.comServer">
+                    <com4:ComServer>
+                        <com4:ExeServer Executable="pyshellext.exe" DisplayName="Python Shell Extension">
+                            <com4:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand" />
+                        </com4:ExeServer>
+                    </com4:ComServer>
+                </com4:Extension>
             </Extensions>
         </Application>
 

@@ -89,7 +89,7 @@ stages:
       workingDirectory: $(Build.BinariesDirectory)
 
     - powershell: |
-        python -m pip install pymsbuild
+        python -m pip install "pymsbuild>=1.2.0b1"
       displayName: 'Install build dependencies'
 
     - ${{ if eq(parameters.PreTest, 'true') }}:

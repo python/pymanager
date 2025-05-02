@@ -44,10 +44,17 @@
       <File Source="vcruntime140.dll" />
       <File Source="vcruntime140_1.dll" />
 
-      <File Source="pyshellext.dll">
-        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
-               Context="InprocServer32" ThreadingModel="both" />
+      <!--
+      When installed via MSIX, this extension must be out of proc.
+      Apparently, when installed via MSI, it must be in proc. Which means we'd
+      need to compile DLLs for each platform just for the MSI, as well as the
+      EXE that we use for regular installs.
+      Right now, not worth it.
+
+      <File Source="pyshellext.exe">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="LocalServer32" />
       </File>
+      -->
 
       <File Source="version.txt" />
       <Environment Id="PATH" Action="set" Name="PATH" Part="last" System="yes" Value="[INSTALLFOLDER]" />

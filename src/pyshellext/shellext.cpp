@@ -449,8 +449,10 @@ IExplorerCommand *MakeIdleCommand(HKEY hive, LPCWSTR root)
 {
     return Make<IdleCommand>(hive, root).Detach();
 }
+#endif
 
 
+#ifndef PYSHELLEXT_TEST
 class OutOfProcModule : public Module<OutOfProc, OutOfProcModule>
 { };
 

@@ -201,10 +201,10 @@ PACKAGE = Package('python-manager',
     main_exe("python3"),
     mainw_exe("pythonw3"),
 
-    CProject(f"pyshellext",
+    CProject("pyshellext",
         VersionInfo(
             FileDescription="Python shell extension",
-            OriginalFilename=f"pyshellext.exe",
+            OriginalFilename="pyshellext.exe",
         ),
         Property('StaticLibcppLinkage', 'true'),
         ItemDefinition('ClCompile', LanguageStandard='stdcpp20'),
@@ -217,7 +217,6 @@ PACKAGE = Package('python-manager',
         ResourceFile('pyshellext.rc'),
         source='src/pyshellext',
         ConfigurationType='Application',
-        Platform=platform,
     ),
 )
 

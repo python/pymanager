@@ -170,7 +170,7 @@ def get_matching_install_tags(
                 else:
                     matches.append((i, t))
                     matched_any = True
-            if single_tag:
+            if single_tag and matched_any:
                 break
         if LOGGER.would_log_to_console(DEBUG):
             # Don't bother listing all installs unless the user has asked

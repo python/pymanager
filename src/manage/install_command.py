@@ -10,7 +10,7 @@ from .exceptions import (
 )
 from .fsutils import ensure_tree, rmtree, unlink
 from .indexutils import Index
-from .logging import LOGGER, ProgressPrinter
+from .logging import CONSOLE_MAX_WIDTH, LOGGER, ProgressPrinter
 from .pathutils import Path, PurePath
 from .tagutils import install_matches_any, tag_or_range
 from .urlutils import (
@@ -19,11 +19,6 @@ from .urlutils import (
     urlretrieve as _urlretrieve,
     IndexDownloader,
 )
-
-
-# TODO: Consider reading the current console width
-# Though there's a solid argument we should just pick one and stick with it
-CONSOLE_WIDTH = 79
 
 
 # In-process cache to save repeat downloads
@@ -404,7 +399,7 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     if install["url"].casefold().endswith(".nupkg".casefold()):
         package = package.with_suffix(".nupkg")
 
-    with ProgressPrinter("Downloading", maxwidth=CONSOLE_WIDTH) as on_progress:
+    with ProgressPrinter("Downloading", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
         package = download_package(cmd, install, package, DOWNLOAD_CACHE, on_progress=on_progress)
     validate_package(install, package)
     if must_copy and package.parent != download_dir:
@@ -456,7 +451,7 @@ def _install_one(cmd, source, install, *, target=None):
             )
             raise
 
-    with ProgressPrinter("Extracting", maxwidth=CONSOLE_WIDTH) as on_progress:
+    with ProgressPrinter("Extracting", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
         extract_package(package, dest, on_progress=on_progress, repair=cmd.repair)
 
     if target:
@@ -493,13 +488,13 @@ def _install_one(cmd, source, install, *, target=None):
                              if s["kind"] not in cmd.disable_shortcut_kinds]
             install["shortcuts"] = shortcuts
 
+        install["url"] = sanitise_url(install["url"])
+        if source != cmd.fallback_source:
+            install["source"] = sanitise_url(source)
+
         LOGGER.debug("Write __install__.json to %s", dest)
         with open(dest / "__install__.json", "w", encoding="utf-8") as f:
-            json.dump({
-                **install,
-                "url": sanitise_url(install["url"]),
-                "source": sanitise_url(source),
-            }, f, default=str)
+            json.dump(install, f, default=str)
 
     LOGGER.verbose("Install complete")
 
@@ -510,13 +505,11 @@ def _fatal_install_error(cmd, ex):
         LOGGER.error("An error occurred. Please check any output above, "
                      "or the log file, and try again.")
         LOGGER.info("Log file for this session: !Y!%s!W!", logfile)
-        # TODO: Update issues URL to actual repository
         LOGGER.info("If you cannot resolve it yourself, please report the error with "
                     "your log file at https://github.com/python/pymanager")
     else:
         LOGGER.error("An error occurred. Please check any output above, "
                      "and try again with -vv for more information.")
-        # TODO: Update issues URL to actual repository
         LOGGER.info("If you cannot resolve it yourself, please report the error with "
                     "verbose output file at https://github.com/python/pymanager")
     LOGGER.debug("TRACEBACK:", exc_info=True)
@@ -546,7 +539,7 @@ def execute(cmd):
         if not cmd.automatic_install:
             LOGGER.debug("automatic_install is not set - exiting")
             raise AutomaticInstallDisabledError()
-        LOGGER.info("!B!" + "*" * CONSOLE_WIDTH + "!W!")
+        LOGGER.info("!B!" + "*" * CONSOLE_MAX_WIDTH + "!W!")
 
     download_index = {"versions": []}
 
@@ -737,6 +730,6 @@ def execute(cmd):
     finally:
         if cmd.automatic:
             LOGGER.info("To see all available commands, run '!G!py help!W!'")
-            LOGGER.info("!B!" + "*" * CONSOLE_WIDTH + "!W!")
+            LOGGER.info("!B!" + "*" * CONSOLE_MAX_WIDTH + "!W!")
 
         LOGGER.debug("END install_command.execute")

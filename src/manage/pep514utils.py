@@ -208,7 +208,7 @@ def _is_tag_managed(company_key, tag_name, *, creating=False):
                 raise
         else:
             LOGGER.warn("Attempted to clean up invalid registry key %s but "
-                        "failed after too many attempts.", tag_name);
+                        "failed after too many attempts.", tag_name)
             return False
         return True
 

@@ -40,9 +40,9 @@ def fake_get_installs(install_dir):
 
 def fake_get_installs2(install_dir):
     yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3-32", "3.0-32", "3.0a1-32"])
-    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3-64", "3.0-64", "3.0a1-64"])
-    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3-arm64", "3.0-arm64", "3.0a1-arm64"])
+    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32"])
+    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3.0.1a1-64", "3.0-64", "3-64"])
+    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64"])
 
 
 def fake_get_unmanaged_installs():
@@ -100,6 +100,17 @@ def test_get_default_with_default_platform(patched_installs):
     assert i["id"] == "PythonCore-1.0-64"
     i = installs.get_install_to_run("<none>", "1", "", default_platform="-32")
     assert i["id"] == "PythonCore-1.0-32"
+
+
+def test_get_default_install_prerelease(patched_installs2):
+    inst = list(installs._get_installs("<none>"))
+    m = installs.get_matching_install_tags(inst, "1.0", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-1.0-32"
+
+    m = installs.get_matching_install_tags(inst, "3.0", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0a1-32"
 
 
 def test_get_install_to_run(patched_installs):

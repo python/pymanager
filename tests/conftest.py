@@ -4,6 +4,7 @@ import random
 import re
 import subprocess
 import sys
+import winreg
 
 from pathlib import Path
 
@@ -104,3 +105,48 @@ class FakeConfig:
 @pytest.fixture
 def fake_config():
     return FakeConfig()
+
+
+REG_TEST_ROOT = r"Software\Python\PyManagerTesting"
+
+
+class RegistryFixture:
+    def __init__(self, hive, root):
+        self.hive = hive
+        self.root = root
+        self.key = None
+
+    def __enter__(self):
+        self.key = winreg.CreateKey(self.hive, self.root)
+        return self
+
+    def __exit__(self, *exc):
+        if self.key:
+            self.key.Close()
+            from manage.pep514utils import _reg_rmtree
+            _reg_rmtree(self.hive, self.root)
+
+    def setup(self, _subkey=None, **keys):
+        if not _subkey:
+            _subkey = self.key
+        for k, v in keys.items():
+            if isinstance(v, dict):
+                with winreg.CreateKey(_subkey, k) as subkey:
+                    self.setup(subkey, **v)
+            elif isinstance(v, str):
+                winreg.SetValueEx(_subkey, k, None, winreg.REG_SZ, v)
+            elif isinstance(v, (bytes, bytearray)):
+                winreg.SetValueEx(_subkey, k, None, winreg.REG_BINARY, v)
+            elif isinstance(v, int):
+                if v.bit_count() < 32:
+                    winreg.SetValueEx(_subkey, k, None, winreg.REG_DWORD, v)
+                else:
+                    winreg.SetValueEx(_subkey, k, None, winreg.REG_QWORD, v)
+            else:
+                raise TypeError("unsupported type in registry")
+
+
+@pytest.fixture(scope='function')
+def registry():
+    with RegistryFixture(winreg.HKEY_CURRENT_USER, REG_TEST_ROOT) as key:
+        yield key

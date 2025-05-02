@@ -6,13 +6,7 @@
 
 using namespace Microsoft::WRL;
 
-#include <windows.h>
-#include <shlobj.h>
-#include <shlwapi.h>
-#include <olectl.h>
-
-#include <string>
-#include <vector>
+#include "shellext.h"
 
 static HINSTANCE hModule;
 
@@ -21,14 +15,7 @@ static HINSTANCE hModule;
 #define CLSID_COMMAND_ENUMERATOR "{F82C8CD5-A69C-45CC-ADC6-87FC5F4A7429}"
 
 
-struct IdleData {
-    std::wstring title;
-    std::wstring exe;
-    std::wstring idle;
-};
-
-
-static LRESULT RegReadStr(HKEY key, LPCWSTR valueName, std::wstring& result)
+LRESULT RegReadStr(HKEY key, LPCWSTR valueName, std::wstring& result)
 {
     DWORD reg_type;
     while (true) {
@@ -57,7 +44,7 @@ static LRESULT RegReadStr(HKEY key, LPCWSTR valueName, std::wstring& result)
 }
 
 
-static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hkPython, LPCWSTR company, REGSAM flags)
+HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hkPython, LPCWSTR company, REGSAM flags)
 {
     HKEY hkCompany = NULL, hkTag = NULL, hkInstall = NULL;
     LSTATUS err = RegOpenKeyExW(
@@ -119,6 +106,8 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hkPython, LPC
                         data.idle += L"Lib\\idlelib\\idle.pyw";
                     }
                 }
+            } else {
+                err = 0;
             }
         }
         if (err) {
@@ -152,11 +141,11 @@ static HRESULT ReadIdleInstalls(std::vector<IdleData> &idles, HKEY hkPython, LPC
     return S_OK;
 }
 
-static HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, REGSAM flags)
+HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, LPCWSTR root, REGSAM flags)
 {
     HKEY hkPython = NULL;
     HRESULT hr = S_OK;
-    LSTATUS err = RegOpenKeyExW(hive, L"Software\\Python", 0, KEY_READ | flags, &hkPython);
+    LSTATUS err = RegOpenKeyExW(hive, root ? root : L"", 0, KEY_READ | flags, &hkPython);
 
     for (DWORD i = 0; !err && hr == S_OK && i < 64; ++i) {
         wchar_t name[512];
@@ -347,12 +336,12 @@ public:
             iconPath += L",-4";
         }
 
-        hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY);
+        hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_32KEY);
         if (SUCCEEDED(hr)) {
-            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY);
+            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_64KEY);
         }
         if (SUCCEEDED(hr)) {
-            hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, 0);
+            hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, L"Software\\Python", 0);
         }
 
         if (FAILED(hr)) {
@@ -362,6 +351,29 @@ public:
             idles.clear();
         }
     }
+
+    #ifdef PYSHELLEXT_TEST
+    IdleCommand(HKEY hive, LPCWSTR root) : title(L"Edit in &IDLE")
+    {
+        HRESULT hr;
+
+        DWORD cch = 260;
+        while (iconPath.size() < cch) {
+            iconPath.resize(cch);
+            cch = GetModuleFileNameW(hModule, iconPath.data(), iconPath.size());
+        }
+        iconPath.resize(cch);
+        if (cch) {
+            iconPath += L",-4";
+        }
+
+        hr = ReadAllIdleInstalls(idles, hive, root, 0);
+
+        if (FAILED(hr)) {
+            idles.clear();
+        }
+    }
+    #endif
 
     // IExplorerCommand
     IFACEMETHODIMP GetTitle(IShellItemArray *psiItemArray, LPWSTR *ppszName)
@@ -425,6 +437,19 @@ public:
 
 CoCreatableClass(IdleCommand);
 
+#ifdef PYSHELLEXT_TEST
+IExplorerCommand *MakeLaunchCommand(std::wstring title, std::wstring exe, std::wstring idle)
+{
+    IdleData data = { .title = title, .exe = exe, .idle = idle };
+    return Make<LaunchCommand>(data).Detach();
+}
+
+
+IExplorerCommand *MakeIdleCommand(HKEY hive, LPCWSTR root)
+{
+    return Make<IdleCommand>(hive, root).Detach();
+}
+
 
 class OutOfProcModule : public Module<OutOfProc, OutOfProcModule>
 { };
@@ -448,4 +473,4 @@ int WINAPI wWinMain(
     CoUninitialize();
     return 0;
 }
-
+#endif

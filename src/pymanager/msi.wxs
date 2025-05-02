@@ -103,15 +103,17 @@
       <File Source="templates\launcherw.exe" Name="launcherw.exe" />
     </Component>
 
+    <!-- WIX_NATIVE_MACHINE = 0x8664 -->
     <Component Id="PyShellExt.x64" Directory="INSTALLFOLDER" Guid="0E2D4BFC-10DC-4103-B86E-58943429AE4B"
-               Condition="WIX_NATIVE_MACHINE == 0x8664">
+               Condition="WIX_NATIVE_MACHINE = 34404">
       <File Source="pyshellext.x64.dll" KeyPath="yes">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
                Context="InprocServer32" ThreadingModel="both" />
       </File>
     </Component>
+    <!-- WIX_NATIVE_MACHINE = 0xAA64 -->
     <Component Id="PyShellExt.ARM64" Directory="INSTALLFOLDER" Guid="DB020B5A-BD1F-4443-9859-A163FCF2CA77"
-               Condition="WIX_NATIVE_MACHINE == 0xAA64">
+               Condition="WIX_NATIVE_MACHINE = 43620">
       <File Source="pyshellext.arm64.dll" KeyPath="yes">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
                Context="InprocServer32" ThreadingModel="both" />

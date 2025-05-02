@@ -50,7 +50,7 @@
       need to compile DLLs for each platform just for the MSI, as well as the
       EXE that we use for regular installs.
       Right now, not worth it.
-      ---
+
       <File Source="pyshellext.exe">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="LocalServer32" />
       </File>

@@ -16,6 +16,8 @@
     <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="DISABLEADVTSHORTCUTS" Value="1" />
 
+    <util:QueryNativeMachine />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="PyManager">
         <Directory Id="RUNTIME" Name="runtime" />
@@ -27,6 +29,8 @@
       <ComponentRef Id="ProductComponent" />
       <ComponentRef Id="RuntimeComponent" />
       <ComponentRef Id="TemplatesComponent" />
+      <ComponentRef Id="PyShellExt.x64" />
+      <ComponentRef Id="PyShellExt.ARM64" />
     </Feature>
 
     <util:BroadcastEnvironmentChange />
@@ -43,11 +47,6 @@
 
       <File Source="vcruntime140.dll" />
       <File Source="vcruntime140_1.dll" />
-
-      <File Source="pyshellext.dll">
-        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
-               Context="InprocServer32" ThreadingModel="both" />
-      </File>
 
       <File Source="version.txt" />
       <Environment Id="PATH" Action="set" Name="PATH" Part="last" System="yes" Value="[INSTALLFOLDER]" />
@@ -102,6 +101,21 @@
     <Component Id="TemplatesComponent" Directory="TEMPLATES" Guid="3ACC110C-5C33-45C8-9843-A446718930A0">
       <File KeyPath="yes" Source="templates\launcher.exe" Name="launcher.exe" />
       <File Source="templates\launcherw.exe" Name="launcherw.exe" />
+    </Component>
+
+    <Component Id="PyShellExt.x64" Directory="INSTALLFOLDER" Guid="0E2D4BFC-10DC-4103-B86E-58943429AE4B"
+               Condition="WIX_NATIVE_MACHINE == 0x8664">
+      <File Source="pyshellext.x64.dll" KeyPath="yes">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
+               Context="InprocServer32" ThreadingModel="both" />
+      </File>
+    </Component>
+    <Component Id="PyShellExt.ARM64" Directory="INSTALLFOLDER" Guid="DB020B5A-BD1F-4443-9859-A163FCF2CA77"
+               Condition="WIX_NATIVE_MACHINE == 0xAA64">
+      <File Source="pyshellext.arm64.dll" KeyPath="yes">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no"
+               Context="InprocServer32" ThreadingModel="both" />
+      </File>
     </Component>
 
   </Package>

@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 from subprocess import check_call as run
-from _make_helper import get_dirs, rmtree, unlink
+from _make_helper import copyfile, get_dirs, rmtree, unlink
 
 # Clean DEBUG flag in case it affects build
 os.environ["PYMANAGER_DEBUG"] = ""
@@ -41,6 +41,7 @@ except subprocess.CalledProcessError:
 run([sys.executable, "-m", "pymsbuild", "wheel"],
     cwd=DIRS["root"],
     env={**os.environ, "BUILD_SOURCEBRANCH": ref})
+
 
 # Bundle current latest release
 run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", TEMP / "bundle", "default"])

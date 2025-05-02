@@ -2,20 +2,20 @@
 <Package IgnorableNamespaces="desktop4 desktop6 desktop7 uap13 uap17"
     xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-    xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+    xmlns:com4="http://schemas.microsoft.com/appx/manifest/com/windows10/4"
     xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
     xmlns:rescap4="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities/4"
     xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
     xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
     xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
+    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
     xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
     xmlns:uap13="http://schemas.microsoft.com/appx/manifest/uap/windows10/13"
     xmlns:uap17="http://schemas.microsoft.com/appx/manifest/uap/windows10/17">
     <Identity Name="PythonSoftwareFoundation.PythonManager"
               Version="1.0.0.0"
-              Publisher="CN=00000000-0000-0000-0000-000000000000"
-              ProcessorArchitecture="x64" />
+              Publisher="CN=00000000-0000-0000-0000-000000000000" />
     <Properties>
         <DisplayName>Python Install Manager</DisplayName>
         <PublisherDisplayName>Python Software Foundation</PublisherDisplayName>
@@ -194,13 +194,6 @@
                         </uap:SupportedFileTypes>
                     </uap:FileTypeAssociation>
                 </uap:Extension>
-                <com:Extension Category="windows.comServer">
-                    <com:ComServer>
-                        <com:SurrogateServer AppId="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand">
-                            <com:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" Path="pyshellext.dll" ThreadingModel="Both"/>
-                        </com:SurrogateServer>
-                    </com:ComServer>
-                </com:Extension>
                 <desktop4:Extension Category="windows.fileExplorerContextMenus">
                     <desktop4:FileExplorerContextMenus>
                         <desktop4:ItemType Type=".py">
@@ -208,6 +201,17 @@
                         </desktop4:ItemType>
                     </desktop4:FileExplorerContextMenus>
                 </desktop4:Extension>
+                <com4:Extension Category="windows.comServer">
+                    <com4:ComServer>
+                        <com4:InProcessServer>
+                            <com4:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1"
+                                        ThreadingModel="Both"
+                                        DisplayName="EditInIdleCommand" />
+                            <com4:InProcessServerDll Path="pyshellext.x64.dll" ProcessorArchitecture="x64" />
+                            <com4:InProcessServerDll Path="pyshellext.arm64.dll" ProcessorArchitecture="arm64" />
+                        </com4:InProcessServer>
+                    </com4:ComServer>
+                </com4:Extension>
             </Extensions>
         </Application>
 

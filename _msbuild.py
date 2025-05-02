@@ -127,6 +127,29 @@ def mainw_exe(name):
     )
 
 
+def pyshellext(platform):
+    return CProject(f"pyshellext-{platform}",
+        VersionInfo(
+            FileDescription="Python shell extension",
+            OriginalFilename=f"pyshellext.{platform}.dll",
+        ),
+        Property('StaticLibcppLinkage', 'true'),
+        ItemDefinition('ClCompile', LanguageStandard='stdcpp20'),
+        ItemDefinition('Link',
+            AdditionalDependencies=Prepend("RuntimeObject.lib;"),
+            SubSystem='WINDOWS',
+            ModuleDefinitionFile='$(SourceRootDir)src\\pyshellext\\pyshellext.def',
+        ),
+        Manifest('default.manifest'),
+        CSourceFile('shellext.cpp'),
+        ResourceFile('pyshellext.rc'),
+        SourceFile('pyshellext.def'),
+        source='src/pyshellext',
+        Platform=platform,
+        TargetName=f"pyshellext.{platform}",
+    )
+
+
 PACKAGE = Package('python-manager',
     PyprojectTomlFile('pyproject.toml'),
     # MSIX manifest
@@ -149,8 +172,7 @@ PACKAGE = Package('python-manager',
         CProject('launcher',
             VersionInfo(FileDescription="Python launcher", OriginalFilename="launcher.exe"),
             CPP_SETTINGS,
-            Property('DynamicLibcppLinkage', 'true'),
-            ItemDefinition('ClCompile', RuntimeLibrary='MultiThreaded'),
+            Property('StaticLibcppLinkage', 'true'),
             ItemDefinition('Link', SubSystem='CONSOLE'),
             Manifest('default.manifest'),
             ResourceFile('pyicon.rc'),
@@ -163,8 +185,7 @@ PACKAGE = Package('python-manager',
         CProject('launcherw',
             VersionInfo(FileDescription="Python launcher (windowed)", OriginalFilename="launcherw.exe"),
             CPP_SETTINGS,
-            Property('DynamicLibcppLinkage', 'true'),
-            ItemDefinition('ClCompile', RuntimeLibrary='MultiThreaded'),
+            Property('StaticLibcppLinkage', 'true'),
             ItemDefinition('Link', SubSystem='WINDOWS'),
             Manifest('default.manifest'),
             ResourceFile('pywicon.rc'),
@@ -203,27 +224,8 @@ PACKAGE = Package('python-manager',
     main_exe("python3"),
     mainw_exe("pythonw3"),
 
-    CProject("pyshellext",
-        VersionInfo(
-            FileDescription="Python shell extension",
-            OriginalFilename="pyshellext.dll",
-        ),
-        Property('DynamicLibcppLinkage', 'true'),
-        ItemDefinition('ClCompile',
-            LanguageStandard='stdcpp20',
-            RuntimeLibrary='MultiThreaded',
-        ),
-        ItemDefinition('Link',
-            AdditionalDependencies=Prepend("RuntimeObject.lib;"),
-            SubSystem='WINDOWS',
-            ModuleDefinitionFile='$(SourceRootDir)src\\pyshellext\\pyshellext.def',
-        ),
-        Manifest('default.manifest'),
-        CSourceFile('shellext.cpp'),
-        ResourceFile('pyshellext.rc'),
-        SourceFile('pyshellext.def'),
-        source='src/pyshellext',
-    )
+    pyshellext("x64"),
+    pyshellext("arm64"),
 )
 
 

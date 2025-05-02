@@ -1,5 +1,5 @@
 [build-system]
-requires = ['pymsbuild>=1.1.1,<2.0']
+requires = ['pymsbuild>=1.2.0b1,<2.0']
 build-backend = "pymsbuild"
 
 [tool.coverage.run]

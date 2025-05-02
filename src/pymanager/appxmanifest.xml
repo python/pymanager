@@ -8,14 +8,14 @@
     xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
     xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
     xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
-    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
     xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
     xmlns:uap13="http://schemas.microsoft.com/appx/manifest/uap/windows10/13"
     xmlns:uap17="http://schemas.microsoft.com/appx/manifest/uap/windows10/17">
     <Identity Name="PythonSoftwareFoundation.PythonManager"
               Version="1.0.0.0"
-              Publisher="CN=00000000-0000-0000-0000-000000000000" />
+              Publisher="CN=00000000-0000-0000-0000-000000000000"
+              ProcessorArchitecture="x64" />
     <Properties>
         <DisplayName>Python Install Manager</DisplayName>
         <PublisherDisplayName>Python Software Foundation</PublisherDisplayName>

@@ -24,7 +24,7 @@ def irm(url, method="GET", headers={}):
 NUGET_SOURCE = "https://api.nuget.org/v3/index.json"
 
 # Earlier versions than this go into "legacy.json"
-CURRENT_VERSION = Version("3.10")
+CURRENT_VERSION = Version("3.11")
 
 SKIP_OLD_PRERELEASE = True
 

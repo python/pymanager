@@ -203,15 +203,9 @@
                 </desktop4:Extension>
                 <com4:Extension Category="windows.comServer">
                     <com4:ComServer>
-                        <com4:InProcessServer>
-                            <com4:InProcessServerDll Path="pyshellext.x64.dll" ProcessorArchitecture="x64" />
-                            <com4:InProcessServerDll Path="pyshellext.arm64.dll" ProcessorArchitecture="arm64" />
-                            <com4:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand"
-                                        Virtualization="disabled" ThreadingModel="Both" />
-                        </com4:InProcessServer>
-                        <com4:SurrogateServer>
-                            <com4:InProcessServerClassReference Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" />
-                        </com4:SurrogateServer>
+                        <com4:ExeServer Executable="pyshellext.exe" DisplayName="Python Shell Extension">
+                            <com4:Class Id="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" DisplayName="EditInIdleCommand" />
+                        </com4:ExeServer>
                     </com4:ComServer>
                 </com4:Extension>
             </Extensions>

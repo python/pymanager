@@ -1,8 +1,6 @@
-// Support back to Windows 10
 #define _WIN32_WINNT _WIN32_WINNT_WIN10
 #include <sdkddkver.h>
 
-// Use WRL to define a classic COM class
 #define __WRL_CLASSIC_COM__
 #include <wrl.h>
 
@@ -428,23 +426,26 @@ public:
 CoCreatableClass(IdleCommand);
 
 
-STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, _COM_Outptr_ void** ppv)
+class OutOfProcModule : public Module<OutOfProc, OutOfProcModule>
+{ };
+
+
+int WINAPI wWinMain(
+    HINSTANCE hInstance,
+    HINSTANCE hPrevInstance,
+    LPWSTR lpCmdLine,
+    int nCmdShow
+)
 {
-    return Module<InProc>::GetModule().GetClassObject(rclsid, riid, ppv);
+    HANDLE hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    hModule = hInstance;
+
+    CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    auto& module = OutOfProcModule::Create([=]() { SetEvent(hStopEvent); });
+    module.RegisterObjects();
+    ::WaitForSingleObject(hStopEvent, INFINITE);
+    module.UnregisterObjects();
+    CoUninitialize();
+    return 0;
 }
 
-
-STDAPI DllCanUnloadNow()
-{
-    return Module<InProc>::GetModule().Terminate() ? S_OK : S_FALSE;
-}
-
-
-STDAPI_(BOOL) DllMain(_In_opt_ HINSTANCE hinst, DWORD reason, _In_opt_ void*)
-{
-    if (reason == DLL_PROCESS_ATTACH) {
-        hModule = hinst;
-        DisableThreadLibraryCalls(hinst);
-    }
-    return TRUE;
-}

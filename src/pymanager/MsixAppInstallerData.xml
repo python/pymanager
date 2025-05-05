@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstallerUX xmlns="http://schemas.microsoft.com/msix/appinstallerux"
+                Version="1.0.0">
+    <!-- Using the blue and grey from python.org - dark mode users always get black -->
+    <UX AccentColor="#3776AB" BackgroundColor="#FCFCFC">
+        <Icon HorizontalAlignment="right" Logo="_resources\setupx150.png" Size="medium" />
+        <Buttons Text="Python" IsSecondaryButtonAccent="false"/>
+        <HyperLinks TopMargin="1">
+            <!-- Undocumented limit of two links - choose wisely! -->
+            <HyperLink Text="Python website"
+                       Url="https://www.python.org/"
+                       HorizontalAlignment="left" />
+            <HyperLink Text="Get help with this installer"
+                       Url="https://docs.python.org/dev/using/windows.html"
+                       HorizontalAlignment="left" />
+        </HyperLinks>
+    </UX>
+</AppInstallerUX>

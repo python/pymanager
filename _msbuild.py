@@ -130,8 +130,12 @@ def mainw_exe(name):
 PACKAGE = Package('python-manager',
     PyprojectTomlFile('pyproject.toml'),
     # MSIX manifest
-    File('src/pymanager/appxmanifest.xml', name='appxmanifest.xml'),
-    File('src/pymanager/pymanager.appinstaller', name='pymanager.appinstaller'),
+    File('src/pymanager/appxmanifest.xml'),
+    File('src/pymanager/pymanager.appinstaller'),
+    Package(
+        'MSIX.AppInstaller.Data',
+        File('src/pymanager/MSIXAppInstallerData.xml'),
+    ),
 
     # Default settings
     File('src/pymanager.json'),

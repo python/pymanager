@@ -541,7 +541,8 @@ wmain(int argc, wchar_t **argv)
 
     if (err) {
         // Most 'not found' errors have been handled above. These are internal
-        fprintf(stderr, "INTERNAL ERROR 0x%08X. Please report to https://github.com/python/pymanager\n", err);
+        fprintf(stderr, "[ERROR] Internal error 0x%08X. "
+                "Please report to https://github.com/python/pymanager\n", err);
         goto error;
     }
 
@@ -560,7 +561,7 @@ wmain(int argc, wchar_t **argv)
     case ERROR_EXE_MACHINE_TYPE_MISMATCH:
     case HRESULT_FROM_WIN32(ERROR_EXE_MACHINE_TYPE_MISMATCH):
         fprintf(stderr,
-                "[FATAL ERROR] Executable '%ls' is for a different kind of "
+                "[ERROR] Executable '%ls' is for a different kind of "
                 "processor architecture.\n",
                 executable.c_str());
         fprintf(stderr,
@@ -568,7 +569,7 @@ wmain(int argc, wchar_t **argv)
                 "'py install' to install one for your CPU.\n");
         break;
     default:
-        fprintf(stderr, "[FATAL ERROR] Failed to launch '%ls' (0x%08X)\n", executable.c_str(), err);
+        fprintf(stderr, "[ERROR] Failed to launch '%ls' (0x%08X)\n", executable.c_str(), err);
         fprintf(stderr, "This may be a corrupt install or a system configuration issue.\n");
         break;
     }

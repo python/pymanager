@@ -14,7 +14,10 @@ ctrl_c_handler(DWORD code)
 static int
 dup_handle(HANDLE input, HANDLE *output)
 {
-    static HANDLE self = GetCurrentProcess();
+    static HANDLE self = NULL;
+    if (self == NULL) {
+        self = GetCurrentProcess();
+    }
     if (input == NULL || input == INVALID_HANDLE_VALUE) {
         *output = input;
         return 0;

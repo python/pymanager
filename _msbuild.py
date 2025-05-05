@@ -107,6 +107,7 @@ def main_exe(name):
         ConfigurationType='Application',
     )
 
+
 def mainw_exe(name):
     return CProject(name,
         VersionInfo(FileDescription="Python Install Manager (windowed)"),
@@ -124,6 +125,26 @@ def mainw_exe(name):
         IncludeFile('../_native/helpers.h'),
         source='src/pymanager',
         ConfigurationType='Application',
+    )
+
+
+def launcher_exe(name, platform, windowed=False):
+    return CProject(name,
+        VersionInfo(
+            FileDescription="Python launcher" + (" (windowed)" if windowed else ""),
+            OriginalFilename=f"{name}.exe"
+        ),
+        CPP_SETTINGS,
+        Property('StaticLibcppLinkage', 'true'),
+        ItemDefinition('Link', SubSystem='WINDOWS' if windowed else 'CONSOLE'),
+        Manifest('default.manifest'),
+        ResourceFile('pywicon.rc' if windowed else 'pyicon.rc'),
+        CSourceFile('launcher.cpp'),
+        CSourceFile('_launch.cpp'),
+        IncludeFile('*.h'),
+        source='src/pymanager',
+        ConfigurationType='Application',
+        Platform=platform,
     )
 
 
@@ -150,32 +171,12 @@ PACKAGE = Package('python-manager',
     Package(
         'templates',
         File('src/pymanager/templates/template.py'),
-        CProject('launcher',
-            VersionInfo(FileDescription="Python launcher", OriginalFilename="launcher.exe"),
-            CPP_SETTINGS,
-            Property('StaticLibcppLinkage', 'true'),
-            ItemDefinition('Link', SubSystem='CONSOLE'),
-            Manifest('default.manifest'),
-            ResourceFile('pyicon.rc'),
-            CSourceFile('launcher.cpp'),
-            CSourceFile('_launch.cpp'),
-            IncludeFile('*.h'),
-            source='src/pymanager',
-            ConfigurationType='Application',
-        ),
-        CProject('launcherw',
-            VersionInfo(FileDescription="Python launcher (windowed)", OriginalFilename="launcherw.exe"),
-            CPP_SETTINGS,
-            Property('StaticLibcppLinkage', 'true'),
-            ItemDefinition('Link', SubSystem='WINDOWS'),
-            Manifest('default.manifest'),
-            ResourceFile('pywicon.rc'),
-            CSourceFile('launcher.cpp'),
-            CSourceFile('_launch.cpp'),
-            IncludeFile('*.h'),
-            source='src/pymanager',
-            ConfigurationType='Application',
-        ),
+        launcher_exe("launcher-64", "x64", windowed=False),
+        launcher_exe("launcherw-64", "x64", windowed=True),
+        launcher_exe("launcher-arm64", "ARM64", windowed=False),
+        launcher_exe("launcherw-arm64", "ARM64", windowed=True),
+        launcher_exe("launcher-32", "Win32", windowed=False),
+        launcher_exe("launcherw-32", "Win32", windowed=True),
     ),
 
     # Directory for MSIX resources

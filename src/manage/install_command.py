@@ -215,13 +215,30 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
             LOGGER.debug("Attempted to overwrite: %s", dest)
 
 
-def _write_alias(cmd, alias, target):
+def _if_exists(launcher, plat):
+    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{launcher.suffix}"
+    if plat_launcher.is_file():
+        return plat_launcher
+    return launcher
+
+
+def _write_alias(cmd, install, alias, target):
     p = (cmd.global_dir / alias["name"])
     ensure_tree(p)
     unlink(p)
     launcher = cmd.launcher_exe
     if alias.get("windowed"):
         launcher = cmd.launcherw_exe or launcher
+    plat = install["tag"].rpartition("-")[-1]
+    if plat:
+        LOGGER.debug("Checking for launcher for platform -%s", plat)
+        launcher = _if_exists(launcher, f"-{plat}")
+    if not launcher.is_file():
+        LOGGER.debug("Checking for launcher for default platform %s", cmd.default_platform)
+        launcher = _if_exists(launcher, cmd.default_platform)
+    if not launcher.is_file():
+        LOGGER.debug("Checking for launcher for -64")
+        launcher = _if_exists(launcher, "-64")
     LOGGER.debug("Create %s linking to %s using %s", alias["name"], target, launcher)
     if not launcher or not launcher.is_file():
         LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
@@ -281,7 +298,7 @@ def update_all_shortcuts(cmd, path_warning=True):
                 if not target.is_file():
                     LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
                     continue
-                _write_alias(cmd, a, target)
+                _write_alias(cmd, i, a, target)
                 alias_written.add(a["name"].casefold())
 
         for s in i.get("shortcuts", ()):

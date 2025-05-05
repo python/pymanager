@@ -274,7 +274,10 @@ CONFIG_SCHEMA = {
     # Default: Python
     "start_folder": (str, None),
 
-    # Overrides for launcher executables
+    # Overrides for launcher executables. Platform-specific versions will be
+    # chosen automatically by inserting the last hypenated part of the tag
+    # before the suffix, falling back on the default platform or '-64' and
+    # eventually the unmodified version. See install_command._write_alias().
     # Default: .\launcher.exe and .\launcherw.exe
     "launcher_exe": (str, None, "path"),
     "launcherw_exe": (str, None, "path"),

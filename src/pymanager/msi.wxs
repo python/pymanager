@@ -107,8 +107,12 @@
     </Component>
 
     <Component Id="TemplatesComponent" Directory="TEMPLATES" Guid="3ACC110C-5C33-45C8-9843-A446718930A0">
-      <File KeyPath="yes" Source="templates\launcher.exe" Name="launcher.exe" />
-      <File Source="templates\launcherw.exe" Name="launcherw.exe" />
+      <File KeyPath="yes" Source="templates\launcher-64.exe" Name="launcher-64.exe" />
+      <File Source="templates\launcherw-64.exe" Name="launcherw-64.exe" />
+      <File Source="templates\launcher-arm64.exe" Name="launcher-arm64.exe" />
+      <File Source="templates\launcherw-arm64.exe" Name="launcherw-arm64.exe" />
+      <File Source="templates\launcher-32.exe" Name="launcher-32.exe" />
+      <File Source="templates\launcherw-32.exe" Name="launcherw-32.exe" />
     </Component>
 
   </Package>

@@ -216,7 +216,7 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
 
 
 def _if_exists(launcher, plat):
-    plat_launcher = launcher.parent / f"{launcher.stem}{plat}.exe"
+    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{launcher.suffix}"
     if plat_launcher.is_file():
         return plat_launcher
     return launcher
@@ -238,7 +238,7 @@ def _write_alias(cmd, install, alias, target):
         launcher = _if_exists(launcher, cmd.default_platform)
     if not launcher.is_file():
         LOGGER.debug("Checking for launcher for -64")
-        launcher = _if_exists(launcher, "64")
+        launcher = _if_exists(launcher, "-64")
     LOGGER.debug("Create %s linking to %s using %s", alias["name"], target, launcher)
     if not launcher or not launcher.is_file():
         LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])

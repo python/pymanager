@@ -17,15 +17,19 @@ from manage.verutils import Version
 def usage():
     print("Usage: repartition-index.py [-i options <FILENAME> ...] [options <OUTPUT> ...]")
     print()
-    print("  -i <FILENAME>      One or more files to read existing entries from.")
+    print("  --windows-default  Implies default output files and configurations.")
+    print()
+    print("  -i <FILENAME>      One or more files or URLs to read existing entries from.")
     print("  -i -n/--no-recurse Do not follow 'next' info")
+    print("If no files are provided, uses the current online index")
     print()
     print("  <OUTPUT>           Filename to write entries into")
     print("  -d/--allow-dup     Include entries written in previous outputs")
+    print("  --only-dup         Only include entries written in previous outputs")
     print("  --pre              Include entries marked as prereleases")
-    print("  -t/--tag TAG       Include entries matching the specified tag")
-    print("  -r/--range RANGE   Include entries included within the specified range")
-    print("  --latest-micro     Include entries that are the latest x.y.z version")
+    print("  -t/--tag TAG       Include only the specified tags (comma-separated)")
+    print("  -r/--range RANGE   Include only the specified range (comma-separated)")
+    print("  --latest-micro     Include only the latest x.y.z version")
     print()
     print("An output of 'nul' is permitted to drop entries.")
     print("Providing the same inputs and outputs is permitted, as all inputs are read")
@@ -80,12 +84,14 @@ class SortVersions:
 
     def execute(self, versions, context):
         versions.sort(key=self._sort_key)
+        print("Processing {} entries".format(len(versions)))
 
 
 class SplitToFile:
     def __init__(self):
         self.target = None
         self.allow_dup = False
+        self.only_dup = False
         self.pre = False
         self.tag_or_range = None
         self._expect_tag_or_range = False
@@ -102,6 +108,10 @@ class SplitToFile:
         if arg in ("-d", "--allow-dup"):
             self.allow_dup = True
             return False
+        if arg == "--only-dup":
+            self.allow_dup = True
+            self.only_dup = True
+            return False
         if arg == "--pre":
             self.pre = True
             return False
@@ -115,6 +125,7 @@ class SplitToFile:
 
     def execute(self, versions, context):
         written = context.setdefault("written", set())
+        written_now = set()
         outputs = context.setdefault("outputs", {})
         if self.target != "nul":
             try:
@@ -131,6 +142,9 @@ class SplitToFile:
         for i in versions:
             k = i["id"].casefold(), i["sort-version"].casefold()
             v = Version(i["sort-version"])
+            if self.only_dup and k not in written_now:
+                written_now.add(k)
+                continue
             if not self.allow_dup and k in written:
                 continue
             if not self.pre and v.is_prerelease:
@@ -145,8 +159,8 @@ class SplitToFile:
                 if k2 in latest_micro_skip:
                     continue
                 latest_micro_skip.add(k2)
-            output.append(i)
             written.add(k)
+            output.append(i)
 
 
 class WriteFiles:
@@ -173,6 +187,9 @@ class WriteFiles:
                 data["next"] = next_target
             with open(target, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=self.indent)
+            print("Wrote {} ({} entries, {} bytes)".format(
+                target, len(data["versions"]), Path(target).stat().st_size
+            ))
 
 
 def parse_cli(args):
@@ -182,7 +199,16 @@ def parse_cli(args):
     action = None
     write = WriteFiles()
     for a in args:
-        if a == "-i":
+        if a == "--windows-default":
+            plan_split = [SplitToFile(), SplitToFile(), SplitToFile()]
+            plan_split[0].target = "index-windows.json"
+            plan_split[1].target = "index-windows-recent.json"
+            plan_split[2].target = "index-windows-legacy.json"
+            plan_split[0].pre = plan_split[1].pre = plan_split[2].pre = True
+            plan_split[0].latest_micro = True
+            plan_split[0].tag_or_range = tag_or_range(">=3.11.0")
+            plan_split[1].tag_or_range = tag_or_range(">=3.11.0")
+        elif a == "-i":
             action = ReadFile()
             plan_read.append(action)
         elif a.startswith("-s-"):
@@ -200,6 +226,12 @@ def parse_cli(args):
             except ValueError:
                 pass
             usage()
+    if not plan_read:
+        action = ReadFile()
+        action.source = "https://www.python.org/ftp/python/index-windows.json"
+        plan_read.append(action)
+    if not plan_split:
+        usage()
     return [*plan_read, sort, *plan_split, write]
 
 

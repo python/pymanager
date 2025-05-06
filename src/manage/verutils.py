@@ -53,6 +53,9 @@ class Version:
     def __repr__(self):
         return self.s
 
+    def __hash__(self):
+        return hash(self.sortkey)
+
     def _are_equal(self, other, prefix_match=None, other_prefix_match=None, prerelease_match=None):
         if other is None:
             return False

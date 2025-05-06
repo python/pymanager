@@ -26,6 +26,9 @@ class _CompanyKey:
             return self._company.startswith(other._company)
         return self._company == other._company
 
+    def __hash__(self):
+        return hash(self._company)
+
     def __eq__(self, other):
         return self._company == other._company
 
@@ -63,6 +66,9 @@ class _AscendingText:
         if not other.s:
             return not self.s
         return self.s.startswith(other.s)
+
+    def __hash__(self):
+        return hash(self.s)
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):

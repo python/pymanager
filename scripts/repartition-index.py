@@ -200,6 +200,9 @@ def parse_cli(args):
     write = WriteFiles()
     for a in args:
         if a == "--windows-default":
+            print("Using equivalent of: --pre --latest-micro -r >=3.11.0 index-windows.json")
+            print("                     --pre -r >=3.11.0 index-windows-recent.json")
+            print("                     index-windows-legacy.json")
             plan_split = [SplitToFile(), SplitToFile(), SplitToFile()]
             plan_split[0].target = "index-windows.json"
             plan_split[1].target = "index-windows-recent.json"
@@ -223,14 +226,16 @@ def parse_cli(args):
                 if action.add_arg(a):
                     action = None
                 continue
-            except ValueError:
-                pass
+            except ValueError as ex:
+                print(ex)
             usage()
     if not plan_read:
         action = ReadFile()
         action.source = "https://www.python.org/ftp/python/index-windows.json"
         plan_read.append(action)
     if not plan_split:
+        print("No outputs specified")
+        print(args)
         usage()
     return [*plan_read, sort, *plan_split, write]
 

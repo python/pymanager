@@ -148,6 +148,31 @@ def launcher_exe(name, platform, windowed=False):
     )
 
 
+def pyshellext(ext='.exe', **props):
+    link_opts = ItemDefinition(
+        'Link',
+        AdditionalDependencies=Prepend('RuntimeObject.lib;'),
+    )
+    if ext != '.exe':
+        link_opts.options['ModuleDefinitionFile'] = '$(SourceRootDir)src\\pyshellext\\pyshellext.def'
+
+
+    return CProject(f"pyshellext{ext.rpartition('.')[0]}",
+        VersionInfo(
+            FileDescription='Python shell extension',
+            OriginalFilename=f'pyshellext{ext}',
+        ),
+        ItemDefinition('ClCompile', LanguageStandard='stdcpp20'),
+        link_opts,
+        Manifest('default.manifest'),
+        CSourceFile('shellext.cpp'),
+        ResourceFile('pyshellext.rc'),
+        source='src/pyshellext',
+        StaticLibcppLinkage=True,
+        **props,
+    )
+
+
 PACKAGE = Package('python-manager',
     PyprojectTomlFile('pyproject.toml'),
     # MSIX manifest
@@ -206,23 +231,9 @@ PACKAGE = Package('python-manager',
     main_exe("python3"),
     mainw_exe("pythonw3"),
 
-    CProject("pyshellext",
-        VersionInfo(
-            FileDescription="Python shell extension",
-            OriginalFilename="pyshellext.exe",
-        ),
-        Property('StaticLibcppLinkage', 'true'),
-        ItemDefinition('ClCompile', LanguageStandard='stdcpp20'),
-        ItemDefinition('Link',
-            AdditionalDependencies=Prepend("RuntimeObject.lib;"),
-            SubSystem='WINDOWS',
-        ),
-        Manifest('default.manifest'),
-        CSourceFile('shellext.cpp'),
-        ResourceFile('pyshellext.rc'),
-        source='src/pyshellext',
-        ConfigurationType='Application',
-    ),
+    pyshellext(".exe", ConfigurationType="Application"),
+    pyshellext("-64.dll", Platform="x64"),
+    pyshellext("-arm64.dll", Platform="ARM64"),
 )
 
 

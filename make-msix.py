@@ -53,10 +53,19 @@ if not (LAYOUT / "_resources.pri").is_file():
                   "/mf", "appx"])
 
 # Clean up non-shipping files from LAYOUT
+preserved = [
+    *LAYOUT.glob("pyshellext*.dll"),
+]
+
+for f in preserved:
+    print("Preserving", f, "as", TEMP / f.name)
+    copyfile(f, TEMP / f.name)
+
 unlink(
     *LAYOUT.rglob("*.pdb"),
     *LAYOUT.rglob("*.pyc"),
     *LAYOUT.rglob("__pycache__"),
+    *preserved,
 )
 
 # Package into DIST
@@ -122,3 +131,9 @@ if os.getenv("PYMANAGER_APPX_STORE_PUBLISHER"):
     with zipfile.ZipFile(DIST_MSIXUPLOAD, "w") as zf:
         zf.write(DIST_STORE_MSIX, arcname=DIST_STORE_MSIX.name)
         zf.write(DIST_APPXSYM, arcname=DIST_APPXSYM.name)
+
+
+for f in preserved:
+    print("Restoring", f, "from", TEMP / f.name)
+    copyfile(TEMP / f.name, f)
+    unlink(TEMP / f.name)

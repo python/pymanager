@@ -15,6 +15,7 @@ UPLOAD_KEYFILE = os.getenv("UPLOAD_KEYFILE", "")
 UPLOAD_USER = os.getenv("UPLOAD_USER", "")
 NO_UPLOAD = os.getenv("NO_UPLOAD", "no")[:1].lower() in "yt1"
 
+# Set to 'true' when updating index.json, rather than the app
 UPLOADING_INDEX = os.getenv("UPLOADING_INDEX", "no")[:1].lower() in "yt1"
 
 

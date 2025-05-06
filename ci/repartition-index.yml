@@ -44,7 +44,7 @@ stages:
 
     - powershell: |
         cd (mkdir -Force index)
-        python "$(Build.SourcesDirectory)\scripts\repartition-index.py" --default-windows
+        python "$(Build.SourcesDirectory)\scripts\repartition-index.py" --windows-default
       displayName: 'Repartition index'
       workingDirectory: $(Build.BinariesDirectory)
 
@@ -67,20 +67,17 @@ stages:
         displayName: 'Download PuTTY binaries'
 
       - powershell: |
-          dir *.json | %{
-            pscp -batch -hostkey $env:UPLOAD_HOST_KEY -noagent -i $env:UPLOAD_KEYFILE `
-            $_ "${env:UPLOAD_USER}@${env:UPLOAD_HOST}:/srv/www.python.org/ftp/python/$($_.Name)"
-            plink -batch -hostkey $env:UPLOAD_HOST_KEY
-          }
+          python ci\upload.py
         displayName: 'Publish packages'
         env:
-          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/pymanager
-          UPLOAD_DIR: $(DIST_DIR)
+          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/
+          UPLOAD_DIR: $(Build.BinariesDirectory)\index
           UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
           UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
           UPLOAD_HOST: $(PyDotOrgServer)
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
+          UPLOADING_INDEX: true
           ${{ if eq(parameters.TestPublish, 'true') }}:
             NO_UPLOAD: 1
           ${{ else }}:

@@ -1,0 +1,87 @@
+# Repartitioning runs on Azure Pipelines, because that's where we have SSH
+# access to the download server.
+
+name: $(Date:yyyyMMdd).$(Rev:r)
+
+# Do not run automatically
+trigger: none
+
+
+parameters:
+- name: Publish
+  displayName: "Publish"
+  type: boolean
+  default: false
+- name: TestPublish
+  displayName: "Run all steps without publishing"
+  type: boolean
+  default: false
+
+stages:
+- stage: PyManagerIndexPartition
+  displayName: 'Repartition PyManager Index'
+
+  jobs:
+  - job: Repartition
+
+    pool:
+      vmImage: 'windows-latest'
+
+    variables:
+    - group: PythonOrgPublish
+
+    steps:
+    - checkout: self
+
+    - task: NugetToolInstaller@0
+      displayName: 'Install Nuget'
+
+    - powershell: |
+        nuget install -o host_python -x -noninteractive -prerelease python
+        Write-Host "##vso[task.prependpath]$(gi host_python\python\tools)"
+      displayName: 'Install host Python'
+      workingDirectory: $(Build.BinariesDirectory)
+
+    - powershell: |
+        cd (mkdir -Force index)
+        python "$(Build.SourcesDirectory)\scripts\repartition-index.py" --default-windows
+      displayName: 'Repartition index'
+      workingDirectory: $(Build.BinariesDirectory)
+
+    - publish: $(Build.BinariesDirectory)\index
+      artifact: index
+      displayName: Publish index artifact
+
+    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
+      - ${{ if ne(parameters.TestPublish, 'true') }}:
+        - task: DownloadSecureFile@1
+          name: sshkey
+          inputs:
+            secureFile: pydotorg-ssh.ppk
+          displayName: 'Download PuTTY key'
+
+      - powershell: |
+          git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
+          "##vso[task.prependpath]$(gi putty)"
+        workingDirectory: $(Pipeline.Workspace)
+        displayName: 'Download PuTTY binaries'
+
+      - powershell: |
+          dir *.json | %{
+            pscp -batch -hostkey $env:UPLOAD_HOST_KEY -noagent -i $env:UPLOAD_KEYFILE `
+            $_ "${env:UPLOAD_USER}@${env:UPLOAD_HOST}:/srv/www.python.org/ftp/python/$($_.Name)"
+            plink -batch -hostkey $env:UPLOAD_HOST_KEY
+          }
+        displayName: 'Publish packages'
+        env:
+          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/pymanager
+          UPLOAD_DIR: $(DIST_DIR)
+          UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
+          UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
+          UPLOAD_HOST: $(PyDotOrgServer)
+          UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
+          UPLOAD_USER: $(PyDotOrgUsername)
+          ${{ if eq(parameters.TestPublish, 'true') }}:
+            NO_UPLOAD: 1
+          ${{ else }}:
+            UPLOAD_KEYFILE: $(sshkey.secureFilePath)

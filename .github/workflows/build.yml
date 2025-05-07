@@ -43,11 +43,13 @@ jobs:
     - name: Set up Python 3.14.0b1
       run: |
         nuget install python -Version 3.14.0-b1 -x -o .
+        $py = Get-Item .\python*\tools\python.exe
         $old = Get-Content $env:GITHUB_PATH
-        (gi .\python*\tools\python.exe).Parent | Out-File $env:GITHUB_PATH -Encoding UTF8
+        Write-Host "Adding $($py.Parent) to GITHUB_PATH"
+        "$($py.Parent)" | Out-File $env:GITHUB_PATH -Encoding UTF8
         $old | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
         Write-Host "PATH entries:"
-        Write-Host (gc $env:GITHUB_PATH)
+        Write-Host (Get-Content $env:GITHUB_PATH)
       working-directory: ${{ runner.temp }}
 
     - name: Check Python version

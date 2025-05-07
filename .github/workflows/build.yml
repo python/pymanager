@@ -30,10 +30,21 @@ jobs:
         }
       shell: powershell
 
-    - name: Set up Python 3.14
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.14-dev
+    #- name: Set up Python 3.14
+    #  uses: actions/setup-python@v5
+    #  with:
+    #    python-version: 3.14-dev
+
+    # We move faster than GitHub's Python runtimes, so use NuGet instead
+    # One day we can use ourselves to download Python, but not yet...
+    - name: Set up NuGet
+      uses: nuget/setup-nuget@v2.0.1
+
+    - name: Set up Python 3.14.0b1
+      run: |
+        nuget install python -Version 3.14.0-b1 -x -o .
+        (gi .\python*\tools\python.exe).Parent | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
+      working-directory: ${{ runner.temp }}
 
     - name: Install build dependencies
       run: python -m pip install "pymsbuild>=1.2.0b1"

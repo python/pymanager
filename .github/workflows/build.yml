@@ -46,13 +46,13 @@ jobs:
         $old = Get-Content $env:GITHUB_PATH
         (gi .\python*\tools\python.exe).Parent | Out-File $env:GITHUB_PATH -Encoding UTF8
         $old | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
-        gc $env:GITHUB_PATH
+        Write-Host "PATH entries:"
+        Write-Host (gc $env:GITHUB_PATH)
       working-directory: ${{ runner.temp }}
 
     - name: Check Python version
       run: >
-        python -c "
-        import sys;
+        python -c "import sys;
         print(sys.version);
         print(sys.executable);
         sys.exit(0 if sys.version_info[:3] == (3, 14, 0) else 1)"

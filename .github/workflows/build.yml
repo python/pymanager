@@ -45,7 +45,7 @@ jobs:
         nuget install python -Version 3.14.0-b1 -x -o .
         $py = Get-Item python\tools
         Write-Host "Adding $py to GITHUB_PATH (${env:GITHUB_PATH})"
-        $py" | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
+        "$py" | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
         Write-Host "PATH entries:"
         Write-Host (Get-Content $env:GITHUB_PATH)
       working-directory: ${{ runner.temp }}

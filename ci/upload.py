@@ -9,13 +9,14 @@ UPLOAD_URL_PREFIX = os.getenv("UPLOAD_URL_PREFIX", "https://www.python.org/ftp/"
 UPLOAD_PATH_PREFIX = os.getenv("UPLOAD_PATH_PREFIX", "/srv/www.python.org/ftp/")
 UPLOAD_URL = os.getenv("UPLOAD_URL")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR")
-# A version will be inserted before the extension later on
-MANIFEST_FILE = os.getenv("MANIFEST_FILE")
 UPLOAD_HOST = os.getenv("UPLOAD_HOST", "")
 UPLOAD_HOST_KEY = os.getenv("UPLOAD_HOST_KEY", "")
 UPLOAD_KEYFILE = os.getenv("UPLOAD_KEYFILE", "")
 UPLOAD_USER = os.getenv("UPLOAD_USER", "")
 NO_UPLOAD = os.getenv("NO_UPLOAD", "no")[:1].lower() in "yt1"
+
+# Set to 'true' when updating index.json, rather than the app
+UPLOADING_INDEX = os.getenv("UPLOADING_INDEX", "no")[:1].lower() in "yt1"
 
 
 if not UPLOAD_URL:
@@ -179,10 +180,15 @@ UPLOAD_URL = UPLOAD_URL.rstrip("/") + "/"
 
 UPLOADS = []
 
-for pat in ("python-manager-*.msix", "python-manager-*.msi", "pymanager.appinstaller"):
-    for f in UPLOAD_DIR.glob(pat):
+if UPLOADING_INDEX:
+    for f in UPLOAD_DIR.glob("*.json"):
         u = UPLOAD_URL + f.name
         UPLOADS.append((f, u, url2path(u)))
+else:
+    for pat in ("python-manager-*.msix", "python-manager-*.msi", "pymanager.appinstaller"):
+        for f in UPLOAD_DIR.glob(pat):
+            u = UPLOAD_URL + f.name
+            UPLOADS.append((f, u, url2path(u)))
 
 print("Planned uploads:")
 for f, u, p in UPLOADS:

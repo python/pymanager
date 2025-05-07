@@ -677,10 +677,11 @@ class IndexDownloader:
                 LOGGER.error("An unexpected error occurred while downloading the index: %s", ex)
                 raise
 
-        index = self.index_cls(self._url, json.loads(data))
+        j = json.loads(data)
+        index = self.index_cls(self._url, j)
 
-        if index.next_url:
-            self._url = urljoin(url, index.next_url, to_parent=True)
+        if j.get("next"):
+            self._url = urljoin(url, j["next"], to_parent=True)
         else:
             self._url = None
         return index

@@ -189,11 +189,10 @@ class Logger:
         print(msg, **kwargs, file=self.print_console)
 
     def print_raw(self, *msg, **kwargs):
-        kwargs.pop("always", None)
-        kwargs.pop("level", None)
-        kwargs.pop("colours", None)
-        return self.print(kwargs.pop("sep", " ").join(str(s) for s in msg),
-                          always=True, colours=False, **kwargs)
+        kwargs["always"] = True
+        kwargs["colours"] = False
+        sep = kwargs.pop("sep", " ")
+        return self.print(sep.join(str(s) for s in msg), **kwargs)
 
 
 LOGGER = Logger()

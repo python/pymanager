@@ -218,7 +218,10 @@ class ProgressPrinter:
             if self._complete:
                 LOGGER.print()
             else:
-                LOGGER.print("❌")
+                try:
+                    LOGGER.print("❌")
+                except UnicodeEncodeError:
+                    LOGGER.print("x")
 
     def __call__(self, progress):
         if self._complete:
@@ -227,7 +230,10 @@ class ProgressPrinter:
         if progress is None:
             if self._need_newline:
                 if not self._complete:
-                    LOGGER.print("⏸️")
+                    try:
+                        LOGGER.print("⏸️")
+                    except UnicodeEncodeError:
+                        LOGGER.print("|")
                     self._dots_shown = 0
                     self._started = False
                     self._need_newline = False
@@ -246,6 +252,9 @@ class ProgressPrinter:
         LOGGER.print(None, "." * dot_count, end="", flush=True)
         self._need_newline = True
         if progress >= 100:
-            LOGGER.print("✅", flush=True)
+            try:
+                LOGGER.print("✅", flush=True)
+            except UnicodeEncodeError:
+                LOGGER.print(".", flush=True)
             self._complete = True
             self._need_newline = False

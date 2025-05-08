@@ -167,7 +167,7 @@ HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, LPCWSTR roo
 }
 
 class DECLSPEC_UUID(CLSID_LAUNCH_COMMAND) LaunchCommand
-    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand>
+    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
     std::wstring title;
     std::wstring exe;
@@ -269,6 +269,26 @@ public:
         *ppEnum = NULL;
         return E_NOTIMPL;
     }
+
+    // IObjectWithSite
+private:
+    ComPtr<IUnknown> _site;
+
+public:
+    IFACEMETHODIMP GetSite(REFIID riid, void **ppvSite)
+    {
+        if (_site) {
+            return _site->QueryInterface(riid, ppvSite);
+        }
+        *ppvSite = NULL;
+        return E_FAIL;
+    }
+
+    IFACEMETHODIMP SetSite(IUnknown *pSite)
+    {
+        _site = pSite;
+        return S_OK;
+    }
 };
 
 
@@ -321,7 +341,6 @@ class DECLSPEC_UUID(CLSID_IDLE_COMMAND) IdleCommand
     std::vector<IdleData> idles;
     std::wstring iconPath;
     std::wstring title;
-    ComPtr<IUnknown> _site;
 public:
     IdleCommand() : title(L"Edit in &IDLE")
     {
@@ -434,6 +453,11 @@ public:
         return S_OK;
     }
 
+    // IObjectWithSite
+private:
+    ComPtr<IUnknown> _site;
+
+public:
     IFACEMETHODIMP GetSite(REFIID riid, void **ppvSite)
     {
         if (_site) {
@@ -468,9 +492,6 @@ IExplorerCommand *MakeIdleCommand(HKEY hive, LPCWSTR root)
 }
 
 #elif defined(_WINDLL)
-
-#pragma comment(linker, "/export:DllGetClassObject")
-#pragma comment(linker, "/export:DllCanUnloadNow")
 
 STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, _COM_Outptr_ void** ppv)
 {

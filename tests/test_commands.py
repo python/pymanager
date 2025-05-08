@@ -1,7 +1,7 @@
 import pytest
 import secrets
-from manage import commands
-from manage.exceptions import NoInstallsError
+from manage import commands, logging
+from manage.exceptions import ArgumentError, NoInstallsError
 
 
 def test_pymanager_help_command(assert_log):
@@ -55,3 +55,29 @@ def test_exec_with_literal_default():
     except NoInstallsError:
         # This is also an okay result, if the default runtime isn't installed
         pass
+
+
+def test_legacy_list_command(assert_log, patched_installs):
+    cmd = commands.ListLegacyCommand(["--list"])
+    cmd.show_welcome()
+    cmd.execute()
+    assert_log(
+        # Ensure welcome message is suppressed
+        assert_log.not_logged(r"Python installation manager.+"),
+        # Should have a range of values shown, we don't care too much
+        assert_log.skip_until(r" -V:2\.0\[-64\]\s+Python.*"),
+        assert_log.skip_until(r" -V:3\.0a1-32\s+Python.*"),
+    )
+
+
+def test_legacy_list_command_args():
+    with pytest.raises(ArgumentError):
+        commands.ListLegacyCommand(["--list", "--help"])
+
+
+def test_legacy_listpaths_command_help(assert_log, patched_installs):
+    cmd = commands.ListPathsLegacyCommand(["--list-paths"])
+    cmd.help()
+    assert_log(
+        assert_log.skip_until(r".*List command.+py list.+"),
+    )

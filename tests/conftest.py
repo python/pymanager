@@ -6,7 +6,7 @@ import subprocess
 import sys
 import winreg
 
-from pathlib import Path
+from pathlib import Path, PurePath
 
 TESTS = Path(__file__).absolute().parent
 
@@ -18,41 +18,83 @@ if not hasattr(_native, "coinitialize"):
             setattr(_native, k, getattr(_native_test, k))
 
 
+# Importing in order carefully to ensure the variables we override are handled
+# correctly by submodules.
 import manage
 manage.EXE_NAME = "pymanager-pytest"
-
 
 import manage.commands
 manage.commands.WELCOME = ""
 
-
-from manage.logging import LOGGER, DEBUG
+from manage.logging import LOGGER, DEBUG, ERROR
 LOGGER.level = DEBUG
+
+import manage.config
+import manage.installs
+
+
+# Ensure we don't pick up any settings from configs or the registry
+
+def _mock_load_global_config(cfg, schema):
+    cfg.update({
+        "base_config": "",
+        "user_config": "",
+        "additional_config": "",
+    })
+
+def _mock_load_registry_config(key, schema):
+    return {}
+
+manage.config.load_global_config = _mock_load_global_config
+manage.config.load_registry_config = _mock_load_registry_config
+
+
+@pytest.fixture
+def quiet_log():
+    lvl = LOGGER.level
+    LOGGER.level = ERROR
+    try:
+        yield
+    finally:
+        LOGGER.level = lvl
+
 
 class LogCaptureHandler(list):
     def skip_until(self, pattern, args=()):
         return ('until', pattern, args)
 
+    def not_logged(self, pattern, args=()):
+        return ('not', pattern, args)
+
     def __call__(self, *cmp):
-        it1 = iter(self)
+        i = 0
         for y in cmp:
             if not isinstance(y, tuple):
-                op, pat, args = None, y, []
+                op, pat, args = None, y, None
             elif len(y) == 3:
                 op, pat, args = y
             elif len(y) == 2:
                 op = None
                 pat, args = y
 
+            if op == 'not':
+                for j in range(i, len(self)):
+                    if re.match(pat, self[j][0], flags=re.S):
+                        pytest.fail(f"Should not have found {self[j][0]!r} matching {pat}")
+                        return
+                continue
+
             while True:
                 try:
-                    x = next(it1)
-                except StopIteration:
+                    x = self[i]
+                    i += 1
+                except IndexError:
                     pytest.fail(f"Not enough elements were logged looking for {pat}")
-                if op == 'until' and not re.match(pat, x[0]):
+                if op == 'until' and not re.match(pat, x[0], flags=re.S):
                     continue
-                assert re.match(pat, x[0])
-                assert tuple(x[1]) == tuple(args)
+                assert re.match(pat, x[0], flags=re.S)
+                if args is not None:
+                    assert tuple(x[1]) == tuple(args)
                 break
 
 
@@ -150,3 +192,67 @@ class RegistryFixture:
 def registry():
     with RegistryFixture(winreg.HKEY_CURRENT_USER, REG_TEST_ROOT) as key:
         yield key
+
+
+
+def make_install(tag, **kwargs):
+    run_for = []
+    for t in kwargs.get("run_for", [tag]):
+        run_for.append({"tag": t, "target": kwargs.get("target", "python.exe")})
+        run_for.append({"tag": t, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1})
+
+    return {
+        "company": kwargs.get("company", "PythonCore"),
+        "id": "{}-{}".format(kwargs.get("company", "PythonCore"), tag),
+        "sort-version": kwargs.get("sort_version", tag),
+        "display-name": "{} {}".format(kwargs.get("company", "Python"), tag),
+        "tag": tag,
+        "install-for": [tag],
+        "run-for": run_for,
+        "prefix": PurePath(kwargs.get("prefix", rf"C:\{tag}")),
+        "executable": kwargs.get("executable", "python.exe"),
+    }
+
+
+def fake_get_installs(install_dir):
+    yield make_install("1.0")
+    yield make_install("1.0-32", sort_version="1.0")
+    yield make_install("1.0-64", sort_version="1.0")
+    yield make_install("2.0-64", sort_version="2.0")
+    yield make_install("2.0-arm64", sort_version="2.0")
+    yield make_install("3.0a1-32", sort_version="3.0a1")
+    yield make_install("3.0a1-64", sort_version="3.0a1")
+    yield make_install("1.1", company="Company", target="company.exe", targetw="companyw.exe")
+    yield make_install("1.1-64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
+    yield make_install("1.1-arm64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
+    yield make_install("2.1", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
+    yield make_install("2.1-64", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
+
+
+def fake_get_installs2(install_dir):
+    yield make_install("1.0-32", sort_version="1.0")
+    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32"])
+    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3.0.1a1-64", "3.0-64", "3-64"])
+    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64"])
+
+
+def fake_get_unmanaged_installs():
+    return []
+
+
+def fake_get_venv_install(virtualenv):
+    raise LookupError
+
+
+@pytest.fixture
+def patched_installs(monkeypatch):
+    monkeypatch.setattr(manage.installs, "_get_installs", fake_get_installs)
+    monkeypatch.setattr(manage.installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
+    monkeypatch.setattr(manage.installs, "_get_venv_install", fake_get_venv_install)
+
+
+@pytest.fixture
+def patched_installs2(monkeypatch):
+    monkeypatch.setattr(manage.installs, "_get_installs", fake_get_installs2)
+    monkeypatch.setattr(manage.installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
+    monkeypatch.setattr(manage.installs, "_get_venv_install", fake_get_venv_install)

@@ -353,8 +353,8 @@ class BaseCommand:
                 set_next = a.lstrip("-/").lower()
                 try:
                     key, value, *opts = cmd_args[set_next]
-                except LookupError:
-                    raise ArgumentError(f"Unexpected argument: {a}")
+                except KeyError:
+                    raise ArgumentError(f"Unexpected argument: {a}") from None
                 if value is _NEXT:
                     if sep:
                         if opts:
@@ -867,6 +867,10 @@ Shows help for specific commands.
 """
 
     _create_log_file = False
+
+    def __init__(self, args, root=None):
+        super().__init__([self.CMD], root)
+        self.args = [a for a in args[1:] if a.isalpha()]
 
     def execute(self):
         LOGGER.print(COPYRIGHT)

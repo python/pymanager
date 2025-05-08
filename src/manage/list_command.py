@@ -167,12 +167,12 @@ def format_csv(cmd, installs):
 
 
 def format_json(cmd, installs):
-    print(json.dumps({"versions": installs}, default=str))
+    LOGGER.print_raw(json.dumps({"versions": installs}, default=str))
 
 
 def format_json_lines(cmd, installs):
     for i in installs:
-        print(json.dumps(i, default=str))
+        LOGGER.print_raw(json.dumps(i, default=str))
 
 
 def format_bare_id(cmd, installs):
@@ -180,18 +180,18 @@ def format_bare_id(cmd, installs):
         # Don't print useless values (__active-virtual-env, __unmanaged-)
         if i["id"].startswith("__"):
             continue
-        print(i["id"])
+        LOGGER.print_raw(i["id"])
 
 
 def format_bare_exe(cmd, installs):
     for i in installs:
-        print(i["executable"])
+        LOGGER.print_raw(i["executable"])
 
 
 def format_bare_prefix(cmd, installs):
     for i in installs:
         try:
-            print(i["prefix"])
+            LOGGER.print_raw(i["prefix"])
         except KeyError:
             pass
 
@@ -199,7 +199,7 @@ def format_bare_prefix(cmd, installs):
 def format_bare_url(cmd, installs):
     for i in installs:
         try:
-            print(i["url"])
+            LOGGER.print_raw(i["url"])
         except KeyError:
             pass
 
@@ -223,7 +223,7 @@ def format_legacy(cmd, installs, paths=False):
             if not seen_default and i.get("default"):
                 tag = f"{tag} *"
                 seen_default = True
-        print(tag.ljust(17), i["executable"] if paths else i["display-name"])
+        LOGGER.print_raw(tag.ljust(17), i["executable"] if paths else i["display-name"])
 
 
 FORMATTERS = {

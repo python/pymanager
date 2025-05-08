@@ -5,68 +5,6 @@ from pathlib import PurePath
 from manage import installs
 
 
-def make_install(tag, **kwargs):
-    run_for = []
-    for t in kwargs.get("run_for", [tag]):
-        run_for.append({"tag": t, "target": kwargs.get("target", "python.exe")})
-        run_for.append({"tag": t, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1})
-
-    return {
-        "company": kwargs.get("company", "PythonCore"),
-        "id": "{}-{}".format(kwargs.get("company", "PythonCore"), tag),
-        "sort-version": kwargs.get("sort_version", tag),
-        "tag": tag,
-        "install-for": [tag],
-        "run-for": run_for,
-        "prefix": PurePath(kwargs.get("prefix", rf"C:\{tag}")),
-        "executable": kwargs.get("executable", "python.exe"),
-    }
-
-
-def fake_get_installs(install_dir):
-    yield make_install("1.0")
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("1.0-64", sort_version="1.0")
-    yield make_install("2.0-64", sort_version="2.0")
-    yield make_install("2.0-arm64", sort_version="2.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1")
-    yield make_install("3.0a1-64", sort_version="3.0a1")
-    yield make_install("1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-arm64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1-64", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
-
-
-def fake_get_installs2(install_dir):
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32"])
-    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3.0.1a1-64", "3.0-64", "3-64"])
-    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64"])
-
-
-def fake_get_unmanaged_installs():
-    return []
-
-
-def fake_get_venv_install(virtualenv):
-    raise LookupError
-
-
-@pytest.fixture
-def patched_installs(monkeypatch):
-    monkeypatch.setattr(installs, "_get_installs", fake_get_installs)
-    monkeypatch.setattr(installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
-    monkeypatch.setattr(installs, "_get_venv_install", fake_get_venv_install)
-
-
-@pytest.fixture
-def patched_installs2(monkeypatch):
-    monkeypatch.setattr(installs, "_get_installs", fake_get_installs2)
-    monkeypatch.setattr(installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
-    monkeypatch.setattr(installs, "_get_venv_install", fake_get_venv_install)
-
-
 def test_get_installs_in_order(patched_installs):
     ii = installs.get_installs("<none>")
     assert [i["id"] for i in ii] == [

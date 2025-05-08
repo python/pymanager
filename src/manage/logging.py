@@ -72,15 +72,19 @@ def supports_colour(stream):
 
 
 class Logger:
-    def __init__(self):
-        if os.getenv("PYMANAGER_DEBUG"):
+    def __init__(self, level=None, console=sys.stderr, print_console=sys.stdout):
+        if level is not None:
+            self.level = level
+        elif os.getenv("PYMANAGER_DEBUG"):
             self.level = DEBUG
         elif os.getenv("PYMANAGER_VERBOSE"):
             self.level = VERBOSE
         else:
             self.level = INFO
-        self.console = sys.stderr
+        self.console = console
         self.console_colour = supports_colour(self.console)
+        self.print_console = print_console
+        self.print_console_colour = supports_colour(self.print_console)
         self.file = None
         self._list = None
 
@@ -158,13 +162,19 @@ class Logger:
             return False
         return True
 
-    def print(self, msg=None, *args, always=False, level=INFO, **kwargs):
+    def print(self, msg=None, *args, always=False, level=INFO, colours=True, **kwargs):
         if self._list is not None:
-            self._list.append(((msg or "") % args, ()))
+            if args:
+                self._list.append(((msg or "") % args, ()))
+            else:
+                self._list.append((msg or "", ()))
         if not always and level < self.level:
             return
         if msg:
-            if self.console_colour:
+            if not colours:
+                # Don't unescape or replace anything
+                pass
+            elif self.print_console_colour:
                 for k in COLOURS:
                     msg = msg.replace(k, COLOURS[k])
             else:
@@ -176,7 +186,13 @@ class Logger:
             msg = str(args[0])
         else:
             msg = ""
-        print(msg, **kwargs, file=self.console)
+        print(msg, **kwargs, file=self.print_console)
+
+    def print_raw(self, *msg, **kwargs):
+        kwargs["always"] = True
+        kwargs["colours"] = False
+        sep = kwargs.pop("sep", " ")
+        return self.print(sep.join(str(s) for s in msg), **kwargs)
 
 
 LOGGER = Logger()
@@ -201,7 +217,10 @@ class ProgressPrinter:
             if self._complete:
                 LOGGER.print()
             else:
-                LOGGER.print("❌")
+                try:
+                    LOGGER.print("❌")
+                except UnicodeEncodeError:
+                    LOGGER.print("x")
 
     def __call__(self, progress):
         if self._complete:
@@ -210,7 +229,10 @@ class ProgressPrinter:
         if progress is None:
             if self._need_newline:
                 if not self._complete:
-                    LOGGER.print("⏸️")
+                    try:
+                        LOGGER.print("⏸️")
+                    except UnicodeEncodeError:
+                        LOGGER.print("|")
                     self._dots_shown = 0
                     self._started = False
                     self._need_newline = False
@@ -229,6 +251,9 @@ class ProgressPrinter:
         LOGGER.print(None, "." * dot_count, end="", flush=True)
         self._need_newline = True
         if progress >= 100:
-            LOGGER.print("✅", flush=True)
+            try:
+                LOGGER.print("✅", flush=True)
+            except UnicodeEncodeError:
+                LOGGER.print(".", flush=True)
             self._complete = True
             self._need_newline = False

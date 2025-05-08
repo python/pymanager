@@ -35,22 +35,24 @@ def config_bool(v):
         return v.lower().startswith(("t", "y", "1"))
     return bool(v)
 
-def _global_file():
+
+def load_global_config(cfg, schema):
     try:
         from _native import package_get_root
     except ImportError:
-        return Path(sys.executable).parent / DEFAULT_CONFIG_NAME
-    return Path(package_get_root()) / DEFAULT_CONFIG_NAME
+        file = Path(sys.executable).parent / DEFAULT_CONFIG_NAME
+    else:
+        file = Path(package_get_root()) / DEFAULT_CONFIG_NAME
+    try:
+        load_one_config(cfg, file, schema=schema)
+    except FileNotFoundError:
+        pass
+
 
 def load_config(root, override_file, schema):
     cfg = {}
 
-    global_file = _global_file()
-    if global_file:
-        try:
-            load_one_config(cfg, global_file, schema=schema)
-        except FileNotFoundError:
-            pass
+    load_global_config(cfg, schema=schema)
 
     try:
         reg_cfg = load_registry_config(cfg["registry_override_key"], schema=schema)

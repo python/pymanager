@@ -4,7 +4,7 @@ from pymsbuild.dllpack import *
 
 
 DLL_NAME = "python314"
-EMBED_URL = "https://www.python.org/ftp/python/3.14.0/python-3.14.0a7-embed-amd64.zip"
+EMBED_URL = "https://www.python.org/ftp/python/3.14.0/python-3.14.0b1-embed-amd64.zip"
 
 def can_embed(tag):
     """Return False if tag doesn't match DLL_NAME and EMBED_URL.

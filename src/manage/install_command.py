@@ -216,7 +216,8 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
 
 
 def _if_exists(launcher, plat):
-    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{launcher.suffix}"
+    suffix = "." + launcher.suffix.lstrip(".")
+    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{suffix}"
     if plat_launcher.is_file():
         return plat_launcher
     return launcher

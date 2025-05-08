@@ -167,7 +167,7 @@ HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, LPCWSTR roo
 }
 
 class DECLSPEC_UUID(CLSID_LAUNCH_COMMAND) LaunchCommand
-    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand>
+    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
     std::wstring title;
     std::wstring exe;
@@ -269,6 +269,26 @@ public:
         *ppEnum = NULL;
         return E_NOTIMPL;
     }
+
+    // IObjectWithSite
+private:
+    ComPtr<IUnknown> _site;
+
+public:
+    IFACEMETHODIMP GetSite(REFIID riid, void **ppvSite)
+    {
+        if (_site) {
+            return _site->QueryInterface(riid, ppvSite);
+        }
+        *ppvSite = NULL;
+        return E_FAIL;
+    }
+
+    IFACEMETHODIMP SetSite(IUnknown *pSite)
+    {
+        _site = pSite;
+        return S_OK;
+    }
 };
 
 
@@ -316,7 +336,7 @@ public:
 
 
 class DECLSPEC_UUID(CLSID_IDLE_COMMAND) IdleCommand
-    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand>
+    : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
     std::vector<IdleData> idles;
     std::wstring iconPath;
@@ -432,12 +452,33 @@ public:
         ).Detach();
         return S_OK;
     }
+
+    // IObjectWithSite
+private:
+    ComPtr<IUnknown> _site;
+
+public:
+    IFACEMETHODIMP GetSite(REFIID riid, void **ppvSite)
+    {
+        if (_site) {
+            return _site->QueryInterface(riid, ppvSite);
+        }
+        *ppvSite = NULL;
+        return E_FAIL;
+    }
+
+    IFACEMETHODIMP SetSite(IUnknown *pSite)
+    {
+        _site = pSite;
+        return S_OK;
+    }
 };
 
 
 CoCreatableClass(IdleCommand);
 
 #ifdef PYSHELLEXT_TEST
+
 IExplorerCommand *MakeLaunchCommand(std::wstring title, std::wstring exe, std::wstring idle)
 {
     IdleData data = { .title = title, .exe = exe, .idle = idle };
@@ -449,10 +490,31 @@ IExplorerCommand *MakeIdleCommand(HKEY hive, LPCWSTR root)
 {
     return Make<IdleCommand>(hive, root).Detach();
 }
-#endif
+
+#elif defined(_WINDLL)
+
+STDAPI DllGetClassObject(REFCLSID rclsid, REFIID riid, _COM_Outptr_ void** ppv)
+{
+    return Module<InProc>::GetModule().GetClassObject(rclsid, riid, ppv);
+}
 
 
-#ifndef PYSHELLEXT_TEST
+STDAPI DllCanUnloadNow()
+{
+    return Module<InProc>::GetModule().Terminate() ? S_OK : S_FALSE;
+}
+
+STDAPI_(BOOL) DllMain(_In_opt_ HINSTANCE hinst, DWORD reason, _In_opt_ void*)
+{
+    if (reason == DLL_PROCESS_ATTACH) {
+        hModule = hinst;
+        DisableThreadLibraryCalls(hinst);
+    }
+    return TRUE;
+}
+
+#else
+
 class OutOfProcModule : public Module<OutOfProc, OutOfProcModule>
 { };
 
@@ -475,4 +537,5 @@ int WINAPI wWinMain(
     CoUninitialize();
     return 0;
 }
+
 #endif

@@ -130,8 +130,8 @@ def format_table(cmd, installs):
 
     if show_truncated_warning:
         LOGGER.print()
-        LOGGER.print("!B!Some columns were truncated. Use '!G!--format=json!B!'"
-                     " or '!G!--format=jsonl!B!' for full information.!W!")
+        LOGGER.print("!B!Some columns were truncated. See '!G!py list --help!B!'"
+                     " for alternative ways to display this information.!W!")
 
 
 CSV_EXCLUDE = {

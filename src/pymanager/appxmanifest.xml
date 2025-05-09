@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Package IgnorableNamespaces="desktop4 desktop6 desktop7 uap13 uap17"
+<Package IgnorableNamespaces="com4 desktop4 desktop6 desktop7 uap13 uap17"
     xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
     xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
     xmlns:com4="http://schemas.microsoft.com/appx/manifest/com/windows10/4"

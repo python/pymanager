@@ -7,6 +7,7 @@ def test_path_match():
     assert p.match("*.exe")
     assert p.match("python*")
     assert p.match("python*.exe")
+    assert p.match("python3.12*.exe")
     assert p.match("*hon3.*")
     assert p.match("p*3.*.exe")
 

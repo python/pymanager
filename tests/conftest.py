@@ -144,7 +144,7 @@ class FakeConfig:
         return self.installs
 
     def get_install_to_run(self, tag):
-        company, _, tag = (tag.replace("/", "\\")).rpartition("\\")
+        company, _, tag = tag.replace("/", "\\").rpartition("\\")
         return [i for i in self.installs
                 if i["tag"] == tag and (not company or i["company"] == company)][0]
 

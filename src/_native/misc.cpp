@@ -119,4 +119,39 @@ PyObject *reg_rename_key(PyObject *, PyObject *args, PyObject *kwargs) {
     return r;
 }
 
+
+PyObject *read_alias_package(PyObject *, PyObject *args, PyObject *kwargs) {
+    static const char * keywords[] = {"path", NULL};
+    wchar_t *path = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:read_alias_package", keywords,
+        as_utf16, &path)) {
+        return NULL;
+    }
+
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                           FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    PyMem_Free(path);
+    if (h == INVALID_HANDLE_VALUE) {
+        PyErr_SetFromWindowsErr(0);
+        return NULL;
+    }
+
+    wchar_t buffer[32768];
+    DWORD nread;
+
+    if (!DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0,
+        buffer, sizeof(buffer), &nread, NULL)) {
+        PyErr_SetFromWindowsErr(0);
+        CloseHandle(h);
+        return NULL;
+    }
+    CloseHandle(h);
+
+    if (*(DWORD*)buffer != IO_REPARSE_TAG_APPEXECLINK) {
+        return Py_GetConstant(Py_CONSTANT_NONE);
+    }
+
+    return PyUnicode_FromWideChar(&buffer[4], nread / sizeof(wchar_t) - 5);
+}
+
 }

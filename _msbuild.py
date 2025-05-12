@@ -84,6 +84,7 @@ NATIVE_PYD = DllPackage(
     CFunction('date_as_str'),
     CFunction('datetime_as_str'),
     CFunction('reg_rename_key'),
+    CFunction('read_alias_package'),
     source='src/_native',
     RootNamespace='_native',
 )

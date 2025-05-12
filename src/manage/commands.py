@@ -25,9 +25,17 @@ DEFAULT_SOURCE_URL = "https://www.python.org/ftp/python/index-windows.json"
 DEFAULT_TAG = "3.14"
 
 
+# TODO: Remove the /dev/ for stable release
+HELP_URL = "https://docs.python.org/dev/using/windows"
+
+
 COPYRIGHT = f"""Python installation manager {__version__}
 Copyright (c) Python Software Foundation. All Rights Reserved.
 """
+
+
+if EXE_NAME.casefold() == "py-manager".casefold():
+    EXE_NAME = "py"
 
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
@@ -188,6 +196,7 @@ CLI_SCHEMA = {
         "enable-shortcut-kinds": ("enable_shortcut_kinds", _NEXT, config_split),
         "disable-shortcut-kinds": ("disable_shortcut_kinds", _NEXT, config_split),
         "help": ("show_help", True), # nested to avoid conflict with command
+        "configure": ("configure", True),
         # Set when the manager is doing an automatic install.
         # Generally won't be set by manual invocation
         "automatic": ("automatic", True),
@@ -201,6 +210,10 @@ CLI_SCHEMA = {
         "f": ("confirm", False),
         "force": ("confirm", False),
         "help": ("show_help", True), # nested to avoid conflict with command
+    },
+
+    "**first_run": {
+        "explicit": ("explicit", True),
     },
 }
 
@@ -238,6 +251,17 @@ CONFIG_SCHEMA = {
         "fallback_source": (str, None, "env", "path", "uri"),
         "enable_shortcut_kinds": (str, config_split_append),
         "disable_shortcut_kinds": (str, config_split_append),
+    },
+
+    "first_run": {
+        "enabled": (config_bool, None, "env"),
+        "explicit": (config_bool, None),
+        "check_app_alias": (config_bool, None, "env"),
+        "check_long_paths": (config_bool, None, "env"),
+        "check_py_on_path": (config_bool, None, "env"),
+        "check_any_install": (config_bool, None, "env"),
+        "check_default_tag": (config_bool, None, "env"),
+        "check_global_dir": (config_bool, None, "env"),
     },
 
     # These configuration settings are intended for administrative override only
@@ -419,11 +443,11 @@ class BaseCommand:
         # If our command has any config, load them to override anything that
         # wasn't set on the command line.
         try:
-            cmd_config = config[self.CMD]
+            cmd_config = config[self.CMD.lstrip("*")]
         except (AttributeError, LookupError):
             pass
         else:
-            arg_names = frozenset(CONFIG_SCHEMA[self.CMD])
+            arg_names = frozenset(CONFIG_SCHEMA[self.CMD.lstrip("*")])
             for k, v in cmd_config.items():
                 if k in arg_names and k not in _set_args:
                     LOGGER.debug("Overriding command option %s with %r", k, v)
@@ -511,7 +535,7 @@ class BaseCommand:
             logs_dir = Path(os.getenv("TMP") or os.getenv("TEMP") or os.getcwd())
         from _native import datetime_as_str
         self._log_file = logs_dir / "python_{}_{}_{}.log".format(
-            self.CMD, datetime_as_str(), os.getpid()
+            self.CMD.strip("*"), datetime_as_str(), os.getpid()
         )
         return self._log_file
 
@@ -564,8 +588,7 @@ class BaseCommand:
                 LOGGER.print(r)
 
         LOGGER.print()
-        # TODO: Remove the /dev/ for stable release
-        LOGGER.print("Find additional information at !B!https://docs.python.org/dev/using/windows!W!.")
+        LOGGER.print("Find additional information at !B!%s!W!.", HELP_URL)
         LOGGER.print()
 
     @classmethod
@@ -746,6 +769,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     -u, --update     Overwrite existing install if a newer version is available.
     --dry-run        Choose runtime but do not install
     --refresh        Update shortcuts and aliases for all installed versions.
+    --configure      Re-run the system configuration helper.
     --by-id          Require TAG to exactly match the install ID. (For advanced use.)
     !B!<TAG> <TAG>!W! ...  One or more tags to install (Company\Tag format)
 
@@ -775,6 +799,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     dry_run = False
     refresh = False
     by_id = False
+    configure = False
     automatic = False
     from_script = None
     enable_shortcut_kinds = None
@@ -801,9 +826,13 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
             self.download = Path(self.download).absolute()
 
     def execute(self):
-        from .install_command import execute
         self.show_welcome()
-        execute(self)
+        if self.configure:
+            cmd = FirstRun(["**first_run", "--explicit"], self.root)
+            cmd.execute()
+        else:
+            from .install_command import execute
+            execute(self)
 
 
 class UninstallCommand(BaseCommand):
@@ -891,7 +920,7 @@ Shows help for specific commands.
 
 
 class HelpWithErrorCommand(HelpCommand):
-    CMD = "__help_with_error"
+    CMD = "**help_with_error"
 
     def __init__(self, args, root=None):
         # Essentially disable argument processing for this command
@@ -943,6 +972,29 @@ class DefaultConfig(BaseCommand):
 
     def __init__(self, root):
         super().__init__([], root)
+
+
+class FirstRun(BaseCommand):
+    CMD = "**first_run"
+    enabled = True
+    explicit = False
+    check_app_alias = True
+    check_long_paths = True
+    check_py_on_path = True
+    check_any_install = True
+    check_default_tag = True
+    check_global_dir = True
+
+    def execute(self):
+        if not self.enabled:
+            return
+        from .firstrun import first_run
+        first_run(self)
+        if not self.explicit:
+            show_help([])
+            if self.confirm and not self.ask_ny(f"View more help online? (!B!{HELP_URL}!W!)"):
+                import os
+                os.startfile(HELP_URL)
 
 
 def load_default_config(root):

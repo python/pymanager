@@ -170,8 +170,8 @@ def _is_tag_managed(company_key, tag_name, *, creating=False):
 
     # Existing key is almost certainly not valid, so let's rename it,
     # warn the user, and then continue.
-    LOGGER.debug("Key %s appears invalid, so moving it and taking it for this "
-                 "new install", tag_name)
+    LOGGER.debug("Registry key %s appears invalid, so moving it and taking it "
+                 "for this new install", tag_name)
     try:
         from _native import reg_rename_key
     except ImportError:
@@ -235,10 +235,12 @@ def update_registry(root_name, install, data):
                 winreg.SetValueEx(tag, "ManagedByPyManager", None, winreg.REG_DWORD, 1)
                 _update_reg_values(tag, data, install, {"kind", "Key", "ManagedByPyManager"})
         else:
-            LOGGER.warn("A runtime matching %s is already installed, and so "
-                        "the new one has not been registered.", data["Key"])
-            LOGGER.info("To register the new installation, remove the existing "
-                        "runtime and then run 'py install --refresh'",)
+            LOGGER.warn("An existing runtime is registered at %s in the registry, "
+                        "and so the new one has not been registered.", data["Key"])
+            LOGGER.info("This may prevent some other applications from detecting "
+                        "the new installation, although 'py -V:...' will work. "
+                        "To register the new installation, remove the existing "
+                        "runtime and then run 'py install --refresh'")
 
 
 def cleanup_registry(root_name, keep):
@@ -350,8 +352,8 @@ def _get_unmanaged_installs(root):
                     try:
                         yield _read_one_unmanaged_install(company_name, tag_name, is_core, tag)
                     except Exception:
-                        LOGGER.debug("Failed to read %s\\%s registration", company_name, tag_name)
-                        LOGGER.debug("ERROR", exc_info=True)
+                        LOGGER.debug("Failed to read %s\\%s registration",
+                                     company_name, tag_name, exc_info=True)
 
 
 def _get_store_installs():

@@ -24,7 +24,7 @@ def _find_shebang_command(cmd, full_cmd):
     for i in cmd.get_installs():
         if is_default and i.get("default"):
             return i
-        for a in i["alias"]:
+        for a in i.get("alias", ()):
             if sh_cmd.match(a["name"]):
                 LOGGER.debug("Matched alias %s in %s", a["name"], i["id"])
                 return {**i, "executable": i["prefix"] / a["target"]}
@@ -34,8 +34,13 @@ def _find_shebang_command(cmd, full_cmd):
         if sh_cmd.match(i["executable"]):
             LOGGER.debug("Matched executable %s in %s", i["executable"], i["id"])
             return i
-    else:
-        raise LookupError
+
+    # Fallback search for 'python<TAG>.exe' shebangs
+    if sh_cmd.match("python*.exe"):
+        tag = sh_cmd.name[6:-4]
+        return cmd.get_install_to_run(f"PythonCore/{tag}")
+
+    raise LookupError
 
 
 def _find_on_path(cmd, full_cmd):

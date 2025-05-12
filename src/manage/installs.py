@@ -135,7 +135,7 @@ def _make_alias_key(alias):
         n2 = n1[-1] + n2
         n1 = n1[:-1]
     w = ""
-    if n1 and n1[-1] == "w":
+    if n1 and n1[-1].casefold() == "w".casefold():
         w = "w"
         n1 = n1[:-1]
     return n1, w, n2, plat, n3

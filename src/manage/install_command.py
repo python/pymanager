@@ -347,7 +347,7 @@ def print_cli_shortcuts(cmd):
     from .installs import get_install_alias_names
     installs = cmd.get_installs()
     tags = getattr(cmd, "tags", None)
-    seen = set("python.exe".casefold())
+    seen = {"python.exe".casefold()}
     verbose = LOGGER.would_log_to_console(VERBOSE)
     for i in installs:
         # We need to pre-filter aliases before getting the nice names.

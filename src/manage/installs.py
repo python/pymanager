@@ -152,10 +152,8 @@ def _sk_sub(m):
     n = m.group(1)
     if not n:
         return ""
-    if n == ".":
-        return "-"
-    if n == "-":
-        return "."
+    if n in "[]":
+        return ""
     try:
         return f"{int(n):020}"
     except ValueError:
@@ -165,7 +163,7 @@ def _sk_sub(m):
 
 def _make_alias_name_sortkey(n):
     import re
-    return re.sub(r"(\d+|.|-)", _sk_sub, n)
+    return re.sub(r"(\d+|\[|\])", _sk_sub, n)
 
 
 def get_install_alias_names(aliases, friendly=True, windowed=True):

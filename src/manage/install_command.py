@@ -625,7 +625,10 @@ def execute(cmd):
         if cmd.from_script:
             # Have already checked that we are not using --by-id
             from .scriptutils import find_install_from_script
-            spec = find_install_from_script(cmd, cmd.from_script)
+            try:
+                spec = find_install_from_script(cmd, cmd.from_script)
+            except LookupError:
+                spec = None
             if spec:
                 cmd.tags.append(tag_or_range(spec))
             else:

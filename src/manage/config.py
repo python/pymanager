@@ -134,7 +134,7 @@ def load_registry_config(key_path, schema):
 
     try:
         from _native import package_get_root
-        root = package_get_root()
+        root = Path(package_get_root())
     except ImportError:
         root = Path(sys.executable).parent
     resolve_config(cfg, key_path, root, schema=schema, error_unknown=True)

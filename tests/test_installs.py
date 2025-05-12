@@ -126,3 +126,34 @@ def test_get_install_to_run_with_range(patched_installs):
     i = installs.get_install_to_run("<none>", None, ">1.0")
     assert i["id"] == "PythonCore-2.0-64"
     assert i["executable"].match("python.exe")
+
+
+def test_install_alias_make_alias_sortkey():
+    assert ("pythonw00000000000000000003-00000000000000000064.exe"
+            == installs._make_alias_name_sortkey("pythonw3-64.exe"))
+    assert ("pythonw00000000000000000003-00000000000000000064.exe"
+            == installs._make_alias_name_sortkey("python[w]3[-64].exe"))
+
+def test_install_alias_make_alias_key():
+    assert ("python", "w", "3", "-64", ".exe") == installs._make_alias_key("pythonw3-64.exe")
+    assert ("python", "w", "3", "", ".exe") == installs._make_alias_key("pythonw3.exe")
+    assert ("pythonw3-xyz", "", "", "", ".exe") == installs._make_alias_key("pythonw3-xyz.exe")
+    assert ("python", "", "3", "-64", ".exe") == installs._make_alias_key("python3-64.exe")
+    assert ("python", "", "3", "", ".exe") == installs._make_alias_key("python3.exe")
+    assert ("python3-xyz", "", "", "", ".exe") == installs._make_alias_key("python3-xyz.exe")
+
+
+def test_install_alias_opt_part():
+    assert "" == installs._make_opt_part([])
+    assert "x" == installs._make_opt_part(["x"])
+    assert "[x]" == installs._make_opt_part(["x", ""])
+    assert "[x|y]" == installs._make_opt_part(["", "y", "x"])
+
+
+def test_install_alias_names():
+    input = [{"name": i} for i in ["py3.exe", "PY3-64.exe", "PYW3.exe", "pyw3-64.exe"]]
+    input.extend([{"name": i, "windowed": 1} for i in ["xy3.exe", "XY3-64.exe", "XYW3.exe", "xyw3-64.exe"]])
+    expect = ["py[w]3[-64].exe"]
+    expectw = ["py[w]3[-64].exe", "xy[w]3[-64].exe"]
+    assert expect == installs.get_install_alias_names(input, friendly=True, windowed=False)
+    assert expectw == installs.get_install_alias_names(input, friendly=True, windowed=True)

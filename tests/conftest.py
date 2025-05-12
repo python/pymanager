@@ -201,7 +201,7 @@ def make_install(tag, **kwargs):
         run_for.append({"tag": t, "target": kwargs.get("target", "python.exe")})
         run_for.append({"tag": t, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1})
 
-    return {
+    i = {
         "company": kwargs.get("company", "PythonCore"),
         "id": "{}-{}".format(kwargs.get("company", "PythonCore"), tag),
         "sort-version": kwargs.get("sort_version", tag),
@@ -212,12 +212,17 @@ def make_install(tag, **kwargs):
         "prefix": PurePath(kwargs.get("prefix", rf"C:\{tag}")),
         "executable": kwargs.get("executable", "python.exe"),
     }
+    try:
+        i["alias"] = kwargs["alias"]
+    except LookupError:
+        pass
+    return i
 
 
 def fake_get_installs(install_dir):
     yield make_install("1.0")
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("1.0-64", sort_version="1.0")
+    yield make_install("1.0-32", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-32.exe")])
+    yield make_install("1.0-64", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-64.exe")])
     yield make_install("2.0-64", sort_version="2.0")
     yield make_install("2.0-arm64", sort_version="2.0")
     yield make_install("3.0a1-32", sort_version="3.0a1")

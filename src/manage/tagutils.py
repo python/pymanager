@@ -123,7 +123,7 @@ class _DescendingVersion(Version):
         return self.sortkey > other.sortkey
 
 
-def _split_platform(tag):
+def split_platform(tag):
     if tag.endswith(SUPPORTED_PLATFORM_SUFFIXES):
         for t in SUPPORTED_PLATFORM_SUFFIXES:
             if tag.endswith(t):
@@ -178,7 +178,7 @@ class CompanyTag:
         else:
             assert isinstance(company_or_tag, _CompanyKey)
             self._company = company_or_tag
-        self.tag, self.platform = _split_platform(tag)
+        self.tag, self.platform = split_platform(tag)
         self._sortkey = _sort_tag(self.tag)
 
     @property

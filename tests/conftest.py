@@ -143,6 +143,11 @@ class FakeConfig:
     def get_installs(self):
         return self.installs
 
+    def get_install_to_run(self, tag):
+        company, _, tag = (tag.replace("/", "\\")).rpartition("\\")
+        return [i for i in self.installs
+                if i["tag"] == tag and (not company or i["company"] == company)][0]
+
 
 @pytest.fixture
 def fake_config():

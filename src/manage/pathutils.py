@@ -124,22 +124,18 @@ class PurePath:
         if "*" not in p:
             return m.casefold() == p
 
-        allow_skip = False
+        must_start_with = not p.startswith("*")
         for bit in p.split("*"):
-            if bit:
-                if allow_skip:
-                    allow_skip = False
-                    try:
-                        i = m.index(bit)
-                    except ValueError:
-                        return False
-                    m = m[i + len(bit):]
-                elif m.startswith(bit):
-                    m = m[len(bit):]
-                else:
-                    return False
-            else:
-                allow_skip = True
+            if not bit:
+                continue
+            try:
+                i = m.index(bit)
+            except ValueError:
+                return False
+            if must_start_with and i != 0:
+                return False
+            m = m[i + len(bit):]
+            must_start_with = False
         return True
 
 

@@ -17,7 +17,7 @@ from manage.scriptutils import (
 
 def _fake_install(v, **kwargs):
     return {
-        "company": "Test",
+        "company": kwargs.get("company", "Test"),
         "id": f"test-{v}",
         "tag": str(v),
         "version": str(v),
@@ -29,6 +29,8 @@ def _fake_install(v, **kwargs):
 INSTALLS = [
     _fake_install("1.0", alias=[{"name": "test1.0.exe", "target": "./test-binary-1.0.exe"}]),
     _fake_install("1.1", alias=[{"name": "test1.1.exe", "target": "./test-binary-1.1.exe"}]),
+    _fake_install("1.3.1", company="PythonCore"),
+    _fake_install("1.3.2", company="PythonOther"),
     _fake_install("2.0", alias=[{"name": "test2.0.exe", "target": "./test-binary-2.0.exe"}]),
 ]
 
@@ -46,6 +48,10 @@ INSTALLS = [
     ("#! /usr/bin/env test1.0\n", "1.0"),
     ("#! /usr/bin/env test2.0\n", "2.0"),
     ("#! /usr/bin/env -S test2.0\n", "2.0"),
+    # Legacy handling specifically for "python<TAG>"
+    ("#! /usr/bin/python1.3.1", "1.3.1"),
+    ("#! /usr/bin/env python1.3.1", "1.3.1"),
+    ("#! /usr/bin/python1.3.2", None),
 ])
 def test_read_shebang(fake_config, tmp_path, script, expect):
     fake_config.installs.extend(INSTALLS)

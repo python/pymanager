@@ -351,7 +351,7 @@ def print_cli_shortcuts(cmd):
     verbose = LOGGER.would_log_to_console(VERBOSE)
     for i in installs:
         # We need to pre-filter aliases before getting the nice names.
-        aliases = [a for a in i["alias"] if a["name"].casefold() not in seen]
+        aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
         seen.update(n["name"].casefold() for n in aliases)
         if not verbose:
             if i.get("default"):

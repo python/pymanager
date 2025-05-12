@@ -344,37 +344,33 @@ def print_cli_shortcuts(cmd):
             LOGGER.debug("Failed to display PATH warning", exc_info=True)
             return
 
+    from .installs import get_install_alias_names
     installs = cmd.get_installs()
     tags = getattr(cmd, "tags", None)
     seen = set("python.exe".casefold())
     verbose = LOGGER.would_log_to_console(VERBOSE)
     for i in installs:
-        # We only show windowed aliases if -v is enabled. But we log them as
-        # debug info unconditionally. This involves a bit of a dance to keep the
-        # 'windowed' flag around and then drop entries based on whether
-        # LOGGER.verbose would be printed to the console.
-        aliases = sorted((a["name"], a.get("windowed", 0)) for a in i["alias"]
-                         if a["name"].casefold() not in seen)
-        seen.update(n.casefold() for n, *_ in aliases)
+        # We need to pre-filter aliases before getting the nice names.
+        aliases = [a for a in i["alias"] if a["name"].casefold() not in seen]
+        seen.update(n["name"].casefold() for n in aliases)
         if not verbose:
             if i.get("default"):
                 LOGGER.debug("%s will be launched by !G!python.exe!W!", i["display-name"])
-            LOGGER.debug("%s will be launched by %s", i["display-name"],
-                         ", ".join([n for n, *_ in aliases]))
-            aliases = [n for n, w in aliases if not w]
-        else:
-            aliases = [n for n, *_ in aliases]
+            names = get_install_alias_names(aliases, windowed=True)
+            LOGGER.debug("%s will be launched by %s", i["display-name"], ", ".join(names))
 
         if tags and not install_matches_any(i, cmd.tags):
             continue
-        if i.get("default") and aliases:
+
+        names = get_install_alias_names(aliases, windowed=False)
+        if i.get("default") and names:
             LOGGER.info("%s will be launched by !G!python.exe!W! and also %s",
-                        i["display-name"], ", ".join(aliases))
+                        i["display-name"], ", ".join(names))
         elif i.get("default"):
             LOGGER.info("%s will be launched by !G!python.exe!W!.", i["display-name"])
-        elif aliases:
+        elif names:
             LOGGER.info("%s will be launched by %s",
-                        i["display-name"], ", ".join(aliases))
+                        i["display-name"], ", ".join(names))
         else:
             LOGGER.info("Installed %s to %s", i["display-name"], i["prefix"])
 

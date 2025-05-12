@@ -120,6 +120,62 @@ def get_installs(
     return installs
 
 
+def _make_alias_key(alias):
+    from .tagutils import SUPPORTED_PLATFORM_SUFFIXES
+    n1, sep, n3 = alias.rpartition(".")
+    n2 = ""
+    n3 = sep + n3
+    if n1.endswith(SUPPORTED_PLATFORM_SUFFIXES):
+        n1, sep, plat = n1.rpartition("-")
+        plat = sep + plat
+    else:
+        plat = ""
+
+    while n1 and n1[-1] in "0123456789.-":
+        n2 = n1[-1] + n2
+        n1 = n1[:-1]
+    w = ""
+    if n1 and n1[-1] == "w":
+        w = "w"
+        n1 = n1[:-1]
+    return n1, w, n2, plat, n3
+
+
+def _make_opt_part(parts):
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return list(parts)[0]
+    return "[{}]".format("|".join(sorted(p for p in parts if p)))
+
+
+def get_install_alias_names(aliases, friendly=True, windowed=True):
+    if not windowed:
+        aliases = [a for a in aliases if not a.get("windowed")]
+    if not friendly:
+        return sorted(a["name"] for a in aliases)
+
+    seen = {}
+    has_w = {}
+    plats = {}
+    for n1, w, n2, plat, n3 in (_make_alias_key(a["name"]) for a in aliases):
+        k = n1.casefold(), n2.casefold(), n3.casefold()
+        seen.setdefault(k, (n1, n2, n3))
+        has_w.setdefault(k, set()).add(w)
+        plats.setdefault(k, set()).add(plat)
+
+    result = []
+    for k, (n1, n2, n3) in seen.items():
+        result.append("".join([
+            n1,
+            _make_opt_part(has_w.get(k)),
+            n2,
+            _make_opt_part(plats.get(k)),
+            n3,
+        ]))
+    return sorted(result)
+
+
 def _patch_install_to_run(i, run_for):
     return {
         **i,

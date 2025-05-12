@@ -7,43 +7,11 @@ from .exceptions import ArgumentError
 LOGGER = logging.LOGGER
 
 
-def _exe_partition(n):
-    n1, sep, n2 = n.rpartition(".")
-    n2 = sep + n2
-    while n1 and n1[-1] in "0123456789.-":
-        n2 = n1[-1] + n2
-        n1 = n1[:-1]
-    w = ""
-    if n1 and n1[-1] == "w":
-        w = "w"
-        n1 = n1[:-1]
-    return n1, w, n2
-
-
 def _format_alias(i, seen):
-    try:
-        alias = i["alias"]
-    except KeyError:
-        return ""
-    if not alias:
-        return ""
-    if len(alias) == 1:
-        a = i["alias"][0]
-        n = a["name"].casefold()
-        if n in seen:
-            return ""
-        seen.add(n)
-        return i["alias"][0]["name"]
-    names = {_exe_partition(a["name"].casefold()): a["name"] for a in alias
-             if a["name"].casefold() not in seen}
-    seen.update(a["name"].casefold() for a in alias)
-    for n1, w, n2 in list(names):
-        k = (n1, "", n2)
-        if w and k in names:
-            del names[n1, w, n2]
-            n1, _, n2 = _exe_partition(names[k])
-            names[k] = f"{n1}[w]{n2}"
-    return ", ".join(names[n] for n in sorted(names))
+    from manage.installs import get_install_alias_names
+    aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
+    seen.update(a["name"].casefold() for a in aliases)
+    return ", ".join(get_install_alias_names(aliases))
 
 
 def _format_tag_with_co(cmd, i):

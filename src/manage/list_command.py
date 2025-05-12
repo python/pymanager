@@ -11,7 +11,10 @@ def _format_alias(i, seen):
     from manage.installs import get_install_alias_names
     aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
     seen.update(a["name"].casefold() for a in aliases)
-    return ", ".join(get_install_alias_names(aliases))
+
+    include_w = LOGGER.would_log_to_console(logging.VERBOSE)
+    names = get_install_alias_names(aliases, windowed=include_w)
+    return ", ".join(names)
 
 
 def _format_tag_with_co(cmd, i):

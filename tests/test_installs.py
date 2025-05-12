@@ -128,6 +128,10 @@ def test_get_install_to_run_with_range(patched_installs):
     assert i["executable"].match("python.exe")
 
 
+def test_install_alias_make_alias_sortkey():
+    assert ("pythonw00000000000000000003.00000000000000000064-exe"
+            == installs._make_alias_name_sortkey("pythonw3-64.exe"))
+
 def test_install_alias_make_alias_key():
     assert ("python", "w", "3", "-64", ".exe") == installs._make_alias_key("pythonw3-64.exe")
     assert ("python", "w", "3", "", ".exe") == installs._make_alias_key("pythonw3.exe")

@@ -3,7 +3,7 @@ import json
 from .exceptions import NoInstallFoundError, NoInstallsError
 from .logging import DEBUG, LOGGER
 from .pathutils import Path
-from .tagutils import CompanyTag, tag_or_range, companies_match
+from .tagutils import CompanyTag, tag_or_range, companies_match, split_platform
 from .verutils import Version
 
 
@@ -121,23 +121,22 @@ def get_installs(
 
 
 def _make_alias_key(alias):
-    from .tagutils import SUPPORTED_PLATFORM_SUFFIXES
     n1, sep, n3 = alias.rpartition(".")
     n2 = ""
     n3 = sep + n3
-    if n1.endswith(SUPPORTED_PLATFORM_SUFFIXES):
-        n1, sep, plat = n1.rpartition("-")
-        plat = sep + plat
-    else:
-        plat = ""
+
+    n1, plat = split_platform(n1)
 
     while n1 and n1[-1] in "0123456789.-":
         n2 = n1[-1] + n2
         n1 = n1[:-1]
-    w = ""
+
     if n1 and n1[-1].casefold() == "w".casefold():
         w = "w"
         n1 = n1[:-1]
+    else:
+        w = ""
+
     return n1, w, n2, plat, n3
 
 
@@ -147,6 +146,26 @@ def _make_opt_part(parts):
     if len(parts) == 1:
         return list(parts)[0]
     return "[{}]".format("|".join(sorted(p for p in parts if p)))
+
+
+def _sk_sub(m):
+    n = m.group(1)
+    if not n:
+        return ""
+    if n == ".":
+        return "-"
+    if n == "-":
+        return "."
+    try:
+        return f"{int(n):020}"
+    except ValueError:
+        pass
+    return n
+
+
+def _make_alias_name_sortkey(n):
+    import re
+    return re.sub(r"(\d+|.|-)", _sk_sub, n)
 
 
 def get_install_alias_names(aliases, friendly=True, windowed=True):
@@ -173,7 +192,7 @@ def get_install_alias_names(aliases, friendly=True, windowed=True):
             _make_opt_part(plats.get(k)),
             n3,
         ]))
-    return sorted(result)
+    return sorted(result, key=_make_alias_name_sortkey)
 
 
 def _patch_install_to_run(i, run_for):

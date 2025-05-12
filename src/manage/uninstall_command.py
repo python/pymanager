@@ -127,6 +127,6 @@ def execute(cmd):
             LOGGER.debug("TRACEBACK:", exc_info=True)
 
     if to_uninstall:
-        update_all_shortcuts(cmd, path_warning=False)
+        update_all_shortcuts(cmd)
 
     LOGGER.debug("END uninstall_command.execute")

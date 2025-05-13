@@ -26,7 +26,7 @@ def _unprefix(p, prefix):
     return p
 
 
-def _make(root, prefix, item):
+def _make(root, prefix, item, allow_warn=True):
     n = item["Name"]
     try:
         _make_directory(root, n, prefix, item["Items"])
@@ -40,7 +40,10 @@ def _make(root, prefix, item):
     try:
         lnk.relative_to(root)
     except ValueError:
-        LOGGER.warn("Package attempted to create shortcut outside of its directory")
+        if allow_warn:
+            LOGGER.warn("Package attempted to create shortcut outside of its directory")
+        else:
+            LOGGER.debug("Package attempted to create shortcut outside of its directory")
         LOGGER.debug("Path: %s", lnk)
         LOGGER.debug("Directory: %s", root)
         return None

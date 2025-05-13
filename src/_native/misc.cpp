@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <windows.h>
+#include <appmodel.h>
 
 #include "helpers.h"
 
@@ -120,6 +121,22 @@ PyObject *reg_rename_key(PyObject *, PyObject *args, PyObject *kwargs) {
 }
 
 
+PyObject *get_current_package(PyObject *, PyObject *, PyObject *) {
+    wchar_t package_name[256];
+    UINT32 cch = sizeof(package_name) / sizeof(package_name[0]);
+    int err = GetCurrentPackageFamilyName(&cch, package_name);
+    switch (err) {
+    case ERROR_SUCCESS:
+        return PyUnicode_FromWideChar(package_name, cch);
+    case APPMODEL_ERROR_NO_PACKAGE:
+        return Py_GetConstant(Py_CONSTANT_NONE);
+    default:
+        PyErr_SetFromWindowsErr(err);
+        return NULL;
+    }
+}
+
+
 PyObject *read_alias_package(PyObject *, PyObject *args, PyObject *kwargs) {
     static const char * keywords[] = {"path", NULL};
     wchar_t *path = NULL;
@@ -136,22 +153,32 @@ PyObject *read_alias_package(PyObject *, PyObject *args, PyObject *kwargs) {
         return NULL;
     }
 
-    wchar_t buffer[32768];
+    struct {
+        DWORD tag;
+        DWORD _reserved1;
+        DWORD _reserved2;
+        wchar_t package_name[256];
+        wchar_t nul;
+    } buffer;
     DWORD nread;
 
     if (!DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0,
-        buffer, sizeof(buffer), &nread, NULL)) {
+        &buffer, sizeof(buffer), &nread, NULL)
+        // we expect our buffer to be too small, but we only want the package
+        && GetLastError() != ERROR_MORE_DATA) {
         PyErr_SetFromWindowsErr(0);
         CloseHandle(h);
         return NULL;
     }
+
     CloseHandle(h);
 
-    if (*(DWORD*)buffer != IO_REPARSE_TAG_APPEXECLINK) {
+    if (buffer.tag != IO_REPARSE_TAG_APPEXECLINK) {
         return Py_GetConstant(Py_CONSTANT_NONE);
     }
 
-    return PyUnicode_FromWideChar(&buffer[4], nread / sizeof(wchar_t) - 5);
+    buffer.nul = 0;
+    return PyUnicode_FromWideChar(buffer.package_name, -1);
 }
 
 }

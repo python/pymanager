@@ -19,23 +19,36 @@ from .pathutils import Path
 
 def check_app_alias(cmd):
     LOGGER.debug("Checking app execution aliases")
-    from _native import read_alias_package
+    from _native import get_current_package, read_alias_package
+    # Expected identities:
+    # Side-loaded MSIX
+    # * "PythonSoftwareFoundation.PythonManager_3847v3x7pw1km",
+    # Store package
+    # * "PythonSoftwareFoundation.PythonManager_qbz5n2kfra8p0",
+    # Development build
+    # * "PythonSoftwareFoundation.PythonManager_m8z88z54g2w36",
+    # MSI/dev install
+    # * None
+    try:
+        pkg = get_current_package()
+    except OSError:
+        LOGGER.debug("Failed to get current package name.", exc_info=True)
+        pkg = None
+    if not pkg:
+        pkg = ""
+        #LOGGER.debug("Check skipped: MSI install can't do this check")
+        #return True
+    LOGGER.debug("Checking for %s", pkg)
     root = Path(os.environ["LocalAppData"]) / "Microsoft/WindowsApps"
     for name in ["py.exe", "pyw.exe", "python.exe", "pythonw.exe", "python3.exe", "pymanager.exe"]:
         exe = root / name
         try:
             LOGGER.debug("Reading from %s", exe)
-            package = (read_alias_package(exe) or "").split("\0")
-            LOGGER.debug("Data: %r", package)
-            if package[1] not in (
-                # Side-loaded MSIX
-                "PythonSoftwareFoundation.PythonManager_3847v3x7pw1km",
-                # Store packaged
-                "PythonSoftwareFoundation.PythonManager_qbz5n2kfra8p0",
-                # Development build
-                "PythonSoftwareFoundation.PythonManager_m8z88z54g2w36",
-            ):
+            package = read_alias_package(exe)
+            LOGGER.debug("Package: %r", package)
+            if package not in pkg:
                 LOGGER.debug("Check failed: package did not match identity")
+                return False
         except FileNotFoundError:
             LOGGER.debug("Check failed: did not find %s", exe)
             return False
@@ -59,7 +72,10 @@ def check_long_paths(cmd):
 
 def check_py_on_path(cmd):
     LOGGER.debug("Checking for legacy py.exe on PATH")
-    from _native import read_alias_package
+    from _native import get_current_package, read_alias_package
+    if not get_current_package():
+        LOGGER.debug("Check skipped: MSI install can't do this check")
+        return True
     for p in os.environ["PATH"].split(";"):
         if not p:
             continue
@@ -230,7 +246,7 @@ def first_run(cmd):
 if __name__ == "__main__":
     class TestCommand:
         enabled = True
-        global_dir = r".\test-bin"
+        global_dir = Path(os.path.expandvars(r"%LocalAppData%\Python\bin"))
         explicit = False
         confirm = True
         check_app_alias = True
@@ -241,7 +257,16 @@ if __name__ == "__main__":
         check_default_tag = True
 
         def get_installs(self, *args, **kwargs):
-            return []
+            import json
+            root = Path(os.path.expandvars(r"%LocalAppData%\Python"))
+            result = []
+            for d in root.iterdir():
+                inst = d / "__install__.json"
+                try:
+                    result.append(json.loads(inst.read_text()))
+                except FileNotFoundError:
+                    pass
+            return result
 
         def _ask(self, fmt, *args, yn_text="Y/n", expect_char="y"):
             if not self.confirm:

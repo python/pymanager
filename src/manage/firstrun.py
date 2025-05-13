@@ -35,9 +35,8 @@ def check_app_alias(cmd):
         LOGGER.debug("Failed to get current package name.", exc_info=True)
         pkg = None
     if not pkg:
-        pkg = ""
-        #LOGGER.debug("Check skipped: MSI install can't do this check")
-        #return True
+        LOGGER.debug("Check skipped: MSI install can't do this check")
+        return "skip"
     LOGGER.debug("Checking for %s", pkg)
     root = Path(os.environ["LocalAppData"]) / "Microsoft/WindowsApps"
     for name in ["py.exe", "pyw.exe", "python.exe", "pythonw.exe", "python3.exe", "pymanager.exe"]:
@@ -75,7 +74,7 @@ def check_py_on_path(cmd):
     from _native import get_current_package, read_alias_package
     if not get_current_package():
         LOGGER.debug("Check skipped: MSI install can't do this check")
-        return True
+        return "skip"
     for p in os.environ["PATH"].split(";"):
         if not p:
             continue
@@ -96,23 +95,89 @@ def check_py_on_path(cmd):
 def check_global_dir(cmd):
     LOGGER.debug("Checking for global dir on PATH")
     if not cmd.global_dir:
-        LOGGER.debug("Check passed: global dir is not configured")
-        return True
+        LOGGER.debug("Check skipped: global dir is not configured")
+        return "skip"
     for p in os.environ["PATH"].split(";"):
         if not p:
             continue
         if Path(p).absolute().match(cmd.global_dir):
             LOGGER.debug("Check passed: %s is on PATH", p)
             return True
+    # In case user has updated their registry but not the terminal
+    import winreg
+    try:
+        with winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            path, kind = winreg.QueryValueEx(key, "Path")
+        LOGGER.debug("Current registry path: %s", path)
+        if kind == winreg.REG_EXPAND_SZ:
+            path = os.path.expandvars(path)
+        elif kind != winreg.REG_SZ:
+            LOGGER.debug("Check skipped: PATH registry key is not a string.")
+            return "skip"
+        for p in path.split(";"):
+            if not p:
+                continue
+            if Path(p).absolute().match(cmd.global_dir):
+                LOGGER.debug("Check skipped: %s will be on PATH after restart", p)
+                return True
+    except Exception:
+        LOGGER.debug("Failed to read PATH setting from registry", exc_info=True)
     LOGGER.debug("Check failed: %s not found in PATH", cmd.global_dir)
     return False
 
 
 def do_global_dir_on_path(cmd):
     import winreg
-    LOGGER.debug("Adding %s to PATH", cmd.global_dir)
-    # TODO: Add to PATH (correctly!)
-    # TODO: Send notification
+    added = notified = False
+    try:
+        LOGGER.debug("Adding %s to PATH", cmd.global_dir)
+        with winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "Environment") as key:
+            initial, kind = winreg.QueryValueEx(key, "Path")
+        LOGGER.debug("Initial path: %s", initial)
+        if kind not in (winreg.REG_SZ, winreg.REG_EXPAND_SZ) or not isinstance(initial, str):
+            LOGGER.debug("Value kind is %s and not REG_[EXPAND_]SZ. Aborting.")
+            return
+        for p in initial.split(";"):
+            if not p:
+                continue
+            if p.casefold() == str(cmd.global_dir).casefold():
+                LOGGER.debug("Path is already found.")
+                return
+        newpath = initial + (";" if initial else "") + str(Path(cmd.global_dir).absolute())
+        LOGGER.debug("New path: %s", newpath)
+        # Expand the value and ensure we are found
+        for p in os.path.expandvars(newpath).split(";"):
+            if not p:
+                continue
+            if p.casefold() == str(cmd.global_dir).casefold():
+                LOGGER.debug("Path is added successfully")
+                break
+        else:
+            return
+
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, "Environment",
+                                access=winreg.KEY_READ|winreg.KEY_WRITE) as key:
+            initial2, kind2 = winreg.QueryValueEx(key, "Path")
+            if initial2 != initial or kind2 != kind:
+                LOGGER.debug("PATH has changed while we were working. Aborting.")
+                return
+            winreg.SetValueEx(key, "Path", 0, kind, newpath)
+            added = True
+
+        from _native import broadcast_settings_change
+        broadcast_settings_change()
+        notified = True
+    except Exception:
+        LOGGER.debug("Failed to update PATH environment variable", exc_info=True)
+    finally:
+        if added and not notified:
+            LOGGER.warn("Failed to notify of PATH environment variable change.")
+            LOGGER.info("You may need to sign out or restart to see the changes.")
+        elif not added:
+            LOGGER.warn("Failed to update PATH environment variable successfully.")
+            LOGGER.info("You may add it yourself by opening 'Edit environment "
+                        "variables' and adding this directory to 'PATH': !B!%s!W!",
+                        cmd.global_dir)
 
 
 def check_any_install(cmd):
@@ -160,7 +225,8 @@ def first_run(cmd):
         welcome()
 
     if cmd.check_app_alias:
-        if not check_app_alias(cmd):
+        r = check_app_alias(cmd)
+        if not r:
             welcome()
             LOGGER.warn("Your app execution alias settings are configured to launch "
                         "other commands besides 'py' and 'python'.")
@@ -173,7 +239,10 @@ def first_run(cmd):
             ):
                 os.startfile("ms-settings:advanced-apps")
         elif cmd.explicit:
-            LOGGER.info("Checked app execution aliases")
+            if r == "skip":
+                LOGGER.info("Skipped app execution aliases check")
+            else:
+                LOGGER.info("Checked app execution aliases")
 
     if cmd.check_long_paths:
         if not check_long_paths(cmd):
@@ -194,7 +263,8 @@ def first_run(cmd):
             LOGGER.info("Checked system long paths setting")
 
     if cmd.check_py_on_path:
-        if not check_py_on_path(cmd):
+        r = check_py_on_path(cmd)
+        if not r:
             welcome()
             LOGGER.warn("The legacy 'py' command is still installed.")
             LOGGER.info("This may interfere with launching the new 'py' command, "
@@ -205,26 +275,33 @@ def first_run(cmd):
             ):
                 os.startfile("ms-settings:appsfeatures")
         elif cmd.explicit:
-            LOGGER.info("Checked PATH for legacy 'py' command")
+            if r == "skip":
+                LOGGER.info("Skipped check for legacy 'py' command")
+            else:
+                LOGGER.info("Checked PATH for legacy 'py' command")
 
     if cmd.check_global_dir:
-        if not check_global_dir(cmd):
+        r = check_global_dir(cmd)
+        if not r:
             welcome()
             LOGGER.warn("The directory for versioned Python commands is not configured.")
             LOGGER.info("This will prevent commands like !B!python3.14.exe!W! "
                         "working, but will not affect the !B!python!W! or "
                         "!B!py!W! commands (for example, !B!py -V:3.14!W!).")
             LOGGER.info("We can add the directory to PATH now, but you will need "
-                        "to restart your terminal to see the change, and may need "
-                        "to manually edit your environment variables if you later "
-                        "decide to remove the entry.")
+                        "to restart your terminal to see the change, and must "
+                        "manually edit environment variables to later remove the "
+                        "entry.")
             if (
                 cmd.confirm and
                 not cmd.ask_ny("Add commands directory to your PATH now?")
             ):
                 do_global_dir_on_path(cmd)
         elif cmd.explicit:
-            LOGGER.info("Checked PATH for versioned commands directory")
+            if r == "skip":
+                LOGGER.info("Skipped check for commands directory on PATH")
+            else:
+                LOGGER.info("Checked PATH for versioned commands directory")
 
     # This check must be last, because 'do_install' will exit the program.
     if cmd.check_any_install:

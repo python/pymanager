@@ -86,6 +86,7 @@ NATIVE_PYD = DllPackage(
     CFunction('reg_rename_key'),
     CFunction('get_current_package'),
     CFunction('read_alias_package'),
+    CFunction('broadcast_settings_change'),
     source='src/_native',
     RootNamespace='_native',
 )

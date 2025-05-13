@@ -181,4 +181,56 @@ PyObject *read_alias_package(PyObject *, PyObject *args, PyObject *kwargs) {
     return PyUnicode_FromWideChar(buffer.package_name, -1);
 }
 
+
+typedef LRESULT (*PSendMessageTimeoutW)(
+    HWND       hWnd,
+    UINT       Msg,
+    WPARAM     wParam,
+    LPARAM     lParam,
+    UINT       fuFlags,
+    UINT       uTimeout,
+    PDWORD_PTR lpdwResult
+);
+
+PyObject *broadcast_settings_change(PyObject *, PyObject *, PyObject *) {
+    // Avoid depending on user32 because it's so slow
+    HMODULE user32 = LoadLibraryExW(L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!user32) {
+        PyErr_SetFromWindowsErr(0);
+        return NULL;
+    }
+    PSendMessageTimeoutW sm = (PSendMessageTimeoutW)GetProcAddress(user32, "SendMessageTimeoutW");
+    if (!sm) {
+        PyErr_SetFromWindowsErr(0);
+        FreeLibrary(user32);
+        return NULL;
+    }
+
+    // SendMessageTimeout needs special error handling
+    SetLastError(0);
+    LPARAM lParam = (LPARAM)L"Environment";
+
+    if (!(*sm)(
+        HWND_BROADCAST,
+        WM_SETTINGCHANGE,
+        NULL,
+        lParam,
+        SMTO_ABORTIFHUNG,
+        50,
+        NULL
+    )) {
+        int err = GetLastError();
+        if (!err) {
+            PyErr_SetString(PyExc_OSError, "Unspecified error");
+        } else {
+            PyErr_SetFromWindowsErr(err);
+        }
+        FreeLibrary(user32);
+        return NULL;
+    }
+
+    FreeLibrary(user32);
+    return Py_GetConstant(Py_CONSTANT_NONE);
+}
+
 }

@@ -54,9 +54,13 @@ def test_check_long_paths(fake_config):
     assert firstrun.check_long_paths(fake_config) in (True, False)
 
 
-def test_check_py_on_path(fake_config, monkeypatch):
+def test_check_py_on_path(fake_config, monkeypatch, tmp_path):
     monkeypatch.setattr(firstrun, "_package_name", fake_package_name)
+    mp = monkeypatch.setitem(os.environ, "PATH", f";{tmp_path};")
     assert firstrun.check_py_on_path(fake_config) in (True, False)
+
+    mp = monkeypatch.setitem(os.environ, "PATH", "")
+    assert firstrun.check_py_on_path(fake_config) == True
 
     monkeypatch.setattr(firstrun, "_package_name", fake_package_name_error)
     assert firstrun.check_py_on_path(fake_config) == "skip"
@@ -66,13 +70,17 @@ def test_check_py_on_path(fake_config, monkeypatch):
 
 
 def test_check_global_dir(fake_config, monkeypatch, tmp_path):
+    fake_config.global_dir = None
+    assert firstrun.check_global_dir(fake_config) == "skip"
+
     fake_config.global_dir = str(tmp_path)
     assert firstrun.check_global_dir(fake_config) == False
 
     monkeypatch.setattr(firstrun, "_check_global_dir_registry", lambda *a: "called")
     assert firstrun.check_global_dir(fake_config) == "called"
 
-    monkeypatch.setitem(os.environ, "PATH", f"{os.environ['PATH']};{tmp_path}")
+    # Some empty elements, as well as our "real" one
+    monkeypatch.setitem(os.environ, "PATH", f";;{os.environ['PATH']};{tmp_path}")
     assert firstrun.check_global_dir(fake_config) == True
 
 

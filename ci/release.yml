@@ -15,6 +15,10 @@ parameters:
   displayName: "Publish"
   type: boolean
   default: false
+- name: PublishAppinstaller
+  displayName: "Auto-update users to this release"
+  type: boolean
+  default: false
 - name: PreTest
   displayName: "Pre test"
   type: boolean
@@ -294,6 +298,15 @@ stages:
           "##vso[task.prependpath]$(gi putty)"
         workingDirectory: $(Pipeline.Workspace)
         displayName: 'Download PuTTY binaries'
+
+      - ${{ if ne(parameters.PublishAppinstaller, 'true') }}:
+        - powershell: |
+            "Not uploading these files:"
+            dir "${env:UPLOAD_DIR}\*.appinstaller"
+            del "${env:UPLOAD_DIR}\*.appinstaller" -ErrorAction SilentlyContinue
+          displayName: 'Disable auto-update for this release'
+          env:
+            UPLOAD_DIR: $(DIST_DIR)
 
       - powershell: |
           # We don't want the Store MSIX on python.org, so just delete it

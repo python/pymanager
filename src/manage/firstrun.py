@@ -51,7 +51,7 @@ def check_app_alias(cmd):
             LOGGER.debug("Reading from %s", exe)
             package = read_alias_package(exe)
             LOGGER.debug("Package: %r", package)
-            if package not in pkg:
+            if package != pkg:
                 LOGGER.debug("Check failed: package did not match identity")
                 return False
         except FileNotFoundError:

@@ -4,6 +4,7 @@ import winreg
 
 from .logging import LOGGER
 from .pathutils import Path
+from .tagutils import install_matches_any
 from .verutils import Version
 
 
@@ -136,7 +137,7 @@ def _update_reg_values(key, data, install, exclude=set()):
             winreg.SetValueEx(key, k, None, v_kind, v)
 
 
-def _is_tag_managed(company_key, tag_name, *, creating=False):
+def _is_tag_managed(company_key, tag_name, *, creating=False, allow_warn=True):
     try:
         tag = winreg.OpenKey(company_key, tag_name)
     except FileNotFoundError:
@@ -188,12 +189,15 @@ def _is_tag_managed(company_key, tag_name, *, creating=False):
                 new_name = f"{orig_name}.{i}"
                 # Raises standard PermissionError (5) if new_name exists
                 reg_rename_key(tag.handle, orig_name, new_name)
-                LOGGER.warn("An existing registry key for %s was renamed to %s "
-                            "because it appeared to be invalid. If this is "
-                            "correct, the registry key can be safely deleted. "
-                            "To avoid this in future, ensure that the "
-                            "InstallPath key refers to a valid path.",
-                            tag_name, new_name)
+                if allow_warn:
+                    LOGGER.warn("An existing registry key for %s was renamed to %s "
+                                "because it appeared to be invalid. If this is "
+                                "correct, the registry key can be safely deleted. "
+                                "To avoid this in future, ensure that the "
+                                "InstallPath key refers to a valid path.",
+                                tag_name, new_name)
+                else:
+                    LOGGER.debug("Renamed %s to %s", tag_name, new_name)
                 break
             except FileNotFoundError:
                 LOGGER.debug("Original key disappeared, so we will claim it")
@@ -207,8 +211,12 @@ def _is_tag_managed(company_key, tag_name, *, creating=False):
                              orig_name, new_name, exc_info=True)
                 raise
         else:
-            LOGGER.warn("Attempted to clean up invalid registry key %s but "
-                        "failed after too many attempts.", tag_name)
+            if allow_warn:
+                LOGGER.warn("Attempted to clean up invalid registry key %s but "
+                            "failed after too many attempts.", tag_name)
+            else:
+                LOGGER.debug("Attempted to clean up invalid registry key %s but "
+                             "failed after too many attempts.", tag_name)
             return False
         return True
 
@@ -226,31 +234,40 @@ def _split_root(root_name):
     return hive, name
 
 
-def update_registry(root_name, install, data):
+def update_registry(root_name, install, data, warn_for=[]):
     hive, name = _split_root(root_name)
     with winreg.CreateKey(hive, name) as root:
-        if _is_tag_managed(root, data["Key"], creating=True):
+        allow_warn = install_matches_any(install, warn_for)
+        if _is_tag_managed(root, data["Key"], creating=True, allow_warn=allow_warn):
             with winreg.CreateKey(root, data["Key"]) as tag:
                 LOGGER.debug("Creating/updating %s\\%s", root_name, data["Key"])
                 winreg.SetValueEx(tag, "ManagedByPyManager", None, winreg.REG_DWORD, 1)
                 _update_reg_values(tag, data, install, {"kind", "Key", "ManagedByPyManager"})
-        else:
+        elif allow_warn:
             LOGGER.warn("An existing runtime is registered at %s in the registry, "
                         "and so the new one has not been registered.", data["Key"])
             LOGGER.info("This may prevent some other applications from detecting "
                         "the new installation, although 'py -V:...' will work. "
                         "To register the new installation, remove the existing "
                         "runtime and then run 'py install --refresh'")
+        else:
+            LOGGER.debug("An existing runtime is registered at %s and so the new "
+                         "install has not been registered.", data["Key"])
 
 
-def cleanup_registry(root_name, keep):
+def cleanup_registry(root_name, keep, warn_for=[]):
     hive, name = _split_root(root_name)
     with _reg_open(hive, name, writable=True) as root:
         for company_name in _iter_keys(root):
             any_left = False
             with winreg.OpenKey(root, company_name, access=winreg.KEY_ALL_ACCESS) as company:
                 for tag_name in _iter_keys(company):
-                    if f"{company_name}\\{tag_name}" in keep or not _is_tag_managed(company, tag_name):
+                    # Calculate whether to show warnings or not
+                    install = {"company": company_name, "tag": tag_name}
+                    allow_warn = install_matches_any(install, warn_for)
+
+                    if (f"{company_name}\\{tag_name}" in keep
+                        or not _is_tag_managed(company, tag_name, allow_warn=allow_warn)):
                         any_left = True
                     else:
                         _reg_rmtree(company, tag_name)

@@ -17,9 +17,13 @@ from .logging import LOGGER
 from .pathutils import Path
 
 
+def _package_name():
+    from _native import get_current_package
+    return get_current_package()
+
+
 def check_app_alias(cmd):
     LOGGER.debug("Checking app execution aliases")
-    from _native import get_current_package, read_alias_package
     # Expected identities:
     # Side-loaded MSIX
     # * "PythonSoftwareFoundation.PythonManager_3847v3x7pw1km",
@@ -30,13 +34,15 @@ def check_app_alias(cmd):
     # MSI/dev install
     # * None
     try:
-        pkg = get_current_package()
+        pkg = _package_name()
     except OSError:
         LOGGER.debug("Failed to get current package name.", exc_info=True)
         pkg = None
     if not pkg:
         LOGGER.debug("Check skipped: MSI install can't do this check")
         return "skip"
+
+    from _native import read_alias_package
     LOGGER.debug("Checking for %s", pkg)
     root = Path(os.environ["LocalAppData"]) / "Microsoft/WindowsApps"
     for name in ["py.exe", "pyw.exe", "python.exe", "pythonw.exe", "python3.exe", "pymanager.exe"]:
@@ -59,7 +65,8 @@ def check_long_paths(cmd):
     LOGGER.debug("Checking long paths setting")
     import winreg
     try:
-        with winreg.OpenKeyEx(winreg.HKEY_LOCAL_MACHINE, r"System\CurrentControlSet\Control\FileSystem") as key:
+        with winreg.OpenKeyEx(winreg.HKEY_LOCAL_MACHINE,
+                              r"System\CurrentControlSet\Control\FileSystem") as key:
             if winreg.QueryValueEx(key, "LongPathsEnabled") == (1, winreg.REG_DWORD):
                 LOGGER.debug("Check passed: registry key is OK")
                 return True
@@ -71,9 +78,14 @@ def check_long_paths(cmd):
 
 def check_py_on_path(cmd):
     LOGGER.debug("Checking for legacy py.exe on PATH")
-    from _native import get_current_package, read_alias_package
-    if not get_current_package():
-        LOGGER.debug("Check skipped: MSI install can't do this check")
+    from _native import read_alias_package
+    try:
+        if not _package_name():
+            LOGGER.debug("Check skipped: MSI install can't do this check")
+            return "skip"
+    except OSError:
+        LOGGER.debug("Failed to get current package name.", exc_info=True)
+        LOGGER.debug("Check skipped: can't do this check")
         return "skip"
     for p in os.environ["PATH"].split(";"):
         if not p:
@@ -90,6 +102,8 @@ def check_py_on_path(cmd):
             # Probably not an alias, so we're not good
             LOGGER.debug("Check failed: found %s on PATH", py)
             return False
+    LOGGER.debug("Check passed: no py.exe on PATH at all")
+    return True
 
 
 def check_global_dir(cmd):
@@ -104,25 +118,32 @@ def check_global_dir(cmd):
             LOGGER.debug("Check passed: %s is on PATH", p)
             return True
     # In case user has updated their registry but not the terminal
-    import winreg
     try:
-        with winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "Environment") as key:
-            path, kind = winreg.QueryValueEx(key, "Path")
-        LOGGER.debug("Current registry path: %s", path)
-        if kind == winreg.REG_EXPAND_SZ:
-            path = os.path.expandvars(path)
-        elif kind != winreg.REG_SZ:
-            LOGGER.debug("Check skipped: PATH registry key is not a string.")
-            return "skip"
-        for p in path.split(";"):
-            if not p:
-                continue
-            if Path(p).absolute().match(cmd.global_dir):
-                LOGGER.debug("Check skipped: %s will be on PATH after restart", p)
-                return True
+        r = _check_global_dir_registry(cmd)
+        if r:
+            return r
     except Exception:
         LOGGER.debug("Failed to read PATH setting from registry", exc_info=True)
     LOGGER.debug("Check failed: %s not found in PATH", cmd.global_dir)
+    return False
+
+
+def _check_global_dir_registry(cmd):
+    import winreg
+    with winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "Environment") as key:
+        path, kind = winreg.QueryValueEx(key, "Path")
+    LOGGER.debug("Current registry path: %s", path)
+    if kind == winreg.REG_EXPAND_SZ:
+        path = os.path.expandvars(path)
+    elif kind != winreg.REG_SZ:
+        LOGGER.debug("Check skipped: PATH registry key is not a string.")
+        return "skip"
+    for p in path.split(";"):
+        if not p:
+            continue
+        if Path(p).absolute().match(cmd.global_dir):
+            LOGGER.debug("Check skipped: %s will be on PATH after restart", p)
+            return True
     return False
 
 

@@ -66,6 +66,9 @@ class LogCaptureHandler(list):
     def not_logged(self, pattern, args=()):
         return ('not', pattern, args)
 
+    def end_of_log(self):
+        return ('eol', None, None)
+
     def __call__(self, *cmp):
         i = 0
         for y in cmp:
@@ -84,6 +87,11 @@ class LogCaptureHandler(list):
                         return
                 continue
 
+            if op == 'eol':
+                if i < len(self):
+                    pytest.fail(f"Expected end of log; found {self[i]}")
+                return
+
             while True:
                 try:
                     x = self[i]
@@ -92,7 +100,10 @@ class LogCaptureHandler(list):
                     pytest.fail(f"Not enough elements were logged looking for {pat}")
                 if op == 'until' and not re.match(pat, x[0], flags=re.S):
                     continue
-                assert re.match(pat, x[0], flags=re.S)
+                if not pat:
+                    assert not x[0]
+                else:
+                    assert re.match(pat, x[0], flags=re.S)
                 if args is not None:
                     assert tuple(x[1]) == tuple(args)
                 break
@@ -140,7 +151,7 @@ class FakeConfig:
         self.shebang_can_run_anything = True
         self.shebang_can_run_anything_silently = False
 
-    def get_installs(self):
+    def get_installs(self, *, include_unmanaged=True, set_default=True):
         return self.installs
 
     def get_install_to_run(self, tag):

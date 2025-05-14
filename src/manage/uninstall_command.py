@@ -1,7 +1,7 @@
 from .exceptions import ArgumentError, FilesInUseError
 from .fsutils import rmtree, unlink
 from .installs import get_matching_install_tags
-from .install_command import update_all_shortcuts
+from .install_command import SHORTCUT_HANDLERS, update_all_shortcuts
 from .logging import LOGGER
 from .pathutils import PurePath
 from .tagutils import tag_or_range
@@ -9,6 +9,8 @@ from .tagutils import tag_or_range
 
 def _iterdir(p, only_files=False):
     try:
+        if only_files:
+            return [f for f in p.iterdir() if p.is_file()]
         return list(p.iterdir())
     except FileNotFoundError:
         LOGGER.debug("Skipping %s because it does not exist", p)
@@ -42,18 +44,15 @@ def execute(cmd):
                     LOGGER.warn("Unable to purge %s because it is still in use.",
                                 i["display-name"])
                     continue
-            LOGGER.info("Purging saved downloads")
-            for f in _iterdir(cmd.install_dir):
-                LOGGER.debug("Purging %s", f)
-                try:
-                    rmtree(f, after_5s_warning=warn_msg.format("cached downloads"),
-                           remove_ext_first=("exe", "dll", "json"))
-                except FilesInUseError:
-                    pass
-            LOGGER.info("Purging global commands")
+            LOGGER.info("Purging saved downloads from %s", cmd.download_dir)
+            rmtree(cmd.download_dir, after_5s_warning=warn_msg.format("cached downloads"))
+            LOGGER.info("Purging global commands from %s", cmd.global_dir)
             for f in _iterdir(cmd.global_dir):
                 LOGGER.debug("Purging %s", f)
                 rmtree(f, after_5s_warning=warn_msg.format("global commands"))
+            LOGGER.info("Purging all shortcuts")
+            for _, cleanup in SHORTCUT_HANDLERS.values():
+                cleanup(cmd, [])
         LOGGER.debug("END uninstall_command.execute")
         return
 

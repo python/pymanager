@@ -277,9 +277,8 @@ def first_run(cmd):
                          "install manager!W!'.\n", wrap=True)
             if (
                 cmd.confirm and
-                not cmd.ask_ny("Open Settings now? Select !B!App execution "
-                               "aliases!W! after opening and scroll to the "
-                               "'!B!Python!W!' entries.")
+                not cmd.ask_ny("Open Settings now, so you can modify !B!App "
+                               "execution aliases!W!?")
             ):
                 os.startfile("ms-settings:advanced-apps")
                 LOGGER.print("\nThe Settings app should be open. Navigate to the "
@@ -300,15 +299,11 @@ def first_run(cmd):
             LOGGER.print("!Y!Windows is not configured to allow paths longer than "
                          "260 characters.!W!", level=logging.WARN)
             LOGGER.print("\nPython and some other apps can exceed this limit, "
-                         "but it requires changing a system-wide setting and a "
+                         "but it requires changing a system-wide setting, which "
+                         "may need an administrator to approve, and will require a "
                          "reboot. Some packages may fail to install without long "
                          "path support enabled.\n", wrap=True)
-            if (
-                cmd.confirm and
-                not cmd.ask_ny("Update setting now? You may be prompted for "
-                               "administrator credentials, and must reboot for "
-                               "the change to take effect.")
-            ):
+            if cmd.confirm and not cmd.ask_ny("Update setting now?"):
                 os.startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
                 for _ in range(5):
                     time.sleep(0.25)
@@ -391,9 +386,10 @@ def first_run(cmd):
     if shown_any or cmd.explicit:
         line_break()
         LOGGER.print("!G!Configuration checks completed.!W!", level=logging.WARN)
-        LOGGER.print("To run these checks again, launch !B!Python install "
+        LOGGER.print("\nTo run these checks again, launch !B!Python install "
                      "manager!W! from your Start menu, or !B!py install "
                      "--configure!W! from the terminal.", wrap=True)
+        line_break()
 
 
 if __name__ == "__main__":

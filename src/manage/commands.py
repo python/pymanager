@@ -896,6 +896,7 @@ Shows help for specific commands.
 """
 
     _create_log_file = False
+    commands_only = False
 
     def __init__(self, args, root=None):
         super().__init__([self.CMD], root)
@@ -906,7 +907,7 @@ Shows help for specific commands.
         self.show_welcome(copyright=False)
         if not self.args:
             self.show_usage()
-        LOGGER.print(BaseCommand.help_text())
+        LOGGER.print(BaseCommand.help_text(commands_only))
         for a in self.args:
             try:
                 cls = COMMANDS[a.lower()]
@@ -991,8 +992,8 @@ class FirstRun(BaseCommand):
         from .firstrun import first_run
         first_run(self)
         if not self.explicit:
-            show_help([])
-            if self.confirm and not self.ask_ny(f"View more help online? (!B!{HELP_URL}!W!)"):
+            self.show_usage()
+            if self.confirm and not self.ask_ny(f"View online help?"):
                 import os
                 os.startfile(HELP_URL)
 

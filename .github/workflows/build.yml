@@ -149,6 +149,13 @@ jobs:
 
     - name: 'Launch default runtime'
       run: pymanager exec -m site
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'Uninstall runtime'
+      run: pymanager uninstall -y default
+      env:
+        PYMANAGER_DEBUG: true
 
     - name: 'Emulate first launch'
       run: |

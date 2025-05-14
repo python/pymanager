@@ -256,20 +256,23 @@ def update_registry(root_name, install, data, warn_for=[]):
 
 
 def cleanup_registry(root_name, keep, warn_for=[]):
+    LOGGER.debug("Cleaning up registry entries")
     hive, name = _split_root(root_name)
     with _reg_open(hive, name, writable=True) as root:
-        for company_name in _iter_keys(root):
+        for company_name in list(_iter_keys(root)):
             any_left = False
             with winreg.OpenKey(root, company_name, access=winreg.KEY_ALL_ACCESS) as company:
-                for tag_name in _iter_keys(company):
+                for tag_name in list(_iter_keys(company)):
                     # Calculate whether to show warnings or not
                     install = {"company": company_name, "tag": tag_name}
                     allow_warn = install_matches_any(install, warn_for)
 
                     if (f"{company_name}\\{tag_name}" in keep
                         or not _is_tag_managed(company, tag_name, allow_warn=allow_warn)):
+                        LOGGER.debug("Skipping %s\\%s\\%s", root_name, company_name, tag_name)
                         any_left = True
                     else:
+                        LOGGER.debug("Removing %s\\%s\\%s", root_name, company_name, tag_name)
                         _reg_rmtree(company, tag_name)
             if not any_left:
                 _delete_key(root, company_name)

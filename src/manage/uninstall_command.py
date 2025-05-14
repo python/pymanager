@@ -26,7 +26,7 @@ def execute(cmd):
     cmd.virtual_env = None
     installed = list(cmd.get_installs())
 
-    self.tags = []
+    cmd.tags = []
 
     if cmd.purge:
         if cmd.ask_yn("Uninstall all runtimes?"):
@@ -65,13 +65,13 @@ def execute(cmd):
         for tag in cmd.args:
             try:
                 if tag.casefold() == "default".casefold():
-                    self.tags.append(tag_or_range(cmd.default_tag))
+                    cmd.tags.append(tag_or_range(cmd.default_tag))
                 else:
-                    self.tags.append(tag_or_range(tag))
+                    cmd.tags.append(tag_or_range(tag))
             except ValueError as ex:
                 LOGGER.warn("%s", ex)
 
-        for tag in self.tags:
+        for tag in cmd.tags:
             candidates = get_matching_install_tags(
                 installed,
                 tag,

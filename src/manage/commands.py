@@ -260,7 +260,6 @@ CONFIG_SCHEMA = {
         "check_long_paths": (config_bool, None, "env"),
         "check_py_on_path": (config_bool, None, "env"),
         "check_any_install": (config_bool, None, "env"),
-        "check_default_tag": (config_bool, None, "env"),
         "check_global_dir": (config_bool, None, "env"),
     },
 
@@ -969,7 +968,6 @@ class FirstRun(BaseCommand):
     check_long_paths = True
     check_py_on_path = True
     check_any_install = True
-    check_default_tag = True
     check_global_dir = True
 
     def execute(self):

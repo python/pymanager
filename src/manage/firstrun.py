@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+
 
 if __name__ == "__main__":
     __package__ = "manage"
@@ -13,8 +15,10 @@ if __name__ == "__main__":
                 setattr(_native, k, getattr(_native_test, k))
 
 
-from .logging import LOGGER
+from . import logging
 from .pathutils import Path
+
+LOGGER = logging.LOGGER
 
 
 def _package_name():
@@ -50,7 +54,7 @@ def check_app_alias(cmd):
         try:
             LOGGER.debug("Reading from %s", exe)
             package = read_alias_package(exe)
-            LOGGER.debug("Package: %r", package)
+            LOGGER.debug("Package: %s", package)
             if package != pkg:
                 LOGGER.debug("Check failed: package did not match identity")
                 return False
@@ -164,7 +168,10 @@ def do_global_dir_on_path(cmd):
             if p.casefold() == str(cmd.global_dir).casefold():
                 LOGGER.debug("Path is already found.")
                 return
-        newpath = initial + (";" if initial else "") + str(Path(cmd.global_dir).absolute())
+        newpath = initial.rstrip(";")
+        if newpath:
+            newpath += ";"
+        newpath += str(Path(cmd.global_dir).absolute())
         LOGGER.debug("New path: %s", newpath)
         # Expand the value and ensure we are found
         for p in os.path.expandvars(newpath).split(";"):
@@ -195,10 +202,13 @@ def do_global_dir_on_path(cmd):
             LOGGER.warn("Failed to notify of PATH environment variable change.")
             LOGGER.info("You may need to sign out or restart to see the changes.")
         elif not added:
-            LOGGER.warn("Failed to update PATH environment variable successfully.")
+            LOGGER.error("Failed to update PATH environment variable successfully.")
             LOGGER.info("You may add it yourself by opening 'Edit environment "
                         "variables' and adding this directory to 'PATH': !B!%s!W!",
                         cmd.global_dir)
+        else:
+            LOGGER.info("PATH has been updated, and will take effect after "
+                        "opening a new terminal.")
 
 
 def check_any_install(cmd):
@@ -214,7 +224,7 @@ def do_install(cmd):
     from .commands import find_command
     try:
         inst_cmd = find_command(["install", "default", "--automatic"], cmd.root)
-    except Exception as ex:
+    except Exception:
         LOGGER.debug("Failed to find 'install' command.", exc_info=True)
         LOGGER.warn("We couldn't install right now.")
         LOGGER.info("Use !B!py install default!W! later to install.")
@@ -222,7 +232,7 @@ def do_install(cmd):
     else:
         try:
             inst_cmd.execute()
-        except Exception as ex:
+        except Exception:
             LOGGER.debug("Failed to run 'install' command.", exc_info=True)
             raise
 
@@ -232,9 +242,14 @@ class _Welcome:
     def __call__(self):
         if not self._shown:
             self._shown = True
-            LOGGER.info("!G!Welcome to the Python installation manager "
-                        "configuration helper.!W!")
-            LOGGER.info("")
+            LOGGER.print("!G!Welcome to the Python installation manager "
+                         "configuration helper.!W!")
+
+
+def line_break():
+    LOGGER.print()
+    LOGGER.print("!B!" + "*" * logging.CONSOLE_MAX_WIDTH + "!W!")
+    LOGGER.print()
 
 
 def first_run(cmd):
@@ -245,20 +260,32 @@ def first_run(cmd):
     if cmd.explicit:
         welcome()
 
+    shown_any = False
+
     if cmd.check_app_alias:
         r = check_app_alias(cmd)
         if not r:
             welcome()
-            LOGGER.warn("Your app execution alias settings are configured to launch "
-                        "other commands besides 'py' and 'python'.")
-            LOGGER.info("This can be fixed by opening the '!B!Manage app execution "
-                        "aliases!W!' settings page and enabling each item labelled "
-                        "'!B!Python (default)!W!' and '!B!Python install manager!W!'.")
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!Your app execution alias settings are configured to launch "
+                         "other commands besides 'py' and 'python'.!W!",
+                         level=logging.WARN)
+            LOGGER.print("\nThis can be fixed by opening the '!B!Manage app "
+                         "execution aliases!W!' settings page and enabling each "
+                         "item labelled '!B!Python (default)!W!' and '!B!Python "
+                         "install manager!W!'.\n", wrap=True)
             if (
                 cmd.confirm and
-                not cmd.ask_ny("Open Settings now? (Select !B!App execution aliases!W! after opening)")
+                not cmd.ask_ny("Open Settings now? Select !B!App execution "
+                               "aliases!W! after opening and scroll to the "
+                               "'!B!Python!W!' entries.")
             ):
                 os.startfile("ms-settings:advanced-apps")
+                LOGGER.print("\nThe Settings app should be open. Navigate to the "
+                            "!B!App execution aliases!W! page and scroll to the "
+                            "'!B!Python!W!' entries to enable the new commands.",
+                            wrap=True)
         elif cmd.explicit:
             if r == "skip":
                 LOGGER.info("Skipped app execution aliases check")
@@ -268,18 +295,30 @@ def first_run(cmd):
     if cmd.check_long_paths:
         if not check_long_paths(cmd):
             welcome()
-            LOGGER.warn("Windows is not configured to allow paths longer than "
-                        "260 characters.")
-            LOGGER.info("Python and some other apps can bypass this setting, but it "
-                        "requires changing a system-wide setting and a reboot. "
-                        "Some packages may fail to install without long path "
-                        "support enabled.")
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!Windows is not configured to allow paths longer than "
+                         "260 characters.!W!", level=logging.WARN)
+            LOGGER.print("\nPython and some other apps can exceed this limit, "
+                         "but it requires changing a system-wide setting and a "
+                         "reboot. Some packages may fail to install without long "
+                         "path support enabled.\n", wrap=True)
             if (
                 cmd.confirm and
                 not cmd.ask_ny("Update setting now? You may be prompted for "
-                               "administrator credentials.")
+                               "administrator credentials, and must reboot for "
+                               "the change to take effect.")
             ):
                 os.startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
+                for _ in range(5):
+                    time.sleep(0.25)
+                    if check_long_paths(cmd):
+                        LOGGER.info("The setting has been successfully updated.")
+                        break
+                else:
+                    LOGGER.warn("The setting may not have been updated. Please "
+                                "visit the additional help link at the end for "
+                                "more assistance.")
         elif cmd.explicit:
             LOGGER.info("Checked system long paths setting")
 
@@ -287,9 +326,12 @@ def first_run(cmd):
         r = check_py_on_path(cmd)
         if not r:
             welcome()
-            LOGGER.warn("The legacy 'py' command is still installed.")
-            LOGGER.info("This may interfere with launching the new 'py' command, "
-                        "and may be resolved by uninstalling '!B!Python launcher!W!'.")
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!The legacy 'py' command is still installed.!W!", level=logging.WARN)
+            LOGGER.print("\nThis may interfere with launching the new 'py' "
+                         "command, and may be resolved by uninstalling "
+                         "'!B!Python launcher!W!'.\n", wrap=True)
             if (
                 cmd.confirm and
                 not cmd.ask_ny("Open Installed apps now?")
@@ -305,14 +347,18 @@ def first_run(cmd):
         r = check_global_dir(cmd)
         if not r:
             welcome()
-            LOGGER.warn("The directory for versioned Python commands is not configured.")
-            LOGGER.info("This will prevent commands like !B!python3.14.exe!W! "
-                        "working, but will not affect the !B!python!W! or "
-                        "!B!py!W! commands (for example, !B!py -V:3.14!W!).")
-            LOGGER.info("We can add the directory to PATH now, but you will need "
-                        "to restart your terminal to see the change, and must "
-                        "manually edit environment variables to later remove the "
-                        "entry.")
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!The directory for versioned Python commands is not "
+                         "configured.!W!", level=logging.WARN)
+            LOGGER.print("\nThis will prevent commands like !B!python3.14.exe!W! "
+                         "working, but will not affect the !B!python!W! or "
+                         "!B!py!W! commands (for example, !B!py -V:3.14!W!).",
+                         wrap=True)
+            LOGGER.print("\nWe can add the directory to PATH now, but you will "
+                         "need to restart your terminal to see the change, and "
+                         "must manually edit environment variables to later "
+                         "remove the entry.\n", wrap=True)
             if (
                 cmd.confirm and
                 not cmd.ask_ny("Add commands directory to your PATH now?")
@@ -328,17 +374,26 @@ def first_run(cmd):
     if cmd.check_any_install:
         if not check_any_install(cmd):
             welcome()
-            LOGGER.warn("You do not have any Python runtimes installed.")
-            LOGGER.info("Install the current latest version of CPython? If not, "
-                        "you can use !B!py install default!W! later to install, or "
-                        "one will be installed automatically when needed.")
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!You do not have any Python runtimes installed.!W!",
+                         level=logging.WARN)
+            LOGGER.print("\nInstall the current latest version of CPython? If "
+                         "not, you can use !B!py install default!W! later to "
+                         "install, or one will be installed automatically when "
+                         "needed.\n", wrap=True)
+            LOGGER.info("")
             if cmd.ask_yn("Install CPython now?"):
                 do_install(cmd)
         elif cmd.explicit:
             LOGGER.info("Checked for any Python installs")
 
-    if cmd.explicit:
-        LOGGER.info("!G!All checks passed.!W!")
+    if shown_any or cmd.explicit:
+        line_break()
+        LOGGER.print("!G!Configuration checks completed.!W!", level=logging.WARN)
+        LOGGER.print("To run these checks again, launch !B!Python install "
+                     "manager!W! from your Start menu, or !B!py install "
+                     "--configure!W! from the terminal.", wrap=True)
 
 
 if __name__ == "__main__":

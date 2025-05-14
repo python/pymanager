@@ -162,7 +162,7 @@ class Logger:
             return False
         return True
 
-    def print(self, msg=None, *args, always=False, level=INFO, colours=True, **kwargs):
+    def print(self, msg=None, *args, always=False, level=INFO, colours=True, wrap=False, **kwargs):
         if self._list is not None:
             if args:
                 self._list.append(((msg or "") % args, ()))
@@ -186,6 +186,16 @@ class Logger:
             msg = str(args[0])
         else:
             msg = ""
+        if wrap:
+            while len(msg) > CONSOLE_MAX_WIDTH:
+                part = msg[:CONSOLE_MAX_WIDTH]
+                n = 0
+                while len(part) > n:
+                    n = len(part)
+                    part = msg[:CONSOLE_MAX_WIDTH + 5 * part.count("\033")]
+                pre, sep, rest = part.rpartition(" ")
+                print(pre, **kwargs, file=self.print_console)
+                msg = rest + msg[len(part):]
         print(msg, **kwargs, file=self.print_console)
 
     def print_raw(self, *msg, **kwargs):

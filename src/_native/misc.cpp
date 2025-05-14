@@ -127,7 +127,7 @@ PyObject *get_current_package(PyObject *, PyObject *, PyObject *) {
     int err = GetCurrentPackageFamilyName(&cch, package_name);
     switch (err) {
     case ERROR_SUCCESS:
-        return PyUnicode_FromWideChar(package_name, cch);
+        return PyUnicode_FromWideChar(package_name, cch ? cch - 1 : 0);
     case APPMODEL_ERROR_NO_PACKAGE:
         return Py_GetConstant(Py_CONSTANT_NONE);
     default:

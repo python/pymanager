@@ -48,6 +48,40 @@ def strip_colour(msg):
     return msg
 
 
+def _len_without_codes(s, codes_subbed=False):
+    n = len(s)
+    for k, v in COLOURS.items():
+        if not codes_subbed:
+            n -= len(k) * s.count(k)
+        n -= len(v) * s.count(v)
+    return n
+
+
+def wrap_and_indent(s, indent=0, width=None, hang="", codes_subbed=False):
+    if width is None:
+        width = CONSOLE_MAX_WIDTH
+    
+    bits = [" " * indent]
+    if hang:
+        cchw = _len_without_codes(hang, codes_subbed=codes_subbed)
+        if cchw <= indent - 1:
+            bits = [hang + " " * (indent - cchw)]
+        else:
+            yield hang
+    cch = indent
+    for w in s.split(" "):
+        cchw = _len_without_codes(w, codes_subbed=codes_subbed)
+        if len(bits) > 1 and cch + cchw > width:
+            yield "".join(bits).rstrip()
+            bits = [" " * indent]
+            cch = indent
+        bits.append(w)
+        bits.append(" ")
+        cch += cchw + 1
+    if bits:
+        yield "".join(bits).rstrip()
+
+
 def supports_colour(stream):
     if os.getenv("PYTHON_COLORS", "").lower() in ("0", "no", "false"):
         return False
@@ -62,7 +96,7 @@ def supports_colour(stream):
     if type(stream).__name__ != "_WindowsConsoleIO":
         return False
     try:
-        # Allows us to import logging on its own
+        # Lazy import to allow us to import logging on its own
         from _native import fd_supports_vt100
         return fd_supports_vt100(stream.fileno())
     except Exception:
@@ -187,16 +221,10 @@ class Logger:
         else:
             msg = ""
         if wrap:
-            while len(msg) > CONSOLE_MAX_WIDTH:
-                part = msg[:CONSOLE_MAX_WIDTH]
-                n = 0
-                while len(part) > n:
-                    n = len(part)
-                    part = msg[:CONSOLE_MAX_WIDTH + 5 * part.count("\033")]
-                pre, sep, rest = part.rpartition(" ")
-                print(pre, **kwargs, file=self.print_console)
-                msg = rest + msg[len(part):]
-        print(msg, **kwargs, file=self.print_console)
+            for s in wrap_and_indent(msg, codes_subbed=True):
+                print(s, **kwargs, file=self.print_console)
+        else:
+            print(msg, **kwargs, file=self.print_console)
 
     def print_raw(self, *msg, **kwargs):
         kwargs["always"] = True

@@ -569,27 +569,13 @@ class BaseCommand:
         if usage_ljust % 4:
             usage_ljust += 4 - (usage_ljust % 4)
         usage_ljust = max(usage_ljust, 16) + 1
-        sp = " " * usage_ljust
 
         LOGGER.print("!G!Usage:!W!")
         for k, d in usage_docs:
-            if k.endswith("\n") and len(logging.strip_colour(k)) >= usage_ljust:
-                LOGGER.print(k.rstrip())
-                r = sp
-            else:
-                k = k.rstrip()
-                r = k.ljust(usage_ljust + len(k) - len(logging.strip_colour(k)))
-            for b in d.split(" "):
-                if len(r) >= logging.CONSOLE_MAX_WIDTH:
-                    LOGGER.print(r.rstrip())
-                    r = sp
-                r += b + " "
-            if r.rstrip():
-                LOGGER.print(r)
+            for s in logging.wrap_and_indent(d, indent=usage_ljust, hang=k.rstrip()):
+                LOGGER.print(s)
 
-        LOGGER.print()
-        LOGGER.print("Find additional information at !B!%s!W!.", HELP_URL)
-        LOGGER.print()
+        LOGGER.print("\nFind additional information at !B!%s!W!.\n", HELP_URL)
 
     @classmethod
     def help_text(cls):
@@ -907,7 +893,7 @@ Shows help for specific commands.
         self.show_welcome(copyright=False)
         if not self.args:
             self.show_usage()
-        LOGGER.print(BaseCommand.help_text(commands_only))
+        LOGGER.print(BaseCommand.help_text())
         for a in self.args:
             try:
                 cls = COMMANDS[a.lower()]
@@ -993,7 +979,7 @@ class FirstRun(BaseCommand):
         first_run(self)
         if not self.explicit:
             self.show_usage()
-            if self.confirm and not self.ask_ny(f"View online help?"):
+            if self.confirm and not self.ask_ny("View online help?"):
                 import os
                 os.startfile(HELP_URL)
 

@@ -60,10 +60,10 @@ def quiet_log():
 
 
 class LogCaptureHandler(list):
-    def skip_until(self, pattern, args=()):
+    def skip_until(self, pattern, args=None):
         return ('until', pattern, args)
 
-    def not_logged(self, pattern, args=()):
+    def not_logged(self, pattern, args=None):
         return ('not', pattern, args)
 
     def __call__(self, *cmp):

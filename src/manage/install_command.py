@@ -242,7 +242,10 @@ def _write_alias(cmd, install, alias, target):
         launcher = _if_exists(launcher, "-64")
     LOGGER.debug("Create %s linking to %s using %s", alias["name"], target, launcher)
     if not launcher or not launcher.is_file():
-        LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
+        if install_matches_any(install, getattr(cmd, "tags", None)):
+            LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
+        else:
+            LOGGER.debug("Skipping %s alias because the launcher template was not found.", alias["name"])
         return
     p.write_bytes(launcher.read_bytes())
     p.with_name(p.name + ".__target__").write_text(str(target), encoding="utf-8")
@@ -250,33 +253,33 @@ def _write_alias(cmd, install, alias, target):
 
 def _create_shortcut_pep514(cmd, install, shortcut):
     from .pep514utils import update_registry
-    update_registry(cmd.pep514_root, install, shortcut)
+    update_registry(cmd.pep514_root, install, shortcut, cmd.tags)
 
 
 def _cleanup_shortcut_pep514(cmd, install_shortcut_pairs):
     from .pep514utils import cleanup_registry
-    cleanup_registry(cmd.pep514_root, {s["Key"] for i, s in install_shortcut_pairs})
+    cleanup_registry(cmd.pep514_root, {s["Key"] for i, s in install_shortcut_pairs}, cmd.tags)
 
 
 def _create_start_shortcut(cmd, install, shortcut):
     from .startutils import create_one
-    create_one(cmd.start_folder, install, shortcut)
+    create_one(cmd.start_folder, install, shortcut, cmd.tags)
 
 
 def _cleanup_start_shortcut(cmd, install_shortcut_pairs):
     from .startutils import cleanup
-    cleanup(cmd.start_folder, [s for i, s in install_shortcut_pairs])
+    cleanup(cmd.start_folder, [s for i, s in install_shortcut_pairs], cmd.tags)
 
 
 def _create_arp_entry(cmd, install, shortcut):
     # ARP = Add/Remove Programs
     from .arputils import create_one
-    create_one(install, shortcut)
+    create_one(install, shortcut, cmd.tags)
 
 
 def _cleanup_arp_entries(cmd, install_shortcut_pairs):
     from .arputils import cleanup
-    cleanup([i for i, s in install_shortcut_pairs])
+    cleanup([i for i, s in install_shortcut_pairs], cmd.tags)
 
 
 SHORTCUT_HANDLERS = {
@@ -359,7 +362,7 @@ def print_cli_shortcuts(cmd):
             names = get_install_alias_names(aliases, windowed=True)
             LOGGER.debug("%s will be launched by %s", i["display-name"], ", ".join(names))
 
-        if tags and not install_matches_any(i, cmd.tags):
+        if not install_matches_any(i, tags):
             continue
 
         names = get_install_alias_names(aliases, windowed=False)

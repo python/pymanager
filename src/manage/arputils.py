@@ -5,6 +5,8 @@ import winreg
 from .fsutils import rglob
 from .logging import LOGGER
 from .pathutils import Path
+from .tagutils import install_matches_any
+
 
 def _root():
     return winreg.CreateKey(
@@ -59,7 +61,7 @@ def _set_value(key, name, value):
         winreg.SetValueEx(key, name, None, winreg.REG_SZ, str(value))
 
 
-def _make(key, item, shortcut):
+def _make(key, item, shortcut, *, allow_warn=True):
     prefix = Path(item["prefix"])
 
     for value, from_dict, value_name, relative_to in [
@@ -122,13 +124,14 @@ def _iter_keys(key):
             return
 
 
-def create_one(install, shortcut):
+def create_one(install, shortcut, warn_for=[]):
+    allow_warn = install_matches_any(install, warn_for)
     with _root() as root:
         install_id = f"pymanager-{install['id']}"
         LOGGER.debug("Creating ARP entry for %s", install_id)
         try:
             with winreg.CreateKey(root, install_id) as key:
-                _make(key, install, shortcut)
+                _make(key, install, shortcut, allow_warn=allow_warn)
         except OSError:
             LOGGER.debug("Failed to create entry for %s", install_id)
             LOGGER.debug("TRACEBACK:", exc_info=True)
@@ -136,7 +139,7 @@ def create_one(install, shortcut):
             raise
 
 
-def cleanup(preserve_installs):
+def cleanup(preserve_installs, warn_for=[]):
     keep = {f"pymanager-{i['id']}".casefold() for i in preserve_installs}
     to_delete = []
     with _root() as root:

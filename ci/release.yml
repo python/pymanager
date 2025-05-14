@@ -256,6 +256,14 @@ stages:
       - powershell: |
           pymanager exec -m site
         displayName: 'Launch default runtime'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager uninstall -y default
+        displayName: 'Uninstall runtime'
+        env:
+          PYMANAGER_DEBUG: true
 
       - powershell: |
           $i = (mkdir -force test_installs)

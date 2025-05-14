@@ -764,7 +764,8 @@ def execute(cmd):
                 LOGGER.info("Skipping shortcut refresh due to --dry-run")
             else:
                 update_all_shortcuts(cmd)
-                print_cli_shortcuts(cmd)
+                if not cmd.automatic:
+                    print_cli_shortcuts(cmd)
 
     finally:
         if cmd.automatic:

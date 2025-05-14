@@ -146,7 +146,8 @@ def localserver():
 
 
 class FakeConfig:
-    def __init__(self, installs=[]):
+    def __init__(self, global_dir, installs=[]):
+        self.global_dir = global_dir
         self.installs = list(installs)
         self.shebang_can_run_anything = True
         self.shebang_can_run_anything_silently = False
@@ -161,8 +162,8 @@ class FakeConfig:
 
 
 @pytest.fixture
-def fake_config():
-    return FakeConfig()
+def fake_config(tmp_path):
+    return FakeConfig(tmp_path / "bin")
 
 
 REG_TEST_ROOT = r"Software\Python\PyManagerTesting"

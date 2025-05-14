@@ -1,5 +1,6 @@
 import os
 import pytest
+import winreg
 
 from pathlib import Path
 
@@ -105,3 +106,134 @@ def test_welcome(assert_log):
     assert_log(".*Welcome.*", assert_log.end_of_log())
     welcome()
     assert_log(".*Welcome.*", assert_log.end_of_log())
+
+
+
+def test_firstrun_command(monkeypatch):
+    from manage import commands
+
+    called_first_run = False
+    called_show_usage = False
+
+    def fake_first_run(*args):
+        nonlocal called_first_run
+        called_first_run = True
+
+    def fake_show_usage(*args):
+        nonlocal called_show_usage
+        called_show_usage = True
+
+    monkeypatch.setattr(firstrun, "first_run", fake_first_run)
+    monkeypatch.setattr(commands.FirstRun, "confirm", False)
+    monkeypatch.setattr(commands.FirstRun, "show_usage", fake_show_usage)
+    cmd = commands.find_command(["**first_run"], None)
+    cmd.execute()
+    assert called_first_run
+    assert called_show_usage
+
+
+def test_install_configure_command(monkeypatch):
+    from manage import commands
+
+    called_first_run = False
+    called_show_usage = False
+
+    def fake_first_run(*args):
+        nonlocal called_first_run
+        called_first_run = True
+
+    def fake_show_usage(*args):
+        nonlocal called_show_usage
+        called_show_usage = True
+
+    monkeypatch.setattr(firstrun, "first_run", fake_first_run)
+    monkeypatch.setattr(commands.FirstRun, "confirm", False)
+    monkeypatch.setattr(commands.FirstRun, "show_usage", fake_show_usage)
+    cmd = commands.find_command(["install", "--configure"], None)
+    cmd.execute()
+    assert called_first_run
+    assert not called_show_usage
+
+
+def _create_key_read_only(key, subkey, *args, **kwargs):
+    return winreg.OpenKeyEx(key, subkey)
+
+
+def _raise_oserror(*args, **kwargs):
+    raise OSError("injected error")
+
+
+@pytest.fixture
+def protect_reg(monkeypatch):
+    import _native
+    monkeypatch.setattr(winreg, "CreateKeyEx", _create_key_read_only)
+    monkeypatch.setattr(winreg, "SetValueEx", _raise_oserror)
+    monkeypatch.setattr(_native, "broadcast_settings_change", lambda *a: None)
+
+
+def test_do_global_dir_open_fail(protect_reg, fake_config, assert_log, monkeypatch):
+    monkeypatch.setattr(winreg, "OpenKeyEx", _raise_oserror)
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Failed to update PATH.+"))
+
+
+def test_do_global_dir_read_fail(protect_reg, fake_config, assert_log, monkeypatch):
+    monkeypatch.setattr(winreg, "QueryValueEx", _raise_oserror)
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Failed to update PATH.+"))
+
+
+def test_do_global_dir_read_kind_fail(protect_reg, fake_config, assert_log, monkeypatch):
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: (100, winreg.REG_DWORD))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(
+        assert_log.skip_until("Initial path: %s", (100,)),
+        ("Value kind is %s.+", (winreg.REG_DWORD,)),
+    )
+
+
+def test_do_global_dir_path_already_set(protect_reg, fake_config, assert_log, monkeypatch):
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: (f"{fake_config.global_dir};b;c", winreg.REG_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Path is already found"))
+
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: (f"a;{fake_config.global_dir};c", winreg.REG_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Path is already found"))
+
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: (f"a;b;{fake_config.global_dir}", winreg.REG_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Path is already found"))
+
+
+def test_do_global_dir_path_lost_race(protect_reg, fake_config, assert_log, monkeypatch):
+    paths = ["a;b", "a;b;c"]
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: (paths.pop(), winreg.REG_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(
+        assert_log.skip_until("New path: %s", None),
+        "Path is added successfully",
+        "PATH has changed.+",
+    )
+
+
+def test_do_global_dir_write_same_kind(protect_reg, fake_config, monkeypatch):
+    saved = []
+    monkeypatch.setattr(winreg, "SetValueEx", lambda *a: saved.append(a))
+
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: ("a;", winreg.REG_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert saved[-1][1:] == ("Path", 0, winreg.REG_SZ, f"a;{fake_config.global_dir}")
+
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: ("a", winreg.REG_EXPAND_SZ))
+    firstrun.do_global_dir_on_path(fake_config)
+    assert saved[-1][1:] == ("Path", 0, winreg.REG_EXPAND_SZ, f"a;{fake_config.global_dir}")
+
+
+def test_do_global_dir_path_fail_broadcast(protect_reg, fake_config, assert_log, monkeypatch):
+    import _native
+    monkeypatch.setattr(_native, "broadcast_settings_change", _raise_oserror)
+    monkeypatch.setattr(winreg, "QueryValueEx", lambda *a: ("a;", winreg.REG_SZ))
+    monkeypatch.setattr(winreg, "SetValueEx", lambda *a: None)
+    firstrun.do_global_dir_on_path(fake_config)
+    assert_log(assert_log.skip_until("Failed to notify of PATH environment.+"))

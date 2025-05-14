@@ -2,19 +2,6 @@ import os
 import sys
 import time
 
-
-if __name__ == "__main__":
-    __package__ = "manage"
-    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-    import _native
-    if not hasattr(_native, "coinitialize"):
-        import _native_test
-        for k in dir(_native_test):
-            if k[:1] not in ("", "_"):
-                setattr(_native, k, getattr(_native_test, k))
-
-
 from . import logging
 from .pathutils import Path
 
@@ -160,7 +147,7 @@ def do_global_dir_on_path(cmd):
             initial, kind = winreg.QueryValueEx(key, "Path")
         LOGGER.debug("Initial path: %s", initial)
         if kind not in (winreg.REG_SZ, winreg.REG_EXPAND_SZ) or not isinstance(initial, str):
-            LOGGER.debug("Value kind is %s and not REG_[EXPAND_]SZ. Aborting.")
+            LOGGER.debug("Value kind is %s and not REG_[EXPAND_]SZ. Aborting.", kind)
             return
         for p in initial.split(";"):
             if not p:
@@ -390,49 +377,3 @@ def first_run(cmd):
                      "manager!W! from your Start menu, or !B!py install "
                      "--configure!W! from the terminal.", wrap=True)
         line_break()
-
-
-if __name__ == "__main__":
-    class TestCommand:
-        enabled = True
-        global_dir = Path(os.path.expandvars(r"%LocalAppData%\Python\bin"))
-        explicit = False
-        confirm = True
-        check_app_alias = True
-        check_long_paths = True
-        check_py_on_path = True
-        check_any_install = True
-        check_global_dir = True
-        check_default_tag = True
-
-        def get_installs(self, *args, **kwargs):
-            import json
-            root = Path(os.path.expandvars(r"%LocalAppData%\Python"))
-            result = []
-            for d in root.iterdir():
-                inst = d / "__install__.json"
-                try:
-                    result.append(json.loads(inst.read_text()))
-                except FileNotFoundError:
-                    pass
-            return result
-
-        def _ask(self, fmt, *args, yn_text="Y/n", expect_char="y"):
-            if not self.confirm:
-                return True
-            LOGGER.print(f"{fmt} [{yn_text}] ", *args, end="")
-            try:
-                resp = input().casefold()
-            except Exception:
-                return False
-            return not resp or resp.startswith(expect_char.casefold())
-
-        def ask_yn(self, fmt, *args):
-            "Returns True if the user selects 'yes' or confirmations are skipped."
-            return self._ask(fmt, *args)
-
-        def ask_ny(self, fmt, *args):
-            "Returns True if the user selects 'no' or confirmations are skipped."
-            return self._ask(fmt, *args, yn_text="y/N", expect_char="n")
-
-    first_run(TestCommand())

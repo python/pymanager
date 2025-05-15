@@ -389,7 +389,7 @@ def first_run(cmd):
             LOGGER.print("!Y!You do not have any Python runtimes installed.!W!",
                          level=logging.WARN)
             LOGGER.print("\nInstall the current latest version of CPython? If "
-                         "not, you can use !B!py install default!W! later to "
+                         "not, you can use '!B!py install default!W!' later to "
                          "install, or one will be installed automatically when "
                          "needed.\n", wrap=True)
             LOGGER.info("")

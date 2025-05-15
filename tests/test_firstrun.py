@@ -237,3 +237,27 @@ def test_do_global_dir_path_fail_broadcast(protect_reg, fake_config, assert_log,
     monkeypatch.setattr(winreg, "SetValueEx", lambda *a: None)
     firstrun.do_global_dir_on_path(fake_config)
     assert_log(assert_log.skip_until("Failed to notify of PATH environment.+"))
+
+
+def test_check_long_paths(registry, fake_config):
+    assert not firstrun.check_long_paths(fake_config, hive=registry.hive, keyname=registry.root)
+    registry.setup(LongPathsEnabled=1)
+    assert firstrun.check_long_paths(fake_config, hive=registry.hive, keyname=registry.root)
+
+
+def test_do_configure_long_paths(registry, fake_config, monkeypatch):
+    monkeypatch.setattr(os, "startfile", _raise_oserror)
+    firstrun.do_configure_long_paths(fake_config, hive=registry.hive, keyname=registry.root)
+    assert winreg.QueryValueEx(registry.key, "LongPathsEnabled") == (1, winreg.REG_DWORD)
+
+
+def test_do_configure_long_paths_elevated(protect_reg, fake_config, monkeypatch):
+    startfile_calls = []
+    def startfile(*a, **kw):
+        startfile_calls.append((a, kw))
+    monkeypatch.setattr(os, "startfile", startfile)
+    # Pretend we can interact, so that os.startfile gets called
+    fake_config.confirm = True
+    firstrun.do_configure_long_paths(fake_config)
+    assert startfile_calls
+    assert startfile_calls[0][0][1:] == ("runas", "**configure-long-paths")

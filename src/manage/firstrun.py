@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import winreg
 
 from . import logging
 from .pathutils import Path
@@ -51,20 +52,61 @@ def check_app_alias(cmd):
     LOGGER.debug("Check passed: aliases are correct")
     return True
 
+_LONG_PATH_KEY = r"System\CurrentControlSet\Control\FileSystem"
+_LONG_PATH_VALUENAME = "LongPathsEnabled"
 
-def check_long_paths(cmd):
+def check_long_paths(
+    cmd,
+    *,
+    hive=winreg.HKEY_LOCAL_MACHINE,
+    keyname=_LONG_PATH_KEY,
+    valuename=_LONG_PATH_VALUENAME,
+):
     LOGGER.debug("Checking long paths setting")
-    import winreg
     try:
-        with winreg.OpenKeyEx(winreg.HKEY_LOCAL_MACHINE,
-                              r"System\CurrentControlSet\Control\FileSystem") as key:
-            if winreg.QueryValueEx(key, "LongPathsEnabled") == (1, winreg.REG_DWORD):
+        with winreg.OpenKeyEx(hive, keyname) as key:
+            if winreg.QueryValueEx(key, valuename) == (1, winreg.REG_DWORD):
                 LOGGER.debug("Check passed: registry key is OK")
                 return True
     except FileNotFoundError:
         pass
     LOGGER.debug("Check failed: registry key was missing or incorrect")
     return False
+
+
+def do_configure_long_paths(
+    cmd,
+    *,
+    hive=winreg.HKEY_LOCAL_MACHINE,
+    keyname=_LONG_PATH_KEY,
+    valuename=_LONG_PATH_VALUENAME,
+):
+    LOGGER.debug("Updating long paths setting")
+    try:
+        with winreg.CreateKeyEx(hive, keyname) as key:
+            winreg.SetValueEx(key, valuename, None, winreg.REG_DWORD, 1)
+            LOGGER.info("The setting has been successfully updated, and will "
+                        "take effect after the next reboot.")
+            return
+    except OSError:
+        pass
+    if not cmd.confirm:
+        # Without confirmation, we assume we can't elevate, so attempt
+        # as the current user and if it fails just print a message.
+        LOGGER.warn("The setting has not been updated. Please rerun '!B!py "
+                    "install --configure!W! with administrative privileges.")
+        return
+    os.startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
+    for _ in range(5):
+        time.sleep(0.25)
+        if check_long_paths(cmd):
+            LOGGER.info("The setting has been successfully updated, and will "
+                        "take effect after the next reboot.")
+            break
+    else:
+        LOGGER.warn("The setting may not have been updated. Please "
+                    "visit the additional help link at the end for "
+                    "more assistance.")
 
 
 def check_py_on_path(cmd):
@@ -120,7 +162,6 @@ def check_global_dir(cmd):
 
 
 def _check_global_dir_registry(cmd):
-    import winreg
     with winreg.OpenKeyEx(winreg.HKEY_CURRENT_USER, "Environment") as key:
         path, kind = winreg.QueryValueEx(key, "Path")
     LOGGER.debug("Current registry path: %s", path)
@@ -139,7 +180,6 @@ def _check_global_dir_registry(cmd):
 
 
 def do_global_dir_on_path(cmd):
-    import winreg
     added = notified = False
     try:
         LOGGER.debug("Adding %s to PATH", cmd.global_dir)
@@ -290,17 +330,8 @@ def first_run(cmd):
                          "may need an administrator to approve, and will require a "
                          "reboot. Some packages may fail to install without long "
                          "path support enabled.\n", wrap=True)
-            if cmd.confirm and not cmd.ask_ny("Update setting now?"):
-                os.startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
-                for _ in range(5):
-                    time.sleep(0.25)
-                    if check_long_paths(cmd):
-                        LOGGER.info("The setting has been successfully updated.")
-                        break
-                else:
-                    LOGGER.warn("The setting may not have been updated. Please "
-                                "visit the additional help link at the end for "
-                                "more assistance.")
+            if not cmd.confirm or not cmd.ask_ny("Update setting now?"):
+                do_configure_long_paths(cmd)
         elif cmd.explicit:
             LOGGER.info("Checked system long paths setting")
 
@@ -314,10 +345,7 @@ def first_run(cmd):
             LOGGER.print("\nThis may interfere with launching the new 'py' "
                          "command, and may be resolved by uninstalling "
                          "'!B!Python launcher!W!'.\n", wrap=True)
-            if (
-                cmd.confirm and
-                not cmd.ask_ny("Open Installed apps now?")
-            ):
+            if cmd.confirm and not cmd.ask_ny("Open Installed apps now?"):
                 os.startfile("ms-settings:appsfeatures")
         elif cmd.explicit:
             if r == "skip":
@@ -342,7 +370,7 @@ def first_run(cmd):
                          "must manually edit environment variables to later "
                          "remove the entry.\n", wrap=True)
             if (
-                cmd.confirm and
+                not cmd.confirm or
                 not cmd.ask_ny("Add commands directory to your PATH now?")
             ):
                 do_global_dir_on_path(cmd)
@@ -352,7 +380,7 @@ def first_run(cmd):
             else:
                 LOGGER.info("Checked PATH for versioned commands directory")
 
-    # This check must be last, because 'do_install' will exit the program.
+    # This check must be last, because a failed install may exit the program.
     if cmd.check_any_install:
         if not check_any_install(cmd):
             welcome()
@@ -365,7 +393,7 @@ def first_run(cmd):
                          "install, or one will be installed automatically when "
                          "needed.\n", wrap=True)
             LOGGER.info("")
-            if cmd.ask_yn("Install CPython now?"):
+            if not cmd.confirm or cmd.ask_yn("Install CPython now?"):
                 do_install(cmd)
         elif cmd.explicit:
             LOGGER.info("Checked for any Python installs")

@@ -279,7 +279,7 @@ stages:
               download_dir="$i\_cache";
               global_dir="$i\_bin";
           } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
-          pymanager exec
+          pymanager install --configure -y
           if ($?) { pymanager list }
         displayName: 'Emulate first launch'
         env:

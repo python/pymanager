@@ -814,6 +814,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
         self.show_welcome()
         if self.configure:
             cmd = FirstRun(["**first_run", "--explicit"], self.root)
+            cmd.confirm = self.confirm
             cmd.execute()
         else:
             from .install_command import execute

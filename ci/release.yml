@@ -4,7 +4,7 @@
 # This build can run for every commit, as by default it does no signing.
 # When run manually, signing should be enabled.
 
-name: $(Date:yyyyMMdd).$(Rev:r)
+name: $(Build.SourceBranchName)-$(Date:yyyyMMdd).$(Rev:r)
 
 parameters:
 - name: Sign
@@ -197,6 +197,13 @@ stages:
           AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
           AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
+    - ${{ if eq(parameters.Sign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]signed"
+        displayName: 'Add signed build tag'
+    - ${{ elseif eq(parameters.TestSign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]test-signed"
+        displayName: 'Add test-signed build tag'
+
     - publish: $(DIST_DIR)
       artifact: dist
       displayName: Publish distribution artifacts
@@ -334,3 +341,10 @@ stages:
           UPLOAD_KEYFILE: $(sshkey.secureFilePath)
           ${{ if ne(parameters.Sign, 'true') }}:
             NO_UPLOAD: 1
+
+      - ${{ if eq(parameters.Sign, 'true') }}:
+        - powershell: Write-Host "##vso[build.addbuildtag]published"
+          displayName: 'Add published tag'
+      - ${{ else }}:
+        - powershell: Write-Host "##vso[build.addbuildtag]test-published"
+          displayName: 'Add test-published tag'

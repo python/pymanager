@@ -80,6 +80,7 @@ def do_configure_long_paths(
     hive=winreg.HKEY_LOCAL_MACHINE,
     keyname=_LONG_PATH_KEY,
     valuename=_LONG_PATH_VALUENAME,
+    startfile=os.startfile,
 ):
     LOGGER.debug("Updating long paths setting")
     try:
@@ -96,7 +97,7 @@ def do_configure_long_paths(
         LOGGER.warn("The setting has not been updated. Please rerun '!B!py "
                     "install --configure!W! with administrative privileges.")
         return
-    os.startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
+    startfile(sys.executable, "runas", "**configure-long-paths", show_cmd=0)
     for _ in range(5):
         time.sleep(0.25)
         if check_long_paths(cmd):

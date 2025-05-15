@@ -246,8 +246,7 @@ def test_check_long_paths(registry, fake_config):
 
 
 def test_do_configure_long_paths(registry, fake_config, monkeypatch):
-    monkeypatch.setattr(os, "startfile", _raise_oserror)
-    firstrun.do_configure_long_paths(fake_config, hive=registry.hive, keyname=registry.root)
+    firstrun.do_configure_long_paths(fake_config, hive=registry.hive, keyname=registry.root, startfile=_raise_oserror)
     assert winreg.QueryValueEx(registry.key, "LongPathsEnabled") == (1, winreg.REG_DWORD)
 
 
@@ -255,9 +254,8 @@ def test_do_configure_long_paths_elevated(protect_reg, fake_config, monkeypatch)
     startfile_calls = []
     def startfile(*a, **kw):
         startfile_calls.append((a, kw))
-    monkeypatch.setattr(os, "startfile", startfile)
     # Pretend we can interact, so that os.startfile gets called
     fake_config.confirm = True
-    firstrun.do_configure_long_paths(fake_config)
+    firstrun.do_configure_long_paths(fake_config, startfile=startfile)
     assert startfile_calls
     assert startfile_calls[0][0][1:] == ("runas", "**configure-long-paths")

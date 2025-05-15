@@ -639,7 +639,10 @@ class IndexDownloader:
 
     def on_auth(self, url):
         # TODO: Try looking for parent paths from URL
-        return self._auth[url]
+        try:
+            return self._auth[url]
+        except LookupError:
+            return None
 
     def __next__(self):
         if not self._url:

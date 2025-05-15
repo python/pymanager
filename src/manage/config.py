@@ -36,6 +36,11 @@ def config_bool(v):
     return bool(v)
 
 
+def _is_valid_url(u):
+    from .urlutils import is_valid_url
+    return is_valid_url(u)
+
+
 def load_global_config(cfg, schema):
     try:
         from _native import package_get_root
@@ -184,7 +189,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
             v = kind(v)
         except (TypeError, ValueError):
             raise InvalidConfigurationError(source, key_so_far + k, v)
-        if v and "path" in opts:
+        if v and "path" in opts and not _is_valid_url(v):
             # Paths from the config file are relative to the config file.
             # Paths from the environment are relative to the current working dir
             if not from_env:
@@ -196,8 +201,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
                 v = v.as_uri()
             else:
                 v = str(v)
-            from .urlutils import is_valid_url
-            if not is_valid_url(v):
+            if not _is_valid_url(v):
                 raise InvalidConfigurationError(source, key_so_far + k, v)
         cfg[k] = v
 

@@ -277,7 +277,7 @@ def execute(cmd):
         from .urlutils import IndexDownloader
         try:
             installs = _get_installs_from_index(
-                IndexDownloader(cmd.source, Index),
+                IndexDownloader(cmd.source, Index, disk_cache=cmd.download_dir),
                 tags,
             )
         except OSError as ex:

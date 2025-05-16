@@ -163,3 +163,63 @@ def test_format_table_empty(assert_log):
         (r"!B!Tag\s+Name\s+Managed By\s+Version\s+Alias\s*!W!", ()),
         (r".+No runtimes.+", ()),
     )
+
+
+def test_format_csv(assert_log):
+    list_command.format_csv(None, FAKE_INSTALLS)
+    # CSV format only contains columns that are present, so this doesn't look
+    # as complete as for normal installs, but it's fine for the test.
+    assert_log(
+        "company,tag,sort-version,default",
+        "Company2,1.0,1.0,",
+        "Company1,2.0,2.0,",
+        "Company1,1.0,1.0,True",
+    )
+
+
+def test_format_csv_complex(assert_log):
+    data = [
+        {
+            **d,
+            "alias": [dict(name=f"n{i}.{j}", target=f"t{i}.{j}") for j in range(i + 1)]
+        }
+        for i, d in enumerate(FAKE_INSTALLS)
+    ]
+    list_command.format_csv(None, data)
+    assert_log(
+        "company,tag,sort-version,alias.name,alias.target.default",
+        "Company2,1.0,1.0,n0.0,t0.0,",
+        "Company1,2.0,2.0,n1.0,t1.0,",
+        "Company1,2.0,2.0,n1.1,t1.1,",
+        "Company1,1.0,1.0,n2.0,t2.0,True",
+        "Company1,1.0,1.0,n2.1,t2.1,True",
+        "Company1,1.0,1.0,n2.2,t2.2,True",
+    )
+
+
+def test_format_csv_empty(assert_log):
+    list_command.format_csv(None, [])
+    assert_log(assert_log.end_of_log())
+
+
+def test_csv_exclude():
+    result = list(list_command._csv_filter_and_expand([
+        dict(a=1, b=2),
+        dict(a=3, c=4),
+        dict(a=5, b=6, c=7),
+    ], exclude={"b"}))
+    assert result == [dict(a=1), dict(a=3, c=4), dict(a=5, c=7)]
+
+
+def test_csv_expand():
+    result = list(list_command._csv_filter_and_expand([
+        dict(a=[1, 2], b=[3, 4]),
+        dict(a=[5], b=[6]),
+        dict(a=7, b=8),
+    ], expand={"a"}))
+    assert result == [
+        dict(a=1, b=[3, 4]),
+        dict(a=2, b=[3, 4]),
+        dict(a=5, b=[6]),
+        dict(a=7, b=8),
+    ]

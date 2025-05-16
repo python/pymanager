@@ -105,33 +105,41 @@ def format_table(cmd, installs):
                      " for alternative ways to display this information.!W!")
 
 
-CSV_EXCLUDE = {
+CSV_EXCLUDE = frozenset([
     "schema", "unmanaged",
     # Complex columns of limited value
     "install-for", "shortcuts", "__original-shortcuts",
     "executable", "executable_args",
-}
+])
 
-CSV_EXPAND = ["run-for", "alias"]
+CSV_EXPAND = frozenset(["run-for", "alias"])
 
-def _csv_filter_and_expand(installs):
+def _csv_filter_and_expand(installs, *, exclude=CSV_EXCLUDE, expand=CSV_EXPAND):
     for i in installs:
         filtered = {}
-        to_expand = {k: [] for k in CSV_EXPAND}
+        to_expand = {k: [] for k in expand}
         for k, v in i.items():
-            if k in CSV_EXCLUDE:
+            if k in exclude:
                 continue
-            elif k in to_expand:
+            elif k in to_expand and isinstance(v, (list, tuple)):
                 for vv in v:
-                    expanded = {f"{k}.{k2}": vvv for k2, vvv in vv.items()}
+                    try:
+                        items = vv.items
+                    except AttributeError:
+                        expanded = {f"{k}": vv}
+                    else:
+                        expanded = {f"{k}.{k2}": vvv for k2, vvv in items()}
                     to_expand[k].append(expanded)
             else:
                 filtered[k] = v
 
-        yield filtered
-        for k in CSV_EXPAND:
+        any_yielded = False
+        for k in expand:
             for expanded in to_expand[k]:
                 yield filtered | expanded
+                any_yielded = True
+        if not any_yielded:
+            yield filtered
 
 
 def format_csv(cmd, installs):
@@ -140,7 +148,13 @@ def format_csv(cmd, installs):
     if not installs:
         return
     columns = list(dict.fromkeys(col for i in installs for col in i))
-    writer = csv.DictWriter(sys.stdout, columns)
+
+    class LoggingIOWrapper:
+        @staticmethod
+        def write(s):
+            LOGGER.print_raw(s, end="")
+
+    writer = csv.DictWriter(LoggingIOWrapper, columns)
     writer.writeheader()
     writer.writerows(installs)
 

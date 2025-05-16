@@ -3,6 +3,7 @@ import _native
 from .fsutils import rmtree, unlink
 from .logging import LOGGER
 from .pathutils import Path
+from .tagutils import install_matches_any
 
 
 def _unprefix(p, prefix):
@@ -25,7 +26,7 @@ def _unprefix(p, prefix):
     return p
 
 
-def _make(root, prefix, item):
+def _make(root, prefix, item, allow_warn=True):
     n = item["Name"]
     try:
         _make_directory(root, n, prefix, item["Items"])
@@ -39,7 +40,10 @@ def _make(root, prefix, item):
     try:
         lnk.relative_to(root)
     except ValueError:
-        LOGGER.warn("Package attempted to create shortcut outside of its directory")
+        if allow_warn:
+            LOGGER.warn("Package attempted to create shortcut outside of its directory")
+        else:
+            LOGGER.debug("Package attempted to create shortcut outside of its directory")
         LOGGER.debug("Path: %s", lnk)
         LOGGER.debug("Directory: %s", root)
         return None
@@ -136,12 +140,12 @@ def _get_to_keep(keep, root, item):
             pass
 
 
-def create_one(root, install, shortcut):
+def create_one(root, install, shortcut, warn_for=[]):
     root = Path(_native.shortcut_get_start_programs()) / root
-    _make(root, install["prefix"], shortcut)
+    _make(root, install["prefix"], shortcut, allow_warn=install_matches_any(install, warn_for))
 
 
-def cleanup(root, preserve):
+def cleanup(root, preserve, warn_for=[]):
     root = Path(_native.shortcut_get_start_programs()) / root
 
     if not root.is_dir():

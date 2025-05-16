@@ -27,9 +27,12 @@
       <ComponentRef Id="ProductComponent" />
       <ComponentRef Id="RuntimeComponent" />
       <ComponentRef Id="TemplatesComponent" />
+      <ComponentRef Id="PyShellExt64Component" />
+      <ComponentRef Id="PyShellExtARM64Component" />
     </Feature>
 
     <util:BroadcastEnvironmentChange />
+    <util:QueryNativeMachine />
 
     <Component Id="ProductComponent" Directory="INSTALLFOLDER" Guid="8BEC1259-B220-499B-9656-DC59B7F5BE24">
       <File KeyPath="yes" Source="py-manager.exe" Name="python.exe" Id="python.exe" />
@@ -56,6 +59,11 @@
             <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
+      <RegistryValue Root="HKCR" Key="Python.File\shell\EditWithIDLE"
+                     Name="ExplorerCommandHandler"
+                     Value="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}"
+                     Type="string" />
+
       <ProgId Id="Python.NoConFile" Description="Python Script (Windowed)" Advertise="no" Icon="py.ico">
         <Extension Id="pyw" ContentType="text/x-python">
             <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
@@ -90,8 +98,28 @@
     </Component>
 
     <Component Id="TemplatesComponent" Directory="TEMPLATES" Guid="3ACC110C-5C33-45C8-9843-A446718930A0">
-      <File KeyPath="yes" Source="templates\launcher.exe" Name="launcher.exe" />
-      <File Source="templates\launcherw.exe" Name="launcherw.exe" />
+      <File KeyPath="yes" Source="templates\launcher-64.exe" Name="launcher-64.exe" />
+      <File Source="templates\launcherw-64.exe" Name="launcherw-64.exe" />
+      <File Source="templates\launcher-arm64.exe" Name="launcher-arm64.exe" />
+      <File Source="templates\launcherw-arm64.exe" Name="launcherw-arm64.exe" />
+      <File Source="templates\launcher-32.exe" Name="launcher-32.exe" />
+      <File Source="templates\launcherw-32.exe" Name="launcherw-32.exe" />
+    </Component>
+
+    <!-- IMAGE_FILE_MACHINE_AMD64 = 0x8664 = 34404 -->
+    <Component Id="PyShellExt64Component" Directory="INSTALLFOLDER" Guid="D1946F6C-FB98-4395-BE63-D714A221A590"
+               Condition="WIX_NATIVE_MACHINE = 34404">
+      <File Source="pyshellext-64.dll">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="InprocServer32" />
+      </File>
+    </Component>
+
+    <!-- IMAGE_FILE_MACHINE_ARM64 = 0xAA64 = 43620 -->
+    <Component Id="PyShellExtARM64Component" Directory="INSTALLFOLDER" Guid="D1946F6C-FB98-4395-BE63-D714A221A591"
+               Condition="WIX_NATIVE_MACHINE = 43620">
+      <File Source="pyshellext-arm64.dll">
+        <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="InprocServer32" />
+      </File>
     </Component>
 
   </Package>

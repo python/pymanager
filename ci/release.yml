@@ -4,7 +4,7 @@
 # This build can run for every commit, as by default it does no signing.
 # When run manually, signing should be enabled.
 
-name: $(Date:yyyyMMdd).$(Rev:r)
+name: $(Build.SourceBranchName)-$(Date:yyyyMMdd).$(Rev:r)
 
 parameters:
 - name: Sign
@@ -13,6 +13,10 @@ parameters:
   default: false
 - name: Publish
   displayName: "Publish"
+  type: boolean
+  default: false
+- name: PublishAppinstaller
+  displayName: "Auto-update users to this release"
   type: boolean
   default: false
 - name: PreTest
@@ -89,7 +93,7 @@ stages:
       workingDirectory: $(Build.BinariesDirectory)
 
     - powershell: |
-        python -m pip install pymsbuild
+        python -m pip install "pymsbuild>=1.2.0b1"
       displayName: 'Install build dependencies'
 
     - ${{ if eq(parameters.PreTest, 'true') }}:
@@ -193,6 +197,13 @@ stages:
           AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
           AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
+    - ${{ if eq(parameters.Sign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]signed"
+        displayName: 'Add signed build tag'
+    - ${{ elseif eq(parameters.TestSign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]test-signed"
+        displayName: 'Add test-signed build tag'
+
     - publish: $(DIST_DIR)
       artifact: dist
       displayName: Publish distribution artifacts
@@ -252,6 +263,14 @@ stages:
       - powershell: |
           pymanager exec -m site
         displayName: 'Launch default runtime'
+        env:
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
+          pymanager uninstall -y default
+        displayName: 'Uninstall runtime'
+        env:
+          PYMANAGER_DEBUG: true
 
       - powershell: |
           $i = (mkdir -force test_installs)
@@ -260,7 +279,7 @@ stages:
               download_dir="$i\_cache";
               global_dir="$i\_bin";
           } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
-          pymanager exec
+          pymanager install --configure -y
           if ($?) { pymanager list }
         displayName: 'Emulate first launch'
         env:
@@ -295,6 +314,15 @@ stages:
         workingDirectory: $(Pipeline.Workspace)
         displayName: 'Download PuTTY binaries'
 
+      - ${{ if ne(parameters.PublishAppinstaller, 'true') }}:
+        - powershell: |
+            "Not uploading these files:"
+            dir "${env:UPLOAD_DIR}\*.appinstaller"
+            del "${env:UPLOAD_DIR}\*.appinstaller" -ErrorAction SilentlyContinue
+          displayName: 'Disable auto-update for this release'
+          env:
+            UPLOAD_DIR: $(DIST_DIR)
+
       - powershell: |
           # We don't want the Store MSIX on python.org, so just delete it
           # It's already been archived in the earlier publish step, and is bundled
@@ -313,3 +341,10 @@ stages:
           UPLOAD_KEYFILE: $(sshkey.secureFilePath)
           ${{ if ne(parameters.Sign, 'true') }}:
             NO_UPLOAD: 1
+
+      - ${{ if eq(parameters.Sign, 'true') }}:
+        - powershell: Write-Host "##vso[build.addbuildtag]published"
+          displayName: 'Add published tag'
+      - ${{ else }}:
+        - powershell: Write-Host "##vso[build.addbuildtag]test-published"
+          displayName: 'Add test-published tag'

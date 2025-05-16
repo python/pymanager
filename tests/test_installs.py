@@ -5,68 +5,6 @@ from pathlib import PurePath
 from manage import installs
 
 
-def make_install(tag, **kwargs):
-    run_for = []
-    for t in kwargs.get("run_for", [tag]):
-        run_for.append({"tag": t, "target": kwargs.get("target", "python.exe")})
-        run_for.append({"tag": t, "target": kwargs.get("targetw", "pythonw.exe"), "windowed": 1})
-
-    return {
-        "company": kwargs.get("company", "PythonCore"),
-        "id": "{}-{}".format(kwargs.get("company", "PythonCore"), tag),
-        "sort-version": kwargs.get("sort_version", tag),
-        "tag": tag,
-        "install-for": [tag],
-        "run-for": run_for,
-        "prefix": PurePath(kwargs.get("prefix", rf"C:\{tag}")),
-        "executable": kwargs.get("executable", "python.exe"),
-    }
-
-
-def fake_get_installs(install_dir):
-    yield make_install("1.0")
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("1.0-64", sort_version="1.0")
-    yield make_install("2.0-64", sort_version="2.0")
-    yield make_install("2.0-arm64", sort_version="2.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1")
-    yield make_install("3.0a1-64", sort_version="3.0a1")
-    yield make_install("1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-arm64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1-64", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
-
-
-def fake_get_installs2(install_dir):
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3-32", "3.0-32", "3.0a1-32"])
-    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3-64", "3.0-64", "3.0a1-64"])
-    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3-arm64", "3.0-arm64", "3.0a1-arm64"])
-
-
-def fake_get_unmanaged_installs():
-    return []
-
-
-def fake_get_venv_install(virtualenv):
-    raise LookupError
-
-
-@pytest.fixture
-def patched_installs(monkeypatch):
-    monkeypatch.setattr(installs, "_get_installs", fake_get_installs)
-    monkeypatch.setattr(installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
-    monkeypatch.setattr(installs, "_get_venv_install", fake_get_venv_install)
-
-
-@pytest.fixture
-def patched_installs2(monkeypatch):
-    monkeypatch.setattr(installs, "_get_installs", fake_get_installs2)
-    monkeypatch.setattr(installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
-    monkeypatch.setattr(installs, "_get_venv_install", fake_get_venv_install)
-
-
 def test_get_installs_in_order(patched_installs):
     ii = installs.get_installs("<none>")
     assert [i["id"] for i in ii] == [
@@ -100,6 +38,17 @@ def test_get_default_with_default_platform(patched_installs):
     assert i["id"] == "PythonCore-1.0-64"
     i = installs.get_install_to_run("<none>", "1", "", default_platform="-32")
     assert i["id"] == "PythonCore-1.0-32"
+
+
+def test_get_default_install_prerelease(patched_installs2):
+    inst = list(installs._get_installs("<none>"))
+    m = installs.get_matching_install_tags(inst, "1.0", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-1.0-32"
+
+    m = installs.get_matching_install_tags(inst, "3.0", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0a1-32"
 
 
 def test_get_install_to_run(patched_installs):
@@ -177,3 +126,34 @@ def test_get_install_to_run_with_range(patched_installs):
     i = installs.get_install_to_run("<none>", None, ">1.0")
     assert i["id"] == "PythonCore-2.0-64"
     assert i["executable"].match("python.exe")
+
+
+def test_install_alias_make_alias_sortkey():
+    assert ("pythonw00000000000000000003-00000000000000000064.exe"
+            == installs._make_alias_name_sortkey("pythonw3-64.exe"))
+    assert ("pythonw00000000000000000003-00000000000000000064.exe"
+            == installs._make_alias_name_sortkey("python[w]3[-64].exe"))
+
+def test_install_alias_make_alias_key():
+    assert ("python", "w", "3", "-64", ".exe") == installs._make_alias_key("pythonw3-64.exe")
+    assert ("python", "w", "3", "", ".exe") == installs._make_alias_key("pythonw3.exe")
+    assert ("pythonw3-xyz", "", "", "", ".exe") == installs._make_alias_key("pythonw3-xyz.exe")
+    assert ("python", "", "3", "-64", ".exe") == installs._make_alias_key("python3-64.exe")
+    assert ("python", "", "3", "", ".exe") == installs._make_alias_key("python3.exe")
+    assert ("python3-xyz", "", "", "", ".exe") == installs._make_alias_key("python3-xyz.exe")
+
+
+def test_install_alias_opt_part():
+    assert "" == installs._make_opt_part([])
+    assert "x" == installs._make_opt_part(["x"])
+    assert "[x]" == installs._make_opt_part(["x", ""])
+    assert "[x|y]" == installs._make_opt_part(["", "y", "x"])
+
+
+def test_install_alias_names():
+    input = [{"name": i} for i in ["py3.exe", "PY3-64.exe", "PYW3.exe", "pyw3-64.exe"]]
+    input.extend([{"name": i, "windowed": 1} for i in ["xy3.exe", "XY3-64.exe", "XYW3.exe", "xyw3-64.exe"]])
+    expect = ["py[w]3[-64].exe"]
+    expectw = ["py[w]3[-64].exe", "xy[w]3[-64].exe"]
+    assert expect == installs.get_install_alias_names(input, friendly=True, windowed=False)
+    assert expectw == installs.get_install_alias_names(input, friendly=True, windowed=True)

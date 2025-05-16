@@ -35,22 +35,29 @@ def config_bool(v):
         return v.lower().startswith(("t", "y", "1"))
     return bool(v)
 
-def _global_file():
+
+def _is_valid_url(u):
+    from .urlutils import is_valid_url
+    return is_valid_url(u)
+
+
+def load_global_config(cfg, schema):
     try:
         from _native import package_get_root
     except ImportError:
-        return Path(sys.executable).parent / DEFAULT_CONFIG_NAME
-    return Path(package_get_root()) / DEFAULT_CONFIG_NAME
+        file = Path(sys.executable).parent / DEFAULT_CONFIG_NAME
+    else:
+        file = Path(package_get_root()) / DEFAULT_CONFIG_NAME
+    try:
+        load_one_config(cfg, file, schema=schema)
+    except FileNotFoundError:
+        pass
+
 
 def load_config(root, override_file, schema):
     cfg = {}
 
-    global_file = _global_file()
-    if global_file:
-        try:
-            load_one_config(cfg, global_file, schema=schema)
-        except FileNotFoundError:
-            pass
+    load_global_config(cfg, schema=schema)
 
     try:
         reg_cfg = load_registry_config(cfg["registry_override_key"], schema=schema)
@@ -129,7 +136,13 @@ def load_registry_config(key_path, schema):
                         "This is very unexpected. Please check your configuration " +
                         "or report an issue at https://github.com/python/pymanager.",
                         key_path)
-    resolve_config(cfg, key_path, _global_file().parent, schema=schema, error_unknown=True)
+
+    try:
+        from _native import package_get_root
+        root = Path(package_get_root())
+    except ImportError:
+        root = Path(sys.executable).parent
+    resolve_config(cfg, key_path, root, schema=schema, error_unknown=True)
     return cfg
 
 
@@ -176,7 +189,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
             v = kind(v)
         except (TypeError, ValueError):
             raise InvalidConfigurationError(source, key_so_far + k, v)
-        if v and "path" in opts:
+        if v and "path" in opts and not _is_valid_url(v):
             # Paths from the config file are relative to the config file.
             # Paths from the environment are relative to the current working dir
             if not from_env:
@@ -188,8 +201,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
                 v = v.as_uri()
             else:
                 v = str(v)
-            from .urlutils import is_valid_url
-            if not is_valid_url(v):
+            if not _is_valid_url(v):
                 raise InvalidConfigurationError(source, key_so_far + k, v)
         cfg[k] = v
 

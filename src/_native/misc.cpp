@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <windows.h>
+#include <appmodel.h>
 
 #include "helpers.h"
 
@@ -117,6 +118,119 @@ PyObject *reg_rename_key(PyObject *, PyObject *args, PyObject *kwargs) {
     PyMem_Free(name1);
     PyMem_Free(name2);
     return r;
+}
+
+
+PyObject *get_current_package(PyObject *, PyObject *, PyObject *) {
+    wchar_t package_name[256];
+    UINT32 cch = sizeof(package_name) / sizeof(package_name[0]);
+    int err = GetCurrentPackageFamilyName(&cch, package_name);
+    switch (err) {
+    case ERROR_SUCCESS:
+        return PyUnicode_FromWideChar(package_name, cch ? cch - 1 : 0);
+    case APPMODEL_ERROR_NO_PACKAGE:
+        return Py_GetConstant(Py_CONSTANT_NONE);
+    default:
+        PyErr_SetFromWindowsErr(err);
+        return NULL;
+    }
+}
+
+
+PyObject *read_alias_package(PyObject *, PyObject *args, PyObject *kwargs) {
+    static const char * keywords[] = {"path", NULL};
+    wchar_t *path = NULL;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&:read_alias_package", keywords,
+        as_utf16, &path)) {
+        return NULL;
+    }
+
+    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                           FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    PyMem_Free(path);
+    if (h == INVALID_HANDLE_VALUE) {
+        PyErr_SetFromWindowsErr(0);
+        return NULL;
+    }
+
+    struct {
+        DWORD tag;
+        DWORD _reserved1;
+        DWORD _reserved2;
+        wchar_t package_name[256];
+        wchar_t nul;
+    } buffer;
+    DWORD nread;
+
+    if (!DeviceIoControl(h, FSCTL_GET_REPARSE_POINT, NULL, 0,
+        &buffer, sizeof(buffer), &nread, NULL)
+        // we expect our buffer to be too small, but we only want the package
+        && GetLastError() != ERROR_MORE_DATA) {
+        PyErr_SetFromWindowsErr(0);
+        CloseHandle(h);
+        return NULL;
+    }
+
+    CloseHandle(h);
+
+    if (buffer.tag != IO_REPARSE_TAG_APPEXECLINK) {
+        return Py_GetConstant(Py_CONSTANT_NONE);
+    }
+
+    buffer.nul = 0;
+    return PyUnicode_FromWideChar(buffer.package_name, -1);
+}
+
+
+typedef LRESULT (*PSendMessageTimeoutW)(
+    HWND       hWnd,
+    UINT       Msg,
+    WPARAM     wParam,
+    LPARAM     lParam,
+    UINT       fuFlags,
+    UINT       uTimeout,
+    PDWORD_PTR lpdwResult
+);
+
+PyObject *broadcast_settings_change(PyObject *, PyObject *, PyObject *) {
+    // Avoid depending on user32 because it's so slow
+    HMODULE user32 = LoadLibraryExW(L"user32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!user32) {
+        PyErr_SetFromWindowsErr(0);
+        return NULL;
+    }
+    PSendMessageTimeoutW sm = (PSendMessageTimeoutW)GetProcAddress(user32, "SendMessageTimeoutW");
+    if (!sm) {
+        PyErr_SetFromWindowsErr(0);
+        FreeLibrary(user32);
+        return NULL;
+    }
+
+    // SendMessageTimeout needs special error handling
+    SetLastError(0);
+    LPARAM lParam = (LPARAM)L"Environment";
+
+    if (!(*sm)(
+        HWND_BROADCAST,
+        WM_SETTINGCHANGE,
+        NULL,
+        lParam,
+        SMTO_ABORTIFHUNG,
+        50,
+        NULL
+    )) {
+        int err = GetLastError();
+        if (!err) {
+            PyErr_SetString(PyExc_OSError, "Unspecified error");
+        } else {
+            PyErr_SetFromWindowsErr(err);
+        }
+        FreeLibrary(user32);
+        return NULL;
+    }
+
+    FreeLibrary(user32);
+    return Py_GetConstant(Py_CONSTANT_NONE);
 }
 
 }

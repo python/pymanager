@@ -117,7 +117,7 @@ get_executable(wchar_t *executable, unsigned int bufferSize)
         return HRESULT_FROM_WIN32(GetLastError());
     }
 
-    wcscat_s(config, L".__target__");
+    wcscat_s(config, MAXLEN, L".__target__");
 
     HANDLE hFile = CreateFileW(config, GENERIC_READ,
         FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
@@ -150,7 +150,7 @@ try_load_python3_dll(const wchar_t *executable, unsigned int bufferSize, void **
     return ERROR_DLL_LOAD_DISABLED;
 #else
     wchar_t directory[MAXLEN];
-    wcscpy_s(directory, executable);
+    wcscpy_s(directory, MAXLEN, executable);
     wchar_t *sep = wcsrchr(directory, L'\\');
     if (!sep) {
         return ERROR_RELATIVE_PATH;

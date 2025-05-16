@@ -77,6 +77,23 @@ is_env_var_set(const wchar_t *name)
 }
 
 
+static int
+configure_long_path()
+{
+    HKEY key;
+    LRESULT r;
+    r = RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\FileSystem",
+                        0, NULL, 0, KEY_WRITE, NULL, &key, NULL);
+    if (r) {
+        return r;
+    }
+    DWORD value = 1;
+    r = RegSetValueExW(key, L"LongPathsEnabled", 0, REG_DWORD, (BYTE *)&value, sizeof(value));
+    RegCloseKey(key);
+    return r;
+}
+
+
 static void
 per_exe_settings(
     int argc,
@@ -131,16 +148,16 @@ per_exe_settings(
         return;
     }
     if (CompareStringOrdinal(name, cch, L"pymanager", -1, TRUE) == CSTR_EQUAL) {
-        *default_command = argc >= 2 ? L"__help_with_error" : L"help";
+        *default_command = argc >= 2 ? L"**help_with_error" : L"help";
         *commands = argc >= 2;
         *cli_tag = false;
         *shebangs = false;
         *autoinstall = argc >= 2 && !wcscmp(argv[1], L"exec");
         return;
     }
-    // This case is for direct launches (including first run), Start menu
-    // launch, or via file associations.
-    *default_command = NULL;
+    // This case is for direct launches (including first run), or Start menu
+    // launch.
+    *default_command = L"**first_run";
     *commands = argc >= 2;
     *cli_tag = true;
     *shebangs = true;
@@ -474,6 +491,10 @@ wmain(int argc, wchar_t **argv)
     std::wstring executable, args, tag, script;
     int skip_argc = 0;
 
+    if (argc == 2 && 0 == wcscmp(argv[1], L"**configure-long-paths")) {
+        return configure_long_path();
+    }
+
     err = init_python();
     if (err) {
         return err;
@@ -541,7 +562,8 @@ wmain(int argc, wchar_t **argv)
 
     if (err) {
         // Most 'not found' errors have been handled above. These are internal
-        fprintf(stderr, "INTERNAL ERROR 0x%08X. Please report to https://github.com/python/pymanager\n", err);
+        fprintf(stderr, "[ERROR] Internal error 0x%08X. "
+                "Please report to https://github.com/python/pymanager\n", err);
         goto error;
     }
 
@@ -560,7 +582,7 @@ wmain(int argc, wchar_t **argv)
     case ERROR_EXE_MACHINE_TYPE_MISMATCH:
     case HRESULT_FROM_WIN32(ERROR_EXE_MACHINE_TYPE_MISMATCH):
         fprintf(stderr,
-                "[FATAL ERROR] Executable '%ls' is for a different kind of "
+                "[ERROR] Executable '%ls' is for a different kind of "
                 "processor architecture.\n",
                 executable.c_str());
         fprintf(stderr,
@@ -568,7 +590,7 @@ wmain(int argc, wchar_t **argv)
                 "'py install' to install one for your CPU.\n");
         break;
     default:
-        fprintf(stderr, "[FATAL ERROR] Failed to launch '%ls' (0x%08X)\n", executable.c_str(), err);
+        fprintf(stderr, "[ERROR] Failed to launch '%ls' (0x%08X)\n", executable.c_str(), err);
         fprintf(stderr, "This may be a corrupt install or a system configuration issue.\n");
         break;
     }

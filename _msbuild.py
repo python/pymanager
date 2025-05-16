@@ -4,7 +4,7 @@ from pymsbuild.dllpack import *
 
 
 DLL_NAME = "python314"
-EMBED_URL = "https://www.python.org/ftp/python/3.14.0/python-3.14.0a7-embed-amd64.zip"
+EMBED_URL = "https://www.python.org/ftp/python/3.14.0/python-3.14.0b1-embed-amd64.zip"
 
 def can_embed(tag):
     """Return False if tag doesn't match DLL_NAME and EMBED_URL.
@@ -84,6 +84,9 @@ NATIVE_PYD = DllPackage(
     CFunction('date_as_str'),
     CFunction('datetime_as_str'),
     CFunction('reg_rename_key'),
+    CFunction('get_current_package'),
+    CFunction('read_alias_package'),
+    CFunction('broadcast_settings_change'),
     source='src/_native',
     RootNamespace='_native',
 )
@@ -107,6 +110,7 @@ def main_exe(name):
         ConfigurationType='Application',
     )
 
+
 def mainw_exe(name):
     return CProject(name,
         VersionInfo(FileDescription="Python Install Manager (windowed)"),
@@ -127,11 +131,60 @@ def mainw_exe(name):
     )
 
 
+def launcher_exe(name, platform, windowed=False):
+    return CProject(name,
+        VersionInfo(
+            FileDescription="Python launcher" + (" (windowed)" if windowed else ""),
+            OriginalFilename=f"{name}.exe"
+        ),
+        CPP_SETTINGS,
+        Property('StaticLibcppLinkage', 'true'),
+        ItemDefinition('Link', SubSystem='WINDOWS' if windowed else 'CONSOLE'),
+        Manifest('default.manifest'),
+        ResourceFile('pywicon.rc' if windowed else 'pyicon.rc'),
+        CSourceFile('launcher.cpp'),
+        CSourceFile('_launch.cpp'),
+        IncludeFile('*.h'),
+        source='src/pymanager',
+        ConfigurationType='Application',
+        Platform=platform,
+    )
+
+
+def pyshellext(ext='.exe', **props):
+    link_opts = ItemDefinition(
+        'Link',
+        AdditionalDependencies=Prepend('RuntimeObject.lib;'),
+    )
+    if ext != '.exe':
+        link_opts.options['ModuleDefinitionFile'] = '$(SourceRootDir)src\\pyshellext\\pyshellext.def'
+
+
+    return CProject(f"pyshellext{ext.rpartition('.')[0]}",
+        VersionInfo(
+            FileDescription='Python shell extension',
+            OriginalFilename=f'pyshellext{ext}',
+        ),
+        ItemDefinition('ClCompile', LanguageStandard='stdcpp20'),
+        link_opts,
+        Manifest('default.manifest'),
+        CSourceFile('shellext.cpp'),
+        ResourceFile('pyshellext.rc'),
+        source='src/pyshellext',
+        StaticLibcppLinkage=True,
+        **props,
+    )
+
+
 PACKAGE = Package('python-manager',
     PyprojectTomlFile('pyproject.toml'),
     # MSIX manifest
-    File('src/pymanager/appxmanifest.xml', name='appxmanifest.xml'),
-    File('src/pymanager/pymanager.appinstaller', name='pymanager.appinstaller'),
+    File('src/pymanager/appxmanifest.xml'),
+    File('src/pymanager/pymanager.appinstaller'),
+    Package(
+        'MSIX.AppInstaller.Data',
+        File('src/pymanager/MSIXAppInstallerData.xml'),
+    ),
 
     # Default settings
     File('src/pymanager.json'),
@@ -146,34 +199,12 @@ PACKAGE = Package('python-manager',
     Package(
         'templates',
         File('src/pymanager/templates/template.py'),
-        CProject('launcher',
-            VersionInfo(FileDescription="Python launcher", OriginalFilename="launcher.exe"),
-            CPP_SETTINGS,
-            Property('DynamicLibcppLinkage', 'true'),
-            ItemDefinition('ClCompile', RuntimeLibrary='MultiThreaded'),
-            ItemDefinition('Link', SubSystem='CONSOLE'),
-            Manifest('default.manifest'),
-            ResourceFile('pyicon.rc'),
-            CSourceFile('launcher.cpp'),
-            CSourceFile('_launch.cpp'),
-            IncludeFile('*.h'),
-            source='src/pymanager',
-            ConfigurationType='Application',
-        ),
-        CProject('launcherw',
-            VersionInfo(FileDescription="Python launcher (windowed)", OriginalFilename="launcherw.exe"),
-            CPP_SETTINGS,
-            Property('DynamicLibcppLinkage', 'true'),
-            ItemDefinition('ClCompile', RuntimeLibrary='MultiThreaded'),
-            ItemDefinition('Link', SubSystem='WINDOWS'),
-            Manifest('default.manifest'),
-            ResourceFile('pywicon.rc'),
-            CSourceFile('launcher.cpp'),
-            CSourceFile('_launch.cpp'),
-            IncludeFile('*.h'),
-            source='src/pymanager',
-            ConfigurationType='Application',
-        ),
+        launcher_exe("launcher-64", "x64", windowed=False),
+        launcher_exe("launcherw-64", "x64", windowed=True),
+        launcher_exe("launcher-arm64", "ARM64", windowed=False),
+        launcher_exe("launcherw-arm64", "ARM64", windowed=True),
+        launcher_exe("launcher-32", "Win32", windowed=False),
+        launcher_exe("launcherw-32", "Win32", windowed=True),
     ),
 
     # Directory for MSIX resources
@@ -202,6 +233,10 @@ PACKAGE = Package('python-manager',
     mainw_exe("pythonw"),
     main_exe("python3"),
     mainw_exe("pythonw3"),
+
+    pyshellext(".exe", ConfigurationType="Application"),
+    pyshellext("-64.dll", Platform="x64"),
+    pyshellext("-arm64.dll", Platform="ARM64"),
 )
 
 
@@ -214,6 +249,9 @@ def get_commands():
     for cls in filter(lambda c: isinstance(c, ast.ClassDef), mod.body):
         # Check if a subclass of BaseCommand
         if not any(b.id in command_bases for b in cls.bases):
+            continue
+        # Ignore exec command - it gets handled separately.
+        if cls.name == "ExecCommand":
             continue
         command_bases.add(cls.name)
         for a in filter(lambda s: isinstance(s, ast.Assign), cls.body):
@@ -300,6 +338,7 @@ def init_METADATA():
     fileversion = _make_xyzw_version(METADATA["Version"], ",")
     for vi in PACKAGE.findall("**/VersionInfo"):
         vi.from_metadata(METADATA)
+        vi.options["LegalCopyright"] = "Copyright (c) Python Software Foundation. All Rights Reserved."
         vi.options["FILEVERSION"] = fileversion
 
 

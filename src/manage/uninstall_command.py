@@ -1,7 +1,7 @@
 from .exceptions import ArgumentError, FilesInUseError
 from .fsutils import rmtree, unlink
 from .installs import get_matching_install_tags
-from .install_command import update_all_shortcuts
+from .install_command import SHORTCUT_HANDLERS, update_all_shortcuts
 from .logging import LOGGER
 from .pathutils import PurePath
 from .tagutils import tag_or_range
@@ -9,6 +9,8 @@ from .tagutils import tag_or_range
 
 def _iterdir(p, only_files=False):
     try:
+        if only_files:
+            return [f for f in p.iterdir() if p.is_file()]
         return list(p.iterdir())
     except FileNotFoundError:
         LOGGER.debug("Skipping %s because it does not exist", p)
@@ -26,6 +28,8 @@ def execute(cmd):
     cmd.virtual_env = None
     installed = list(cmd.get_installs())
 
+    cmd.tags = []
+
     if cmd.purge:
         if cmd.ask_yn("Uninstall all runtimes?"):
             for i in installed:
@@ -40,18 +44,15 @@ def execute(cmd):
                     LOGGER.warn("Unable to purge %s because it is still in use.",
                                 i["display-name"])
                     continue
-            LOGGER.info("Purging saved downloads")
-            for f in _iterdir(cmd.install_dir):
-                LOGGER.debug("Purging %s", f)
-                try:
-                    rmtree(f, after_5s_warning=warn_msg.format("cached downloads"),
-                           remove_ext_first=("exe", "dll", "json"))
-                except FilesInUseError:
-                    pass
-            LOGGER.info("Purging global commands")
+            LOGGER.info("Purging saved downloads from %s", cmd.download_dir)
+            rmtree(cmd.download_dir, after_5s_warning=warn_msg.format("cached downloads"))
+            LOGGER.info("Purging global commands from %s", cmd.global_dir)
             for f in _iterdir(cmd.global_dir):
                 LOGGER.debug("Purging %s", f)
                 rmtree(f, after_5s_warning=warn_msg.format("global commands"))
+            LOGGER.info("Purging all shortcuts")
+            for _, cleanup in SHORTCUT_HANDLERS.values():
+                cleanup(cmd, [])
         LOGGER.debug("END uninstall_command.execute")
         return
 
@@ -61,16 +62,18 @@ def execute(cmd):
     to_uninstall = []
     if not cmd.by_id:
         for tag in cmd.args:
-            if tag.casefold() == "default".casefold():
-                tag = cmd.default_tag
             try:
-                t_or_r = tag_or_range(tag)
+                if tag.casefold() == "default".casefold():
+                    cmd.tags.append(tag_or_range(cmd.default_tag))
+                else:
+                    cmd.tags.append(tag_or_range(tag))
             except ValueError as ex:
                 LOGGER.warn("%s", ex)
-                continue
+
+        for tag in cmd.tags:
             candidates = get_matching_install_tags(
                 installed,
-                t_or_r,
+                tag,
                 default_platform=cmd.default_platform,
             )
             if not candidates:
@@ -127,6 +130,6 @@ def execute(cmd):
             LOGGER.debug("TRACEBACK:", exc_info=True)
 
     if to_uninstall:
-        update_all_shortcuts(cmd, path_warning=False)
+        update_all_shortcuts(cmd)
 
     LOGGER.debug("END uninstall_command.execute")

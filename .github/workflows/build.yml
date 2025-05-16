@@ -30,13 +30,33 @@ jobs:
         }
       shell: powershell
 
-    - name: Set up Python 3.14
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.14-dev
+    #- name: Set up Python 3.14
+    #  uses: actions/setup-python@v5
+    #  with:
+    #    python-version: 3.14-dev
+
+    # We move faster than GitHub's Python runtimes, so use NuGet instead
+    # One day we can use ourselves to download Python, but not yet...
+    - name: Set up NuGet
+      uses: nuget/setup-nuget@v2.0.1
+
+    - name: Set up Python 3.14.0b1
+      run: |
+        nuget install python -Version 3.14.0-b1 -x -o .
+        $py = Get-Item python\tools
+        Write-Host "Adding $py to PATH"
+        "$py" | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
+      working-directory: ${{ runner.temp }}
+
+    - name: Check Python version is 3.14.0b1
+      run: >
+        python -c "import sys;
+        print(sys.version);
+        print(sys.executable);
+        sys.exit(0 if sys.version_info[:5] == (3, 14, 0, 'beta', 1) else 1)"
 
     - name: Install build dependencies
-      run: python -m pip install pymsbuild
+      run: python -m pip install "pymsbuild>=1.2.0b1"
 
     - name: 'Install test runner'
       run: python -m pip install pytest pytest-cov
@@ -129,6 +149,13 @@ jobs:
 
     - name: 'Launch default runtime'
       run: pymanager exec -m site
+      env:
+        PYMANAGER_DEBUG: true
+
+    - name: 'Uninstall runtime'
+      run: pymanager uninstall -y default
+      env:
+        PYMANAGER_DEBUG: true
 
     - name: 'Emulate first launch'
       run: |
@@ -138,7 +165,7 @@ jobs:
             download_dir="$i\_cache";
             global_dir="$i\_bin";
         } | Out-File $env:PYTHON_MANAGER_CONFIG -Encoding utf8
-        pymanager exec
+        pymanager install --configure -y
         if ($?) { pymanager list }
       env:
         PYTHON_MANAGER_INCLUDE_UNMANAGED: false

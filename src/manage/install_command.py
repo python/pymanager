@@ -10,7 +10,7 @@ from .exceptions import (
 )
 from .fsutils import ensure_tree, rmtree, unlink
 from .indexutils import Index
-from .logging import LOGGER, ProgressPrinter
+from .logging import CONSOLE_MAX_WIDTH, LOGGER, ProgressPrinter, VERBOSE
 from .pathutils import Path, PurePath
 from .tagutils import install_matches_any, tag_or_range
 from .urlutils import (
@@ -19,11 +19,6 @@ from .urlutils import (
     urlretrieve as _urlretrieve,
     IndexDownloader,
 )
-
-
-# TODO: Consider reading the current console width
-# Though there's a solid argument we should just pick one and stick with it
-CONSOLE_WIDTH = 79
 
 
 # In-process cache to save repeat downloads
@@ -220,16 +215,37 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
             LOGGER.debug("Attempted to overwrite: %s", dest)
 
 
-def _write_alias(cmd, alias, target):
+def _if_exists(launcher, plat):
+    suffix = "." + launcher.suffix.lstrip(".")
+    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{suffix}"
+    if plat_launcher.is_file():
+        return plat_launcher
+    return launcher
+
+
+def _write_alias(cmd, install, alias, target):
     p = (cmd.global_dir / alias["name"])
     ensure_tree(p)
     unlink(p)
     launcher = cmd.launcher_exe
     if alias.get("windowed"):
         launcher = cmd.launcherw_exe or launcher
+    plat = install["tag"].rpartition("-")[-1]
+    if plat:
+        LOGGER.debug("Checking for launcher for platform -%s", plat)
+        launcher = _if_exists(launcher, f"-{plat}")
+    if not launcher.is_file():
+        LOGGER.debug("Checking for launcher for default platform %s", cmd.default_platform)
+        launcher = _if_exists(launcher, cmd.default_platform)
+    if not launcher.is_file():
+        LOGGER.debug("Checking for launcher for -64")
+        launcher = _if_exists(launcher, "-64")
     LOGGER.debug("Create %s linking to %s using %s", alias["name"], target, launcher)
     if not launcher or not launcher.is_file():
-        LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
+        if install_matches_any(install, getattr(cmd, "tags", None)):
+            LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
+        else:
+            LOGGER.debug("Skipping %s alias because the launcher template was not found.", alias["name"])
         return
     p.write_bytes(launcher.read_bytes())
     p.with_name(p.name + ".__target__").write_text(str(target), encoding="utf-8")
@@ -237,33 +253,33 @@ def _write_alias(cmd, alias, target):
 
 def _create_shortcut_pep514(cmd, install, shortcut):
     from .pep514utils import update_registry
-    update_registry(cmd.pep514_root, install, shortcut)
+    update_registry(cmd.pep514_root, install, shortcut, cmd.tags)
 
 
 def _cleanup_shortcut_pep514(cmd, install_shortcut_pairs):
     from .pep514utils import cleanup_registry
-    cleanup_registry(cmd.pep514_root, {s["Key"] for i, s in install_shortcut_pairs})
+    cleanup_registry(cmd.pep514_root, {s["Key"] for i, s in install_shortcut_pairs}, cmd.tags)
 
 
 def _create_start_shortcut(cmd, install, shortcut):
     from .startutils import create_one
-    create_one(cmd.start_folder, install, shortcut)
+    create_one(cmd.start_folder, install, shortcut, cmd.tags)
 
 
 def _cleanup_start_shortcut(cmd, install_shortcut_pairs):
     from .startutils import cleanup
-    cleanup(cmd.start_folder, [s for i, s in install_shortcut_pairs])
+    cleanup(cmd.start_folder, [s for i, s in install_shortcut_pairs], cmd.tags)
 
 
 def _create_arp_entry(cmd, install, shortcut):
     # ARP = Add/Remove Programs
     from .arputils import create_one
-    create_one(install, shortcut)
+    create_one(install, shortcut, cmd.tags)
 
 
 def _cleanup_arp_entries(cmd, install_shortcut_pairs):
     from .arputils import cleanup
-    cleanup([i for i, s in install_shortcut_pairs])
+    cleanup([i for i, s in install_shortcut_pairs], cmd.tags)
 
 
 SHORTCUT_HANDLERS = {
@@ -273,7 +289,7 @@ SHORTCUT_HANDLERS = {
 }
 
 
-def update_all_shortcuts(cmd, path_warning=True):
+def update_all_shortcuts(cmd):
     LOGGER.debug("Updating global shortcuts")
     alias_written = set()
     shortcut_written = {}
@@ -286,7 +302,7 @@ def update_all_shortcuts(cmd, path_warning=True):
                 if not target.is_file():
                     LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
                     continue
-                _write_alias(cmd, a, target)
+                _write_alias(cmd, i, a, target)
                 alias_written.add(a["name"].casefold())
 
         for s in i.get("shortcuts", ()):
@@ -316,34 +332,48 @@ def update_all_shortcuts(cmd, path_warning=True):
     for k, (_, cleanup) in SHORTCUT_HANDLERS.items():
         cleanup(cmd, shortcut_written.get(k, []))
 
-    if path_warning and cmd.global_dir and cmd.global_dir.is_dir() and any(cmd.global_dir.glob("*.exe")):
+
+def print_cli_shortcuts(cmd):
+    if cmd.global_dir and cmd.global_dir.is_dir() and any(cmd.global_dir.glob("*.exe")):
         try:
             if not any(cmd.global_dir.match(p) for p in os.getenv("PATH", "").split(os.pathsep) if p):
                 LOGGER.info("")
                 LOGGER.info("!B!Global shortcuts directory is not on PATH. " +
-                            "Add it for easy access to global Python commands.!W!")
+                            "Add it for easy access to global Python aliases.!W!")
                 LOGGER.info("!B!Directory to add: !Y!%s!W!", cmd.global_dir)
                 LOGGER.info("")
+                return
         except Exception:
             LOGGER.debug("Failed to display PATH warning", exc_info=True)
+            return
 
-
-def print_cli_shortcuts(cmd):
+    from .installs import get_install_alias_names
     installs = cmd.get_installs()
-    seen = set()
+    tags = getattr(cmd, "tags", None)
+    seen = {"python.exe".casefold()}
+    verbose = LOGGER.would_log_to_console(VERBOSE)
     for i in installs:
-        aliases = sorted(a["name"] for a in i["alias"] if a["name"].casefold() not in seen)
-        seen.update(n.casefold() for n in aliases)
-        if not install_matches_any(i, cmd.tags):
+        # We need to pre-filter aliases before getting the nice names.
+        aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
+        seen.update(n["name"].casefold() for n in aliases)
+        if not verbose:
+            if i.get("default"):
+                LOGGER.debug("%s will be launched by !G!python.exe!W!", i["display-name"])
+            names = get_install_alias_names(aliases, windowed=True)
+            LOGGER.debug("%s will be launched by %s", i["display-name"], ", ".join(names))
+
+        if not install_matches_any(i, tags):
             continue
-        if i.get("default") and aliases:
+
+        names = get_install_alias_names(aliases, windowed=False)
+        if i.get("default") and names:
             LOGGER.info("%s will be launched by !G!python.exe!W! and also %s",
-                        i["display-name"], ", ".join(aliases))
+                        i["display-name"], ", ".join(names))
         elif i.get("default"):
             LOGGER.info("%s will be launched by !G!python.exe!W!.", i["display-name"])
-        elif aliases:
+        elif names:
             LOGGER.info("%s will be launched by %s",
-                        i["display-name"], ", ".join(aliases))
+                        i["display-name"], ", ".join(names))
         else:
             LOGGER.info("Installed %s to %s", i["display-name"], i["prefix"])
 
@@ -404,7 +434,7 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     if install["url"].casefold().endswith(".nupkg".casefold()):
         package = package.with_suffix(".nupkg")
 
-    with ProgressPrinter("Downloading", maxwidth=CONSOLE_WIDTH) as on_progress:
+    with ProgressPrinter("Downloading", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
         package = download_package(cmd, install, package, DOWNLOAD_CACHE, on_progress=on_progress)
     validate_package(install, package)
     if must_copy and package.parent != download_dir:
@@ -456,7 +486,7 @@ def _install_one(cmd, source, install, *, target=None):
             )
             raise
 
-    with ProgressPrinter("Extracting", maxwidth=CONSOLE_WIDTH) as on_progress:
+    with ProgressPrinter("Extracting", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
         extract_package(package, dest, on_progress=on_progress, repair=cmd.repair)
 
     if target:
@@ -493,13 +523,13 @@ def _install_one(cmd, source, install, *, target=None):
                              if s["kind"] not in cmd.disable_shortcut_kinds]
             install["shortcuts"] = shortcuts
 
+        install["url"] = sanitise_url(install["url"])
+        if source != cmd.fallback_source:
+            install["source"] = sanitise_url(source)
+
         LOGGER.debug("Write __install__.json to %s", dest)
         with open(dest / "__install__.json", "w", encoding="utf-8") as f:
-            json.dump({
-                **install,
-                "url": sanitise_url(install["url"]),
-                "source": sanitise_url(source),
-            }, f, default=str)
+            json.dump(install, f, default=str)
 
     LOGGER.verbose("Install complete")
 
@@ -510,13 +540,11 @@ def _fatal_install_error(cmd, ex):
         LOGGER.error("An error occurred. Please check any output above, "
                      "or the log file, and try again.")
         LOGGER.info("Log file for this session: !Y!%s!W!", logfile)
-        # TODO: Update issues URL to actual repository
         LOGGER.info("If you cannot resolve it yourself, please report the error with "
                     "your log file at https://github.com/python/pymanager")
     else:
         LOGGER.error("An error occurred. Please check any output above, "
                      "and try again with -vv for more information.")
-        # TODO: Update issues URL to actual repository
         LOGGER.info("If you cannot resolve it yourself, please report the error with "
                     "verbose output file at https://github.com/python/pymanager")
     LOGGER.debug("TRACEBACK:", exc_info=True)
@@ -534,6 +562,7 @@ def execute(cmd):
         else:
             LOGGER.info("Refreshing install registrations.")
             update_all_shortcuts(cmd)
+            print_cli_shortcuts(cmd)
             LOGGER.debug("END install_command.execute")
         return
 
@@ -546,7 +575,7 @@ def execute(cmd):
         if not cmd.automatic_install:
             LOGGER.debug("automatic_install is not set - exiting")
             raise AutomaticInstallDisabledError()
-        LOGGER.info("!B!" + "*" * CONSOLE_WIDTH + "!W!")
+        LOGGER.info("!B!" + "*" * CONSOLE_MAX_WIDTH + "!W!")
 
     download_index = {"versions": []}
 
@@ -614,7 +643,10 @@ def execute(cmd):
         if cmd.from_script:
             # Have already checked that we are not using --by-id
             from .scriptutils import find_install_from_script
-            spec = find_install_from_script(cmd, cmd.from_script)
+            try:
+                spec = find_install_from_script(cmd, cmd.from_script)
+            except LookupError:
+                spec = None
             if spec:
                 cmd.tags.append(tag_or_range(spec))
             else:
@@ -732,11 +764,12 @@ def execute(cmd):
                 LOGGER.info("Skipping shortcut refresh due to --dry-run")
             else:
                 update_all_shortcuts(cmd)
-                print_cli_shortcuts(cmd)
+                if not cmd.automatic:
+                    print_cli_shortcuts(cmd)
 
     finally:
         if cmd.automatic:
             LOGGER.info("To see all available commands, run '!G!py help!W!'")
-            LOGGER.info("!B!" + "*" * CONSOLE_WIDTH + "!W!")
+            LOGGER.info("!B!" + "*" * CONSOLE_MAX_WIDTH + "!W!")
 
         LOGGER.debug("END install_command.execute")

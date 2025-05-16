@@ -1,47 +1,20 @@
 import json
 import sys
 
+from . import logging
 from .exceptions import ArgumentError
-from .logging import LOGGER
 
-
-def _exe_partition(n):
-    n1, sep, n2 = n.rpartition(".")
-    n2 = sep + n2
-    while n1 and n1[-1] in "0123456789.-":
-        n2 = n1[-1] + n2
-        n1 = n1[:-1]
-    w = ""
-    if n1 and n1[-1] == "w":
-        w = "w"
-        n1 = n1[:-1]
-    return n1, w, n2
+LOGGER = logging.LOGGER
 
 
 def _format_alias(i, seen):
-    try:
-        alias = i["alias"]
-    except KeyError:
-        return ""
-    if not alias:
-        return ""
-    if len(alias) == 1:
-        a = i["alias"][0]
-        n = a["name"].casefold()
-        if n in seen:
-            return ""
-        seen.add(n)
-        return i["alias"][0]["name"]
-    names = {_exe_partition(a["name"].casefold()): a["name"] for a in alias
-             if a["name"].casefold() not in seen}
-    seen.update(a["name"].casefold() for a in alias)
-    for n1, w, n2 in list(names):
-        k = (n1, "", n2)
-        if w and k in names:
-            del names[n1, w, n2]
-            n1, _, n2 = _exe_partition(names[k])
-            names[k] = f"{n1}[w]{n2}"
-    return ", ".join(names[n] for n in sorted(names))
+    from manage.installs import get_install_alias_names
+    aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
+    seen.update(a["name"].casefold() for a in aliases)
+
+    include_w = LOGGER.would_log_to_console(logging.VERBOSE)
+    names = get_install_alias_names(aliases, windowed=include_w)
+    return ", ".join(names)
 
 
 def _format_tag_with_co(cmd, i):
@@ -102,6 +75,10 @@ def format_table(cmd, installs):
         except LookupError:
             pass
 
+    while sum(cwidth.values()) > logging.CONSOLE_MAX_WIDTH:
+        # TODO: Some kind of algorithm for reducing column widths to fit
+        break
+
     LOGGER.print("!B!%s!W!", "  ".join(columns[c].ljust(cwidth[c]) for c in columns), always=True)
 
     any_shown = False
@@ -124,8 +101,8 @@ def format_table(cmd, installs):
 
     if show_truncated_warning:
         LOGGER.print()
-        LOGGER.print("!B!Some columns were truncated. Use '!G!--format=json!B!'"
-                     " or '!G!--format=jsonl!B!' for full information.!W!")
+        LOGGER.print("!B!Some columns were truncated. See '!G!py list --help!B!'"
+                     " for alternative ways to display this information.!W!")
 
 
 CSV_EXCLUDE = {
@@ -169,35 +146,41 @@ def format_csv(cmd, installs):
 
 
 def format_json(cmd, installs):
-    print(json.dumps({"versions": installs}, default=str))
+    LOGGER.print_raw(json.dumps({"versions": installs}, default=str))
 
 
 def format_json_lines(cmd, installs):
     for i in installs:
-        print(json.dumps(i, default=str))
+        LOGGER.print_raw(json.dumps(i, default=str))
 
 
 def format_bare_id(cmd, installs):
     for i in installs:
-        print(i["id"])
+        # Don't print useless values (__active-virtual-env, __unmanaged-)
+        if i["id"].startswith("__"):
+            continue
+        LOGGER.print_raw(i["id"])
 
 
 def format_bare_exe(cmd, installs):
     for i in installs:
-        print(i["executable"])
+        LOGGER.print_raw(i["executable"])
 
 
 def format_bare_prefix(cmd, installs):
     for i in installs:
         try:
-            print(i["prefix"])
+            LOGGER.print_raw(i["prefix"])
         except KeyError:
             pass
 
 
 def format_bare_url(cmd, installs):
     for i in installs:
-        print(i["url"])
+        try:
+            LOGGER.print_raw(i["url"])
+        except KeyError:
+            pass
 
 
 def format_legacy(cmd, installs, paths=False):
@@ -219,7 +202,7 @@ def format_legacy(cmd, installs, paths=False):
             if not seen_default and i.get("default"):
                 tag = f"{tag} *"
                 seen_default = True
-        print(tag.ljust(17), i["executable"] if paths else i["display-name"])
+        LOGGER.print_raw(tag.ljust(17), i["executable"] if paths else i["display-name"])
 
 
 FORMATTERS = {
@@ -259,8 +242,9 @@ def execute(cmd):
         LOGGER.debug("Get formatter %s", cmd.format)
         formatter = FORMATTERS[cmd.format]
     except LookupError:
-        expect = ", ".join(sorted(FORMATTERS))
-        raise ArgumentError(f"'{cmd.format}' is not a valid format; expect one of: {expect}") from None
+        formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
+        expect = ", ".join(sorted(formatters))
+        raise ArgumentError(f"'{cmd.format}' is not a valid format; expected one of: {expect}") from None
 
     from .tagutils import tag_or_range, install_matches_any
     tags = []

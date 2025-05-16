@@ -1,6 +1,15 @@
 import os
 import sys
 
+# For convenient changing in the future. With a bit of luck, we will always
+# depend on this constant dynamically, and so could update it at runtime, but
+# don't assume that if you're adding that feature!
+# Note that this only applies to deliberate formatting tasks. In general, we
+# write entire lines of text unwrapped and let the console handle it, but some
+# tasks (e.g. progress bars, tables) need to know the width.
+CONSOLE_MAX_WIDTH = 80
+
+
 DEBUG = 10
 VERBOSE = 15
 INFO = 20
@@ -39,6 +48,40 @@ def strip_colour(msg):
     return msg
 
 
+def _len_without_codes(s, codes_subbed=False):
+    n = len(s)
+    for k, v in COLOURS.items():
+        if not codes_subbed:
+            n -= len(k) * s.count(k)
+        n -= len(v) * s.count(v)
+    return n
+
+
+def wrap_and_indent(s, indent=0, width=None, hang="", codes_subbed=False):
+    if width is None:
+        width = CONSOLE_MAX_WIDTH
+    
+    bits = [" " * indent]
+    if hang:
+        cchw = _len_without_codes(hang, codes_subbed=codes_subbed)
+        if cchw <= indent - 1:
+            bits = [hang + " " * (indent - cchw)]
+        else:
+            yield hang
+    cch = indent
+    for w in s.split(" "):
+        cchw = _len_without_codes(w, codes_subbed=codes_subbed)
+        if len(bits) > 1 and cch + cchw > width:
+            yield "".join(bits).rstrip()
+            bits = [" " * indent]
+            cch = indent
+        bits.append(w)
+        bits.append(" ")
+        cch += cchw + 1
+    if bits:
+        yield "".join(bits).rstrip()
+
+
 def supports_colour(stream):
     if os.getenv("PYTHON_COLORS", "").lower() in ("0", "no", "false"):
         return False
@@ -53,7 +96,7 @@ def supports_colour(stream):
     if type(stream).__name__ != "_WindowsConsoleIO":
         return False
     try:
-        # Allows us to import logging on its own
+        # Lazy import to allow us to import logging on its own
         from _native import fd_supports_vt100
         return fd_supports_vt100(stream.fileno())
     except Exception:
@@ -63,15 +106,19 @@ def supports_colour(stream):
 
 
 class Logger:
-    def __init__(self):
-        if os.getenv("PYMANAGER_DEBUG"):
+    def __init__(self, level=None, console=sys.stderr, print_console=sys.stdout):
+        if level is not None:
+            self.level = level
+        elif os.getenv("PYMANAGER_DEBUG"):
             self.level = DEBUG
         elif os.getenv("PYMANAGER_VERBOSE"):
             self.level = VERBOSE
         else:
             self.level = INFO
-        self.console = sys.stderr
+        self.console = console
         self.console_colour = supports_colour(self.console)
+        self.print_console = print_console
+        self.print_console_colour = supports_colour(self.print_console)
         self.file = None
         self._list = None
 
@@ -149,13 +196,19 @@ class Logger:
             return False
         return True
 
-    def print(self, msg=None, *args, always=False, level=INFO, **kwargs):
+    def print(self, msg=None, *args, always=False, level=INFO, colours=True, wrap=False, **kwargs):
         if self._list is not None:
-            self._list.append(((msg or "") % args, ()))
+            if args:
+                self._list.append(((msg or "") % args, ()))
+            else:
+                self._list.append((msg or "", ()))
         if not always and level < self.level:
             return
         if msg:
-            if self.console_colour:
+            if not colours:
+                # Don't unescape or replace anything
+                pass
+            elif self.print_console_colour:
                 for k in COLOURS:
                     msg = msg.replace(k, COLOURS[k])
             else:
@@ -167,15 +220,27 @@ class Logger:
             msg = str(args[0])
         else:
             msg = ""
-        print(msg, **kwargs, file=self.console)
+        if wrap:
+            for s in wrap_and_indent(msg, codes_subbed=True):
+                print(s, **kwargs, file=self.print_console)
+        else:
+            print(msg, **kwargs, file=self.print_console)
+
+    def print_raw(self, *msg, **kwargs):
+        kwargs["always"] = True
+        kwargs["colours"] = False
+        sep = kwargs.pop("sep", " ")
+        return self.print(sep.join(str(s) for s in msg), **kwargs)
 
 
 LOGGER = Logger()
 
 
 class ProgressPrinter:
-    def __init__(self, operation, maxwidth=80):
+    def __init__(self, operation, maxwidth=...):
         self.operation = operation or "Progress"
+        if maxwidth is ...:
+            maxwidth = CONSOLE_MAX_WIDTH
         self.width = maxwidth - 3 - len(self.operation)
         self._dots_shown = 0
         self._started = False
@@ -190,7 +255,10 @@ class ProgressPrinter:
             if self._complete:
                 LOGGER.print()
             else:
-                LOGGER.print("❌")
+                try:
+                    LOGGER.print("❌")
+                except UnicodeEncodeError:
+                    LOGGER.print("x")
 
     def __call__(self, progress):
         if self._complete:
@@ -199,7 +267,10 @@ class ProgressPrinter:
         if progress is None:
             if self._need_newline:
                 if not self._complete:
-                    LOGGER.print("⏸️")
+                    try:
+                        LOGGER.print("⏸️")
+                    except UnicodeEncodeError:
+                        LOGGER.print("|")
                     self._dots_shown = 0
                     self._started = False
                     self._need_newline = False
@@ -218,6 +289,9 @@ class ProgressPrinter:
         LOGGER.print(None, "." * dot_count, end="", flush=True)
         self._need_newline = True
         if progress >= 100:
-            LOGGER.print("✅", flush=True)
+            try:
+                LOGGER.print("✅", flush=True)
+            except UnicodeEncodeError:
+                LOGGER.print(".", flush=True)
             self._complete = True
             self._need_newline = False

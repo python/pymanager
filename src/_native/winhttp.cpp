@@ -209,8 +209,21 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
         WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
-        url_parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE_DEFAULTS : 0
+        url_parts.nScheme == INTERNET_SCHEME_HTTPS
+            ? WINHTTP_FLAG_SECURE_DEFAULTS & ~WINHTTP_FLAG_ASYNC
+            : 0
     );
+    if (!hSession && GetLastError() == ERROR_INVALID_PARAMETER) {
+        // WINHTTP_FLAG_SECURE_DEFAULTS is not supported on older OS, so we'll
+        // retry without it.
+        hSession = WinHttpOpen(
+            NULL,
+            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            WINHTTP_NO_PROXY_NAME,
+            WINHTTP_NO_PROXY_BYPASS,
+            0
+        );
+    }
     CHECK_WINHTTP(hSession);
 
     hConnection = WinHttpConnect(

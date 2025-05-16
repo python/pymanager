@@ -26,6 +26,9 @@ class _CompanyKey:
             return self._company.startswith(other._company)
         return self._company == other._company
 
+    def __hash__(self):
+        return hash(self._company)
+
     def __eq__(self, other):
         return self._company == other._company
 
@@ -63,6 +66,9 @@ class _AscendingText:
         if not other.s:
             return not self.s
         return self.s.startswith(other.s)
+
+    def __hash__(self):
+        return hash(self.s)
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
@@ -117,7 +123,7 @@ class _DescendingVersion(Version):
         return self.sortkey > other.sortkey
 
 
-def _split_platform(tag):
+def split_platform(tag):
     if tag.endswith(SUPPORTED_PLATFORM_SUFFIXES):
         for t in SUPPORTED_PLATFORM_SUFFIXES:
             if tag.endswith(t):
@@ -172,7 +178,7 @@ class CompanyTag:
         else:
             assert isinstance(company_or_tag, _CompanyKey)
             self._company = company_or_tag
-        self.tag, self.platform = _split_platform(tag)
+        self.tag, self.platform = split_platform(tag)
         self._sortkey = _sort_tag(self.tag)
 
     @property
@@ -185,7 +191,7 @@ class CompanyTag:
 
     def __add__(self, other):
         if isinstance(other, str):
-            return type(self)(self._company, self.tag + other)
+            return type(self)(self._company, self.tag + self.platform + other)
         return NotImplemented
 
     def match(self, pattern):

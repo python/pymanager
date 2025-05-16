@@ -390,7 +390,7 @@ def _find_one(cmd, source, tag, *, installed=None, by_id=False):
     else:
         LOGGER.verbose("Searching for default Python version")
 
-    downloader = IndexDownloader(source, Index, {}, DOWNLOAD_CACHE)
+    downloader = IndexDownloader(source, Index, {}, DOWNLOAD_CACHE, None if cmd.force else cmd.download_dir)
     install = select_package(downloader, tag, cmd.default_platform, by_id=by_id)
 
     if by_id:

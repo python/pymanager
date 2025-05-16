@@ -1,6 +1,7 @@
 import os
 from pymsbuild import *
 from pymsbuild.dllpack import *
+from pymsbuild_msix import AppxManifest, AppInstaller, ResourcesXml
 
 
 DLL_NAME = "python314"
@@ -15,7 +16,7 @@ def can_embed(tag):
 
 METADATA = {
     "Metadata-Version": "2.2",
-    "Name": "manage",
+    "Name": "python-manager",
     "Version": "0.1a0",
     "Author": "Python Software Foundation",
     "Author-email": "steve.dower@python.org",
@@ -179,8 +180,8 @@ def pyshellext(ext='.exe', **props):
 PACKAGE = Package('python-manager',
     PyprojectTomlFile('pyproject.toml'),
     # MSIX manifest
-    File('src/pymanager/appxmanifest.xml'),
-    File('src/pymanager/pymanager.appinstaller'),
+    AppxManifest('src/pymanager/appxmanifest.xml'),
+    AppInstaller('src/pymanager/pymanager.appinstaller'),
     Package(
         'MSIX.AppInstaller.Data',
         File('src/pymanager/MSIXAppInstallerData.xml'),
@@ -208,6 +209,7 @@ PACKAGE = Package('python-manager',
     ),
 
     # Directory for MSIX resources
+    ResourcesXml('src/pymanager/resources.xml'),
     Package(
         '_resources',
         File('src/pymanager/_resources/*.png'),

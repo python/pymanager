@@ -86,11 +86,10 @@ def get_dirs():
     if not _layout:
         _layout = _temp / "layout"
         os.environ["PYMSBUILD_LAYOUT_DIR"] = str(_layout)
-    out = _layout / "python-manager"
 
     return dict(
         root=root,
-        out=out,
+        out=_layout,
         src=src,
         dist=dist,
         build=build,
@@ -98,10 +97,10 @@ def get_dirs():
     )
 
 
-def get_msix_version(dirs):
+def get_msix_version(manifest):
     from io import StringIO
     from xml.etree import ElementTree as ET
-    appx = (dirs["out"] / "appxmanifest.xml").read_text("utf-8")
+    appx = Path(manifest).read_text("utf-8")
     NS = dict(e for _, e in ET.iterparse(StringIO(appx), events=("start-ns",)))
     for k, v in NS.items():
         ET.register_namespace(k, v)
@@ -110,10 +109,15 @@ def get_msix_version(dirs):
     return identity.attrib['Version']
 
 
-def get_output_name(dirs):
-    with open(dirs["out"] / "version.txt", "r", encoding="utf-8") as f:
-        version = f.read().strip()
-    return f"python-manager-{version}"
+def get_output_name(layout):
+    with open(layout / "__state.txt", "r") as f:
+        for line in f:
+            if line == "# BEGIN FILES":
+                break
+            key, sep, value = line.partition("=")
+            if sep and key == "msix_name":
+                return value.rpartition(".")[0]
+    return "python-manager"
 
 
 copyfile = shutil.copyfile

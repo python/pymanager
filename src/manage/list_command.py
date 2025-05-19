@@ -34,6 +34,8 @@ def _ljust(s, n):
 
 
 def format_table(cmd, installs):
+    "Lists as a user-friendly table"
+
     columns = {
         "tag-with-co": "Tag",
         "default-star": " ",
@@ -143,6 +145,7 @@ def _csv_filter_and_expand(installs, *, exclude=CSV_EXCLUDE, expand=CSV_EXPAND):
 
 
 def format_csv(cmd, installs):
+    "List as a comma-separated value table"
     import csv
     installs = list(_csv_filter_and_expand(installs))
     if not installs:
@@ -160,15 +163,18 @@ def format_csv(cmd, installs):
 
 
 def format_json(cmd, installs):
+    "Lists as a single JSON object"
     LOGGER.print_raw(json.dumps({"versions": installs}, default=str))
 
 
 def format_json_lines(cmd, installs):
+    "Lists as JSON on each line"
     for i in installs:
         LOGGER.print_raw(json.dumps(i, default=str))
 
 
 def format_bare_id(cmd, installs):
+    "Lists the runtime ID"
     for i in installs:
         # Don't print useless values (__active-virtual-env, __unmanaged-)
         if i["id"].startswith("__"):
@@ -177,11 +183,13 @@ def format_bare_id(cmd, installs):
 
 
 def format_bare_exe(cmd, installs):
+    "Lists the main executable path"
     for i in installs:
         LOGGER.print_raw(i["executable"])
 
 
 def format_bare_prefix(cmd, installs):
+    "Lists the prefix directory"
     for i in installs:
         try:
             LOGGER.print_raw(i["prefix"])
@@ -190,6 +198,7 @@ def format_bare_prefix(cmd, installs):
 
 
 def format_bare_url(cmd, installs):
+    "Lists the original source URL"
     for i in installs:
         try:
             LOGGER.print_raw(i["url"])
@@ -197,7 +206,25 @@ def format_bare_url(cmd, installs):
             pass
 
 
+def list_formats(cmd, installs):
+    "List the available list formats"
+    max_key_width = len("Format")
+    items = []
+    for k, v in FORMATTERS.items():
+        try:
+            doc = v.__doc__.partition("\n")[0].strip()
+        except AttributeError:
+            doc = ""
+        if len(k) > max_key_width:
+            max_key_width = len(k)
+        items.append((k, doc))
+    LOGGER.print(f"!B!{'Format':<{max_key_width}} Description!W!", always=True)
+    for k, doc in items:
+        LOGGER.print(f"{k:<{max_key_width}} {doc}", always=True)
+
+
 def format_legacy(cmd, installs, paths=False):
+    "List runtimes using the old format"
     seen_default = False
     # TODO: Filter out unmanaged runtimes that have managed equivalents
     # The default order (which should be preserved) of 'installs' will put the
@@ -219,6 +246,11 @@ def format_legacy(cmd, installs, paths=False):
         LOGGER.print_raw(tag.ljust(17), i["executable"] if paths else i["display-name"])
 
 
+def format_legacy_paths(cmd, installs):
+    "List runtime paths using the old format"
+    return format_legacy(cmd, installs, paths=True)
+
+
 FORMATTERS = {
     "table": format_table,
     "csv": format_csv,
@@ -229,7 +261,8 @@ FORMATTERS = {
     "prefix": format_bare_prefix,
     "url": format_bare_url,
     "legacy": format_legacy,
-    "legacy-paths": lambda cmd, i: format_legacy(cmd, i, paths=True),
+    "legacy-paths": format_legacy_paths,
+    "formats": list_formats,
 }
 
 

@@ -35,7 +35,12 @@ def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment
         paths = path.split(";")
         newpaths = []
         for p in paths:
-            ep = os.path.expandvars(p) if kind == winreg.REG_EXPAND_SZ else p
+            # We should expand entries here, but we only want to remove those
+            # that we added ourselves (during firstrun), and we never use
+            # environment variables. So even if the kind is REG_EXPAND_SZ, we
+            # don't need to expand to find our own entry.
+            #ep = os.path.expandvars(p) if kind == winreg.REG_EXPAND_SZ else p
+            ep = p
             if PurePath(ep).match(global_dir):
                 LOGGER.debug("Removing from PATH: %s", p)
             else:

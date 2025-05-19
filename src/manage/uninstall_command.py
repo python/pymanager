@@ -3,18 +3,68 @@ from .fsutils import rmtree, unlink
 from .installs import get_matching_install_tags
 from .install_command import SHORTCUT_HANDLERS, update_all_shortcuts
 from .logging import LOGGER
-from .pathutils import PurePath
+from .pathutils import Path, PurePath
 from .tagutils import tag_or_range
 
 
 def _iterdir(p, only_files=False):
     try:
         if only_files:
-            return [f for f in p.iterdir() if p.is_file()]
-        return list(p.iterdir())
+            return [f for f in Path(p).iterdir() if f.is_file()]
+        return list(Path(p).iterdir())
     except FileNotFoundError:
         LOGGER.debug("Skipping %s because it does not exist", p)
         return []
+
+
+def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment"):
+    import os
+    import winreg
+
+    if hive is None:
+        hive = winreg.HKEY_CURRENT_USER
+    try:
+        with winreg.OpenKeyEx(hive, subkey) as key:
+            path, kind = winreg.QueryValueEx(key, "Path")
+        if kind not in (winreg.REG_SZ, winreg.REG_EXPAND_SZ):
+            raise ValueError("Value kind is not a string")
+    except (OSError, ValueError):
+        LOGGER.debug("Not removing global commands directory from PATH", exc_info=True)
+    else:
+        LOGGER.debug("Current PATH contains %s", path)
+        paths = path.split(";")
+        newpaths = []
+        for p in paths:
+            ep = os.path.expandvars(p) if kind == winreg.REG_EXPAND_SZ else p
+            if PurePath(ep).match(global_dir):
+                LOGGER.debug("Removing from PATH: %s", p)
+            else:
+                newpaths.append(p)
+        if len(newpaths) < len(paths):
+            newpath = ";".join(newpaths)
+            with winreg.CreateKeyEx(hive, subkey, access=winreg.KEY_READ|winreg.KEY_WRITE) as key:
+                path2, kind2 = winreg.QueryValueEx(key, "Path")
+                if path2 == path and kind2 == kind:
+                    LOGGER.info("Removing global commands directory from PATH")
+                    LOGGER.debug("New PATH contains %s", newpath)
+                    winreg.SetValueEx(key, "Path", 0, kind, newpath)
+                else:
+                    LOGGER.debug("Not removing global commands directory from PATH "
+                                 "because the registry changed while processing.")
+
+            try:
+                from _native import broadcast_settings_change
+                broadcast_settings_change()
+            except (ImportError, OSError):
+                LOGGER.debug("Did not broadcast settings change notification",
+                             exc_info=True)
+
+    if not global_dir.is_dir():
+        return
+    LOGGER.info("Purging global commands from %s", global_dir)
+    for f in _iterdir(global_dir):
+        LOGGER.debug("Purging %s", f)
+        rmtree(f, after_5s_warning=warn_msg)
 
 
 def execute(cmd):
@@ -31,28 +81,28 @@ def execute(cmd):
     cmd.tags = []
 
     if cmd.purge:
-        if cmd.ask_yn("Uninstall all runtimes?"):
-            for i in installed:
-                LOGGER.info("Purging %s from %s", i["display-name"], i["prefix"])
-                try:
-                    rmtree(
-                        i["prefix"],
-                        after_5s_warning=warn_msg.format(i["display-name"]),
-                        remove_ext_first=("exe", "dll", "json")
-                    )
-                except FilesInUseError:
-                    LOGGER.warn("Unable to purge %s because it is still in use.",
-                                i["display-name"])
-                    continue
-            LOGGER.info("Purging saved downloads from %s", cmd.download_dir)
-            rmtree(cmd.download_dir, after_5s_warning=warn_msg.format("cached downloads"))
-            LOGGER.info("Purging global commands from %s", cmd.global_dir)
-            for f in _iterdir(cmd.global_dir):
-                LOGGER.debug("Purging %s", f)
-                rmtree(f, after_5s_warning=warn_msg.format("global commands"))
-            LOGGER.info("Purging all shortcuts")
-            for _, cleanup in SHORTCUT_HANDLERS.values():
-                cleanup(cmd, [])
+        if not cmd.ask_yn("Uninstall all runtimes?"):
+            LOGGER.debug("END uninstall_command.execute")
+            return
+        for i in installed:
+            LOGGER.info("Purging %s from %s", i["display-name"], i["prefix"])
+            try:
+                rmtree(
+                    i["prefix"],
+                    after_5s_warning=warn_msg.format(i["display-name"]),
+                    remove_ext_first=("exe", "dll", "json")
+                )
+            except FilesInUseError:
+                LOGGER.warn("Unable to purge %s because it is still in use.",
+                            i["display-name"])
+                continue
+        LOGGER.info("Purging saved downloads from %s", cmd.download_dir)
+        rmtree(cmd.download_dir, after_5s_warning=warn_msg.format("cached downloads"))
+        # Purge global commands directory
+        _do_purge_global_dir(cmd.global_dir, warn_msg.format("global commands"))
+        LOGGER.info("Purging all shortcuts")
+        for _, cleanup in SHORTCUT_HANDLERS.values():
+            cleanup(cmd, [])
         LOGGER.debug("END uninstall_command.execute")
         return
 

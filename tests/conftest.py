@@ -205,6 +205,14 @@ class RegistryFixture:
             else:
                 raise TypeError("unsupported type in registry")
 
+    def getvalue(self, subkey, valuename):
+        with winreg.OpenKeyEx(self.key, subkey) as key:
+            return winreg.QueryValueEx(key, valuename)[0]
+
+    def getvalueandkind(self, subkey, valuename):
+        with winreg.OpenKeyEx(self.key, subkey) as key:
+            return winreg.QueryValueEx(key, valuename)
+
 
 @pytest.fixture(scope='function')
 def registry():

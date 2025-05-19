@@ -223,3 +223,12 @@ def test_csv_expand():
         dict(a=5, b=[6]),
         dict(a=7, b=8),
     ]
+
+
+def test_formats(assert_log):
+    list_command.list_formats(None, ["fake", "installs", "that", "should", "crash", 123])
+    assert_log(
+        r".*Format\s+Description",
+        r"table\s+Lists.+",
+        # Assume the rest are okay
+    )

@@ -335,9 +335,45 @@ public:
 };
 
 
+class PyManagerOperationInProgress
+{
+    HANDLE hGlobalSem;
+    bool busy;
+
+    bool _create() {
+        hGlobalSem = CreateSemaphoreExW(NULL, 0, 1,
+            L"PyManager-OperationInProgress", 0, SEMAPHORE_MODIFY_STATE | SYNCHRONIZE);
+
+        return (hGlobalSem && GetLastError() != ERROR_ALREADY_EXISTS);
+    }
+
+public:
+    PyManagerOperationInProgress()
+    {
+        busy = _create();
+    }
+
+    ~PyManagerOperationInProgress()
+    {
+        if (hGlobalSem) {
+            if (!busy) {
+                ReleaseSemaphore(hGlobalSem, 1, NULL);
+            }
+            CloseHandle(hGlobalSem);
+        }
+    }
+
+    operator bool()
+    {
+        return hGlobalSem && !busy;
+    }
+};
+
+
 class DECLSPEC_UUID(CLSID_IDLE_COMMAND) IdleCommand
     : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
+    PyManagerOperationInProgress busy;
     std::vector<IdleData> idles;
     std::wstring iconPath;
     std::wstring title;
@@ -356,19 +392,21 @@ public:
             iconPath += L",-4";
         }
 
-        hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_32KEY);
-        if (SUCCEEDED(hr)) {
-            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_64KEY);
-        }
-        if (SUCCEEDED(hr)) {
-            hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, L"Software\\Python", 0);
-        }
+        if (!busy) {
+            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_32KEY);
+            if (SUCCEEDED(hr)) {
+                hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_64KEY);
+            }
+            if (SUCCEEDED(hr)) {
+                hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, L"Software\\Python", 0);
+            }
 
-        if (FAILED(hr)) {
-            wchar_t buffer[512];
-            swprintf_s(buffer, L"IdleCommand error 0x%08X", (DWORD)hr);
-            OutputDebugStringW(buffer);
-            idles.clear();
+            if (FAILED(hr)) {
+                wchar_t buffer[512];
+                swprintf_s(buffer, L"IdleCommand error 0x%08X", (DWORD)hr);
+                OutputDebugStringW(buffer);
+                idles.clear();
+            }
         }
     }
 
@@ -387,10 +425,12 @@ public:
             iconPath += L",-4";
         }
 
-        hr = ReadAllIdleInstalls(idles, hive, root, 0);
+        if (!busy) {
+            hr = ReadAllIdleInstalls(idles, hive, root, 0);
 
-        if (FAILED(hr)) {
-            idles.clear();
+            if (FAILED(hr)) {
+                idles.clear();
+            }
         }
     }
     #endif
@@ -429,7 +469,7 @@ public:
 
     IFACEMETHODIMP GetState(IShellItemArray *psiItemArray, BOOL fOkToBeSlow, EXPCMDSTATE *pCmdState)
     {
-        *pCmdState = idles.size() ? ECS_ENABLED : ECS_HIDDEN;
+        *pCmdState = idles.size() ? ECS_ENABLED : ECS_DISABLED;
         return S_OK;
     }
 

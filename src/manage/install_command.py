@@ -554,6 +554,8 @@ def _fatal_install_error(cmd, ex):
 def execute(cmd):
     LOGGER.debug("BEGIN install_command.execute: %r", cmd.args)
 
+    cmd.tags = []
+
     if cmd.refresh:
         if cmd.args:
             LOGGER.warn("Ignoring arguments; --refresh always refreshes all installs.")
@@ -580,7 +582,6 @@ def execute(cmd):
     download_index = {"versions": []}
 
     if not cmd.by_id:
-        cmd.tags = []
         for arg in cmd.args:
             if arg.casefold() == "default".casefold():
                 LOGGER.debug("Replacing 'default' with '%s'", cmd.default_tag)

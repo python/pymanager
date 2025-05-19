@@ -84,12 +84,12 @@ PYMANAGER_USAGE_DOCS = [
 ]
 
 
-GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must come after a command)!W!
+GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must follow the command)!W!
     -v, --verbose    Increased output (!B!log_level={logging.INFO}!W!)
     -vv              Further increased output (!B!log_level={logging.DEBUG}!W!)
     -q, --quiet      Less output (!B!log_level={logging.WARN}!W!)
     -qq              Even less output (!B!log_level={logging.ERROR}!W!)
-    -y, --yes        Always confirm prompts (!B!confirm=false!W!)
+    -y, --yes        Always accept confirmation prompts (!B!confirm=false!W!)
     -h, -?, --help   Show help for a specific command
     --config=!B!<PATH>!W!  Override configuration with JSON file
 """
@@ -665,22 +665,23 @@ Shows installed Python runtimes, optionally filtered or formatted.
 > py list !B![options] [<FILTER> ...]!W!
 
 !G!Options:!W!
-    -f, --format=!B!<table,json,jsonl,id,exe,prefix>!W!
-                     Specify output formatting (!B!list.format=...!W!)
-    -1, --one        Only display first result
+    -f, --format=!B!<table,json,jsonl,csv,exe,prefix,url,formats>!W!
+                     Specify list format, defaults to !B!table!W!.
+                     Pass !B!-f formats!W! for the full list of formats.
+    -1, --one        Only display first result that matches the filter
     --online         List runtimes available to install from the default index
     -s, --source=!B!<URL>!W!
                      List runtimes from a particular index
-    --only-managed   Only list Python installs managed by the tool (!B!list.unmanaged=false!W!)
+    --only-managed   Only list Python installs managed by the tool
     <FILTER>         Filter results (Company\Tag with optional <, <=, >, >= prefix)
 
 !B!EXAMPLE:!W! List all installed runtimes
 > py list
 
-!B!EXAMPLE:!W! Display executable of default runtime
+!B!EXAMPLE:!W! Display the executable of the default runtime
 > py list --one -f=exe
 
-!B!EXAMPLE:!W! Show JSON details for all installs since 3.10
+!B!EXAMPLE:!W! Show JSON details for each install since 3.10
 > py list -f=jsonl >=3.10
 
 !B!EXAMPLE:!W! Find 3.12 runtimes available for install

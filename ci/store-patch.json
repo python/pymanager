@@ -1,0 +1,11 @@
+{
+    "#": "This file is used by store-upload.py to modify Store metadata.",
+    "listings": {
+        "en-us":{
+            "baseListing": {
+                "#": "Update the release notes; 2-3 lines shown to Store users before updating",
+                "releaseNotes": "This update has a new \"first launch\" experience to help configure your system. If you don't see it, run \"py install --configure\" to start it manually.\n\nVisit https://github.com/python/pymanager for information and to provide feedback during beta releases."
+            }
+        }
+    }
+}

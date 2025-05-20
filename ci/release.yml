@@ -19,6 +19,10 @@ parameters:
   displayName: "Auto-update users to this release"
   type: boolean
   default: false
+- name: PublishStore
+  displayName: "Also publish to the Store"
+  type: boolean
+  default: false
 - name: PreTest
   displayName: "Pre test"
   type: boolean
@@ -35,6 +39,10 @@ parameters:
   displayName: "Test Signed"
   type: boolean
   default: false
+- name: StoreAppId
+  displayName: "Microsoft Store App Id"
+  type: string
+  default: 9NQ7512CXL7T
 
 
 variables:
@@ -46,7 +54,8 @@ variables:
   PIP_VERBOSE: true
   PYMSBUILD_VERBOSE: true
   PYMSBUILD_TEMP_DIR: $(Build.BinariesDirectory)
-  DIST_DIR: $(Build.ArtifactStagingDirectory)
+  DIST_DIR: $(Build.ArtifactStagingDirectory)\dist
+  STORE_DIST_DIR: $(Build.ArtifactStagingDirectory)\store
   LAYOUT_DIR: $(Build.BinariesDirectory)\layout
   TEST_MSIX_DIR: $(Build.BinariesDirectory)\test_msix
   ${{ if ne(parameters.OverrideRef, '(tag)') }}:
@@ -69,6 +78,7 @@ stages:
     - ${{ if eq(parameters.TestSign, 'true') }}:
       - group: CPythonTestSign
     - ${{ if eq(parameters.Publish, 'true') }}:
+      - group: MSFTStorePublish
       - group: PythonOrgPublish
 
 
@@ -314,6 +324,13 @@ stages:
         workingDirectory: $(Pipeline.Workspace)
         displayName: 'Download PuTTY binaries'
 
+      - powershell: |
+          mv "${env:UPLOAD_DIR}\*-store.msix*" (mkdir -Force ${env:STORE_UPLOAD_DIR}) -Verbose
+        displayName: 'Move Store packages'
+        env:
+          UPLOAD_DIR: $(DIST_DIR)
+          STORE_UPLOAD_DIR: $(STORE_DIST_DIR)
+
       - ${{ if ne(parameters.PublishAppinstaller, 'true') }}:
         - powershell: |
             "Not uploading these files:"
@@ -323,11 +340,42 @@ stages:
           env:
             UPLOAD_DIR: $(DIST_DIR)
 
+      - ${{ if eq(parameters.PublishStore, 'true') }}:
+        - task: UseMSStoreCLI@0
+          displayName: Setup Microsoft Store Developer CLI
+
+        - powershell: >
+            msstore reconfigure
+            --tenantId $(MSSTORE_TENANT_ID)
+            --sellerId $(MSSTORE_SELLER_ID)
+            --clientId $(MSSTORE_CLIENT_ID)
+            --clientSecret $(MSSTORE_CLIENT_SECRET)
+          displayName: Authenticate Store CLI
+
+        # We begin the submission but do not complete it, so the RM has a chance
+        # to update metadata before going public. It also means we can do this
+        # whether signed or not, since a test release can simply be deleted rather
+        # than published. Existing drafts will be overwritten with new ones.
+        - powershell: |
+            $msix = Get-Item "${env:STORE_UPLOAD_DIR}\*.msixupload"
+            "Uploading $msix"
+            msstore publish -v -nc -id $env:MSSTORE_APP_ID $msix
+            "MSIX is uploaded"
+            "Patching submission details"
+            python ci\store-publish.py
+            "Submission details updated"
+            "Finish publishing at https://partner.microsoft.com/en-us/dashboard/products/${env:MSSTORE_APP_ID}/overview"
+          displayName: 'Begin Store submission'
+          env:
+            STORE_UPLOAD_DIR: $(STORE_DIST_DIR)
+            MSSTORE_TENANT_ID: $(MSSTORE_TENANT_ID)
+            MSSTORE_SELLER_ID: $(MSSTORE_SELLER_ID)
+            MSSTORE_CLIENT_ID: $(MSSTORE_CLIENT_ID)
+            MSSTORE_CLIENT_SECRET: $(MSSTORE_CLIENT_SECRET)
+            MSSTORE_APP_ID: ${{ parameters.StoreAppId }}
+            PATCH_JSON: ci\store-patch.json
+
       - powershell: |
-          # We don't want the Store MSIX on python.org, so just delete it
-          # It's already been archived in the earlier publish step, and is bundled
-          # into the .msixupload file.
-          del "${env:UPLOAD_DIR}\*-store.msix" -ErrorAction SilentlyContinue
           python ci\upload.py
         displayName: 'Publish packages'
         env:

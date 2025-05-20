@@ -373,7 +373,6 @@ public:
 class DECLSPEC_UUID(CLSID_IDLE_COMMAND) IdleCommand
     : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
-    PyManagerOperationInProgress busy;
     std::vector<IdleData> idles;
     std::wstring iconPath;
     std::wstring title;
@@ -392,21 +391,19 @@ public:
             iconPath += L",-4";
         }
 
-        if (!busy) {
-            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_32KEY);
-            if (SUCCEEDED(hr)) {
-                hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_64KEY);
-            }
-            if (SUCCEEDED(hr)) {
-                hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, L"Software\\Python", 0);
-            }
+        hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_32KEY);
+        if (SUCCEEDED(hr)) {
+            hr = ReadAllIdleInstalls(idles, HKEY_LOCAL_MACHINE, L"Software\\Python", KEY_WOW64_64KEY);
+        }
+        if (SUCCEEDED(hr)) {
+            hr = ReadAllIdleInstalls(idles, HKEY_CURRENT_USER, L"Software\\Python", 0);
+        }
 
-            if (FAILED(hr)) {
-                wchar_t buffer[512];
-                swprintf_s(buffer, L"IdleCommand error 0x%08X", (DWORD)hr);
-                OutputDebugStringW(buffer);
-                idles.clear();
-            }
+        if (FAILED(hr)) {
+            wchar_t buffer[512];
+            swprintf_s(buffer, L"IdleCommand error 0x%08X", (DWORD)hr);
+            OutputDebugStringW(buffer);
+            idles.clear();
         }
     }
 
@@ -425,12 +422,10 @@ public:
             iconPath += L",-4";
         }
 
-        if (!busy) {
-            hr = ReadAllIdleInstalls(idles, hive, root, 0);
+        hr = ReadAllIdleInstalls(idles, hive, root, 0);
 
-            if (FAILED(hr)) {
-                idles.clear();
-            }
+        if (FAILED(hr)) {
+            idles.clear();
         }
     }
     #endif
@@ -469,6 +464,10 @@ public:
 
     IFACEMETHODIMP GetState(IShellItemArray *psiItemArray, BOOL fOkToBeSlow, EXPCMDSTATE *pCmdState)
     {
+        if (title.empty()) {
+            *pCmdState = ECS_HIDDEN;
+            return S_OK;
+        }
         *pCmdState = idles.size() ? ECS_ENABLED : ECS_DISABLED;
         return S_OK;
     }

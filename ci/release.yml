@@ -92,7 +92,7 @@ stages:
         Write-Host "Adding $py to PATH"
         Write-Host "##vso[task.prependpath]$py"
       displayName: Set up Python 3.14.0b2
-      working-directory: $(Build.BinariesDirectory)
+      workingDirectory: $(Build.BinariesDirectory)
 
     - powershell: >
         python -c "import sys;

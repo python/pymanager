@@ -254,7 +254,7 @@ def parse_cli(args):
             plan_split[0].target = "index-windows.json"
             plan_split[1].target = "index-windows-recent.json"
             plan_split[2].target = "index-windows-legacy.json"
-            plan_split[3].target = "stdout"
+            plan_split[3].target = "index-windows.txt"
             plan_split[3].report = True
             plan_split[0].pre = plan_split[1].pre = plan_split[2].pre = True
             plan_split[0].latest_micro = True

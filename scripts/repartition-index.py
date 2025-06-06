@@ -93,7 +93,7 @@ class SplitToFile:
         self.allow_dup = False
         self.only_dup = False
         self.pre = False
-        self.tag_or_range = None
+        self.tag_or_range = []
         self._expect_tag_or_range = False
         self.latest_micro = False
         self.report = False
@@ -101,7 +101,7 @@ class SplitToFile:
     def add_arg(self, arg):
         if arg[:1] != "-":
             if self._expect_tag_or_range:
-                self.tag_or_range = tag_or_range(arg)
+                self.tag_or_range.append(tag_or_range(arg))
                 self._expect_tag_or_range = False
                 return False
             self.target = arg
@@ -158,7 +158,8 @@ class SplitToFile:
             if not self.pre and v.is_prerelease:
                 continue
             if self.tag_or_range and not any(
-                self.tag_or_range.satisfied_by(CompanyTag(i["company"], t))
+                r.satisfied_by(CompanyTag(i["company"], t))
+                for r in self.tag_or_range
                 for t in i["install-for"]
             ):
                 continue
@@ -257,8 +258,8 @@ def parse_cli(args):
             plan_split[3].report = True
             plan_split[0].pre = plan_split[1].pre = plan_split[2].pre = True
             plan_split[0].latest_micro = True
-            plan_split[0].tag_or_range = tag_or_range(">=3.11.0")
-            plan_split[1].tag_or_range = tag_or_range(">=3.11.0")
+            plan_split[0].tag_or_range = [tag_or_range(">=3.11"), tag_or_range(">=3.13t")]
+            plan_split[1].tag_or_range = [tag_or_range(">=3.11"), tag_or_range(">=3.13t")]
         elif a == "-i":
             action = ReadFile()
             plan_read.append(action)

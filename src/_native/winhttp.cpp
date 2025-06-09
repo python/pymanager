@@ -150,6 +150,69 @@ static int crack_url(wchar_t *url, URL_COMPONENTS *parts, int add_nuls) {
 
 extern "C" {
 
+#define CHECK_WINHTTP(x) if (!x) { winhttp_error(); goto exit; }
+
+
+static bool winhttp_apply_proxy(HINTERNET hSession, HINTERNET hRequest, const wchar_t *url) {
+    bool result = false;
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxy_config = { 0 };
+    WINHTTP_AUTOPROXY_OPTIONS proxy_opt = {
+        .dwFlags = WINHTTP_AUTOPROXY_ALLOW_STATIC,
+        .fAutoLogonIfChallenged = TRUE
+    };
+    WINHTTP_PROXY_INFO proxy_info = { 0 };
+
+    // First load the global-ish config settings
+    if (!WinHttpGetIEProxyConfigForCurrentUser(&proxy_config)) {
+        if (GetLastError() != ERROR_FILE_NOT_FOUND) {
+            goto exit;
+        }
+        // No global config, so assume auto-detect
+        proxy_config.lpszProxy = proxy_config.lpszProxyBypass = proxy_config.lpszAutoConfigUrl = NULL;
+        proxy_config.fAutoDetect = TRUE;
+    }
+    if (proxy_config.lpszProxy) {
+        GlobalFree(proxy_config.lpszProxy);
+    }
+    if (proxy_config.lpszProxyBypass) {
+        GlobalFree(proxy_config.lpszProxyBypass);
+    }
+    if (proxy_config.fAutoDetect) {
+        proxy_opt.dwFlags |= WINHTTP_AUTOPROXY_AUTO_DETECT;
+        proxy_opt.dwAutoDetectFlags = WINHTTP_AUTO_DETECT_TYPE_DHCP
+            | WINHTTP_AUTO_DETECT_TYPE_DNS_A;
+    }
+    if (proxy_config.lpszAutoConfigUrl) {
+        proxy_opt.dwFlags |= WINHTTP_AUTOPROXY_CONFIG_URL;
+        proxy_opt.lpszAutoConfigUrl = proxy_config.lpszAutoConfigUrl;
+    }
+
+    // Now resolve the proxy required for the specified URL
+    CHECK_WINHTTP(WinHttpGetProxyForUrl(hSession, url, &proxy_opt, &proxy_info));
+
+    // Apply the proxy settings to the request
+    CHECK_WINHTTP(WinHttpSetOption(
+        hRequest,
+        WINHTTP_OPTION_PROXY,
+        &proxy_info,
+        sizeof(proxy_info)
+    ));
+
+    result = true;
+exit:
+    if (proxy_info.lpszProxy) {
+        GlobalFree((HGLOBAL)proxy_info.lpszProxy);
+    }
+    if (proxy_info.lpszProxyBypass) {
+        GlobalFree((HGLOBAL)proxy_info.lpszProxyBypass);
+    }
+    if (proxy_opt.lpszAutoConfigUrl) {
+        GlobalFree((HGLOBAL)proxy_opt.lpszAutoConfigUrl);
+    }
+    return result;
+}
+
+
 PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     static const char * keywords[] = {"url", "method", "headers", "accepts", "chunksize", "on_progress", "on_cred_request", NULL};
     wchar_t *url = NULL;
@@ -202,11 +265,9 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
         goto exit;
     }
 
-#define CHECK_WINHTTP(x) if (!x) { winhttp_error(); goto exit; }
-
     hSession = WinHttpOpen(
         NULL,
-        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
         url_parts.nScheme == INTERNET_SCHEME_HTTPS
@@ -218,7 +279,7 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
         // retry without it.
         hSession = WinHttpOpen(
             NULL,
-            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
             0
@@ -247,6 +308,8 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
         url_parts.nScheme == INTERNET_SCHEME_HTTPS ? WINHTTP_FLAG_SECURE : 0
     );
     CHECK_WINHTTP(hRequest);
+
+    CHECK_WINHTTP(winhttp_apply_proxy(hSession, hRequest, url));
 
     opt = WINHTTP_DECOMPRESSION_FLAG_ALL;
     CHECK_WINHTTP(WinHttpSetOption(

@@ -45,6 +45,8 @@ stages:
     - powershell: |
         cd (mkdir -Force index)
         python "$(Build.SourcesDirectory)\scripts\repartition-index.py" --windows-default
+        # Show the report
+        cat index-windows.txt
       displayName: 'Repartition index'
       workingDirectory: $(Build.BinariesDirectory)
 

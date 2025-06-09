@@ -1,3 +1,4 @@
+import json
 import os
 import pytest
 import secrets
@@ -131,3 +132,34 @@ def test_print_path_warning(patched_installs, assert_log, tmp_path):
     assert_log(
         assert_log.skip_until(".*Global shortcuts directory is not on PATH")
     )
+
+
+def test_merge_existing_index(tmp_path):
+    # This function is for multiple downloaded index.jsons, so it merges based
+    # on the url property, which should usually be a local file.
+    existing = tmp_path / "index.json"
+    with open(existing, "w", encoding="utf-8") as f:
+        json.dump({"versions": [
+            {"id": "test-1", "url": "test-file-1.zip"},
+            {"id": "test-2", "url": "test-file-2.zip"},
+            {"id": "test-3", "url": "test-file-3.zip"},
+        ]}, f)
+
+    new = [
+        # Ensure new versions appear first
+        {"id": "test-4", "url": "test-file-4.zip"},
+        # Ensure matching ID doesn't result in overwrite
+        {"id": "test-1", "url": "test-file-1b.zip"},
+        # Ensure matching URL excludes original entry
+        {"id": "test-2b", "url": "test-file-2.zip"},
+    ]
+
+    IC._merge_existing_index(new, existing)
+
+    assert new == [
+        {"id": "test-4", "url": "test-file-4.zip"},
+        {"id": "test-1", "url": "test-file-1b.zip"},
+        {"id": "test-2b", "url": "test-file-2.zip"},
+        {"id": "test-1", "url": "test-file-1.zip"},
+        {"id": "test-3", "url": "test-file-3.zip"},
+    ]

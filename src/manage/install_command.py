@@ -534,6 +534,26 @@ def _install_one(cmd, source, install, *, target=None):
     LOGGER.verbose("Install complete")
 
 
+def _merge_existing_index(versions, index_json):
+    try:
+        with open(index_json, "r", encoding="utf-8") as f:
+            existing_index = json.load(f)
+        list(existing_index["versions"])
+    except FileNotFoundError:
+        pass
+    except (json.JSONDecodeError, KeyError, ValueError):
+        LOGGER.warn("Existing index file appeared invalid and was overwritten.")
+        LOGGER.debug(exc_info=True)
+    else:
+        LOGGER.debug("Merging into existing %s", index_json)
+        current = {i["url"].casefold() for i in versions}
+        added = []
+        for install in existing_index["versions"]:
+            if install.get("url", "").casefold() not in current:
+                LOGGER.debug("Merging %s", install.get("url", "<unspecified>"))
+                versions.append(install)
+
+
 def _fatal_install_error(cmd, ex):
     logfile = cmd.get_log_file()
     if logfile:
@@ -753,6 +773,7 @@ def execute(cmd):
             return _fatal_install_error(cmd, ex)
 
         if cmd.download:
+            _merge_existing_index(download_index["versions"], cmd.download / "index.json")
             with open(cmd.download / "index.json", "w", encoding="utf-8") as f:
                 json.dump(download_index, f, indent=2, default=str)
             LOGGER.info("Offline index has been generated at !Y!%s!W!.", cmd.download)

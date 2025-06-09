@@ -543,7 +543,7 @@ def _merge_existing_index(versions, index_json):
         pass
     except (json.JSONDecodeError, KeyError, ValueError):
         LOGGER.warn("Existing index file appeared invalid and was overwritten.")
-        LOGGER.debug(exc_info=True)
+        LOGGER.debug("TRACEBACK", exc_info=True)
     else:
         LOGGER.debug("Merging into existing %s", index_json)
         current = {i["url"].casefold() for i in versions}

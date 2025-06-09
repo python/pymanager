@@ -163,3 +163,29 @@ def test_merge_existing_index(tmp_path):
         {"id": "test-1", "url": "test-file-1.zip"},
         {"id": "test-3", "url": "test-file-3.zip"},
     ]
+
+
+def test_merge_existing_index_not_found(tmp_path):
+    existing = tmp_path / "index.json"
+    try:
+        existing.unlink()
+    except FileNotFoundError:
+        pass
+
+    # Expect no failure and no change
+    new = [1, 2, 3]
+    IC._merge_existing_index(new, existing)
+    assert new == [1, 2, 3]
+
+
+def test_merge_existing_index_not_valid(tmp_path):
+    existing = tmp_path / "index.json"
+    with open(existing, "w", encoding="utf-8") as f:
+        print("It's not a list of installs", file=f)
+        print("But more importantly,", file=f)
+        print("it's not valid JSON!", file=f)
+
+    # Expect no failure and no change
+    new = [1, 2, 3]
+    IC._merge_existing_index(new, existing)
+    assert new == [1, 2, 3]

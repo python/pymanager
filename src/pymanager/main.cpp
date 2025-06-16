@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include <Windows.h>
+#include <shlwapi.h>
 #include <stdio.h>
 
 #include <shellapi.h>
@@ -483,6 +484,36 @@ done:
 }
 
 
+static int
+fix_working_directory(const std::wstring &script)
+{
+    HRESULT hr;
+    // If we have a script, use its parent directory
+    if (!script.empty()) {
+        auto end = script.find_last_of(L"/\\");
+        if (end != script.npos) {
+            std::wstring current_dir(script.data(), end);
+            SetCurrentDirectoryW(current_dir.c_str());
+            return 0;
+        }
+    }
+    // If we have no script, assume the user's documents folder
+    wchar_t *path;
+    if (SUCCEEDED(hr = SHGetKnownFolderPath(FOLDERID_Documents, 0, NULL, &path))) {
+        SetCurrentDirectoryW(path);
+        CoTaskMemFree(path);
+        return 0;
+    }
+    // As a fallback, use the user's profile (e.g. for SYSTEM)
+    if (SUCCEEDED(hr = SHGetKnownFolderPath(FOLDERID_Profile, 0, NULL, &path))) {
+        SetCurrentDirectoryW(path);
+        CoTaskMemFree(path);
+        return 0;
+    }
+    return hr;
+}
+
+
 int
 wmain(int argc, wchar_t **argv)
 {
@@ -504,6 +535,7 @@ wmain(int argc, wchar_t **argv)
 
     const wchar_t *default_cmd;
     bool use_commands, use_cli_tag, use_shebangs, use_autoinstall;
+    bool fix_cwd = false;
     per_exe_settings(argc, argv, &default_cmd, &use_commands, &use_cli_tag, &use_shebangs, &use_autoinstall);
 
     if (use_commands) {
@@ -519,6 +551,10 @@ wmain(int argc, wchar_t **argv)
         // We handle 'exec' in native code, so it won't be in the above list
         if (!wcscmp(argv[1], L"exec")) {
             skip_argc += 1;
+            if (!wcscmp(argv[2], L"--__fix-cwd")) {
+                fix_cwd = true;
+                skip_argc += 1;
+            }
             use_cli_tag = argc >= 3;
             use_shebangs = argc >= 3;
             default_cmd = NULL;
@@ -569,6 +605,13 @@ wmain(int argc, wchar_t **argv)
 
     // Theoretically shouldn't matter, but might help reduce memory usage.
     close_python();
+
+    if (fix_cwd) {
+        err = fix_working_directory(script);
+        if (err) {
+            fprintf(stderr, "[WARN] Failed to fix working directory (0x%08X).\n", err);
+        }
+    }
 
     err = launch(executable.c_str(), args.c_str(), skip_argc, &exitCode);
 

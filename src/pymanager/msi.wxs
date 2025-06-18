@@ -37,11 +37,11 @@
     <Component Id="ProductComponent" Directory="INSTALLFOLDER" Guid="8BEC1259-B220-499B-9656-DC59B7F5BE24">
       <File KeyPath="yes" Source="py-manager.exe" Name="python.exe" Id="python.exe" />
       <File Source="pymanager.exe" Name="pymanager.exe" />
-      <File Source="py.exe" Name="py.exe" Id="py.exe" />
+      <File Source="py.exe" Name="py.exe" />
       <File Source="python3.exe" Name="python3.exe" />
       <File Source="pythonw.exe" Name="pythonw.exe" Id="pythonw.exe" />
       <File Source="pywmanager.exe" Name="pywmanager.exe" />
-      <File Source="pyw.exe" Name="pyw.exe" Id="pyw.exe" />
+      <File Source="pyw.exe" Name="pyw.exe" />
       <File Source="pymanager.json" />
 
       <File Source="vcruntime140.dll" />
@@ -56,7 +56,7 @@
 
       <ProgId Id="Python.File" Description="Python Script" Advertise="no" Icon="py.ico">
         <Extension Id="py" ContentType="text/x-python">
-            <Verb Id="open" TargetFile="py.exe" Argument="exec --__fix-cwd &quot;%1&quot; %*" />
+            <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
       <RegistryValue Root="HKCR" Key="Python.File\shell\EditWithIDLE"
@@ -66,12 +66,12 @@
 
       <ProgId Id="Python.NoConFile" Description="Python Script (Windowed)" Advertise="no" Icon="py.ico">
         <Extension Id="pyw" ContentType="text/x-python">
-            <Verb Id="open" TargetFile="pyw.exe" Argument="exec --__fix-cwd &quot;%1&quot; %*" />
+            <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
       <ProgId Id="Python.CompiledFile" Description="Compiled Python Script" Advertise="no" Icon="pyc.ico">
         <Extension Id="pyc" ContentType="application/x-python-code">
-          <Verb Id="open" TargetFile="py.exe" Argument="exec --__fix-cwd &quot;%1&quot; %*" />
+          <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
       <ProgId Id="Python.Extension" Description="Python Extension Module" Advertise="no" Icon="pyd.ico">
@@ -79,12 +79,12 @@
       </ProgId>
       <ProgId Id="Python.ArchiveFile" Description="Python Application" Advertise="no" Icon="python.exe">
         <Extension Id="pyz" ContentType="application/x-python-zipapp">
-          <Verb Id="open" TargetFile="py.exe" Argument="exec --__fix-cwd &quot;%1&quot; %*" />
+          <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
       <ProgId Id="Python.NoConArchiveFile" Description="Python Application (Windowed)" Advertise="no" Icon="pythonw.exe">
         <Extension Id="pyzw" ContentType="application/x-python-zipapp">
-          <Verb Id="open" TargetFile="pyw.exe" Argument="exec --__fix-cwd &quot;%1&quot; %*" />
+          <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
     </Component>

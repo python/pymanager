@@ -8,7 +8,6 @@
     xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
     xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
     xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
-    xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
     xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
     xmlns:uap13="http://schemas.microsoft.com/appx/manifest/uap/windows10/13"
@@ -109,53 +108,6 @@
                         <uap5:ExecutionAlias Alias="py.exe" />
                     </uap5:AppExecutionAlias>
                 </uap5:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="py" Parameters="exec --__fix-cwd &quot;%1&quot; %*">
-                        <uap:DisplayName>Python Script</uap:DisplayName>
-                        <uap:InfoTip>Python Script</uap:InfoTip>
-                        <uap:Logo>_resources/pyx256.png</uap:Logo>
-                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="text/x-python"
-                                          uap4:ShellNewFileName="templates\template.py">.py</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="pyc" Parameters="exec --__fix-cwd &quot;%1&quot; %*">
-                        <uap:DisplayName>Compiled Python Script</uap:DisplayName>
-                        <uap:InfoTip>Compiled Python Script</uap:InfoTip>
-                        <desktop7:Logo>_resources/pyc.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="application/x-python-code">.pyc</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="pyd">
-                        <uap:DisplayName>Python Extension Module</uap:DisplayName>
-                        <uap:InfoTip>Python Extension Module</uap:InfoTip>
-                        <desktop7:Logo>_resources/pyd.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="application/x-python-pyd">.pyd</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="pyz" Parameters="exec --__fix-cwd &quot;%1&quot; %*">
-                        <uap:DisplayName>Python Application</uap:DisplayName>
-                        <uap:InfoTip>Python Application</uap:InfoTip>
-                        <uap:Logo>_resources/pythonx150.png</uap:Logo>
-                        <desktop7:Logo>_resources/python.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="application/x-python-zipapp">.pyz</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
             </Extensions>
         </Application>
         <Application Id="Pyw.Exe"
@@ -175,30 +127,6 @@
                         <uap5:ExecutionAlias Alias="pyw.exe" />
                     </uap5:AppExecutionAlias>
                 </uap5:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="pyw" Parameters="exec --__fix-cwd &quot;%1&quot; %*">
-                        <uap:DisplayName>Python Script (Windowed)</uap:DisplayName>
-                        <uap:InfoTip>Python Script (Windowed)</uap:InfoTip>
-                        <uap:Logo>_resources/pyx256.png</uap:Logo>
-                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="text/x-python">.pyw</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
-                <uap3:Extension Category="windows.fileTypeAssociation">
-                    <uap3:FileTypeAssociation Name="pyzw" Parameters="exec --__fix-cwd &quot;%1&quot; %*">
-                        <uap:DisplayName>Python Application (Windowed)</uap:DisplayName>
-                        <uap:InfoTip>Python Application (Windowed)</uap:InfoTip>
-                        <uap:Logo>_resources/pythonwx150.png</uap:Logo>
-                        <desktop7:Logo>_resources/pythonw.ico</desktop7:Logo>
-                        <uap:EditFlags OpenIsSafe="false" />
-                        <uap:SupportedFileTypes>
-                            <uap:FileType ContentType="application/x-python-zipapp">.pyzw</uap:FileType>
-                        </uap:SupportedFileTypes>
-                    </uap3:FileTypeAssociation>
-                </uap3:Extension>
             </Extensions>
         </Application>
 
@@ -219,6 +147,53 @@
                         <uap5:ExecutionAlias Alias="python.exe" />
                     </uap5:AppExecutionAlias>
                 </uap5:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="py">
+                        <uap:DisplayName>Python Script</uap:DisplayName>
+                        <uap:InfoTip>Python Script</uap:InfoTip>
+                        <uap:Logo>_resources/pyx256.png</uap:Logo>
+                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="text/x-python"
+                                          uap4:ShellNewFileName="templates\template.py">.py</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyc">
+                        <uap:DisplayName>Compiled Python Script</uap:DisplayName>
+                        <uap:InfoTip>Compiled Python Script</uap:InfoTip>
+                        <desktop7:Logo>_resources/pyc.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-code">.pyc</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyd">
+                        <uap:DisplayName>Python Extension Module</uap:DisplayName>
+                        <uap:InfoTip>Python Extension Module</uap:InfoTip>
+                        <desktop7:Logo>_resources/pyd.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" AlwaysUnsafe="true" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-pyd">.pyd</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyz">
+                        <uap:DisplayName>Python Application</uap:DisplayName>
+                        <uap:InfoTip>Python Application</uap:InfoTip>
+                        <uap:Logo>_resources/pythonx150.png</uap:Logo>
+                        <desktop7:Logo>_resources/python.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-zipapp">.pyz</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
                 <desktop4:Extension Category="windows.fileExplorerContextMenus">
                     <desktop4:FileExplorerContextMenus>
                         <desktop4:ItemType Type=".py">
@@ -273,6 +248,30 @@
                         <uap5:ExecutionAlias Alias="pythonw.exe" />
                     </uap5:AppExecutionAlias>
                 </uap5:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyw">
+                        <uap:DisplayName>Python Script (Windowed)</uap:DisplayName>
+                        <uap:InfoTip>Python Script (Windowed)</uap:InfoTip>
+                        <uap:Logo>_resources/pyx256.png</uap:Logo>
+                        <desktop7:Logo>_resources/py.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="text/x-python">.pyw</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
+                <uap:Extension Category="windows.fileTypeAssociation">
+                    <uap:FileTypeAssociation Name="pyzw">
+                        <uap:DisplayName>Python Application (Windowed)</uap:DisplayName>
+                        <uap:InfoTip>Python Application (Windowed)</uap:InfoTip>
+                        <uap:Logo>_resources/pythonwx150.png</uap:Logo>
+                        <desktop7:Logo>_resources/pythonw.ico</desktop7:Logo>
+                        <uap:EditFlags OpenIsSafe="false" />
+                        <uap:SupportedFileTypes>
+                            <uap:FileType ContentType="application/x-python-zipapp">.pyzw</uap:FileType>
+                        </uap:SupportedFileTypes>
+                    </uap:FileTypeAssociation>
+                </uap:Extension>
             </Extensions>
         </Application>
     </Applications>

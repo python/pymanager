@@ -24,6 +24,11 @@
 #define PY_WINDOWED 0
 #endif
 
+// Uncomment to add the --__fix-cwd private argument, which will reset the
+// working directory to the script location or user documents/profile before
+// running Python.
+//#define ENABLE_FIX_CWD
+
 struct {
     PyObject *mod;
     PyObject *no_install_found_error;
@@ -484,6 +489,7 @@ done:
 }
 
 
+#ifdef ENABLE_FIX_CWD
 static int
 fix_working_directory(const std::wstring &script)
 {
@@ -512,6 +518,7 @@ fix_working_directory(const std::wstring &script)
     }
     return hr;
 }
+#endif
 
 
 int
@@ -535,7 +542,9 @@ wmain(int argc, wchar_t **argv)
 
     const wchar_t *default_cmd;
     bool use_commands, use_cli_tag, use_shebangs, use_autoinstall;
+    #ifdef ENABLE_FIX_CWD
     bool fix_cwd = false;
+    #endif
     per_exe_settings(argc, argv, &default_cmd, &use_commands, &use_cli_tag, &use_shebangs, &use_autoinstall);
 
     if (use_commands) {
@@ -551,10 +560,12 @@ wmain(int argc, wchar_t **argv)
         // We handle 'exec' in native code, so it won't be in the above list
         if (!wcscmp(argv[1], L"exec")) {
             skip_argc += 1;
+            #ifdef ENABLE_FIX_CWD
             if (!wcscmp(argv[2], L"--__fix-cwd")) {
                 fix_cwd = true;
                 skip_argc += 1;
             }
+            #endif
             use_cli_tag = argc >= 3;
             use_shebangs = argc >= 3;
             default_cmd = NULL;
@@ -606,12 +617,14 @@ wmain(int argc, wchar_t **argv)
     // Theoretically shouldn't matter, but might help reduce memory usage.
     close_python();
 
+    #ifdef ENABLE_FIX_CWD
     if (fix_cwd) {
         err = fix_working_directory(script);
         if (err) {
             fprintf(stderr, "[WARN] Failed to fix working directory (0x%08X).\n", err);
         }
     }
+    #endif
 
     err = launch(executable.c_str(), args.c_str(), skip_argc, &exitCode);
 

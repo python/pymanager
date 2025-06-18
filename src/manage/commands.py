@@ -39,6 +39,8 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
+!Y!Start menu shortcuts have been changed in this update.!W!
+Run !G!py install --refresh!W! to update any existing shortcuts.
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,

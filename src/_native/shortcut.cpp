@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <shlguid.h>
+#include <iterator>
 #include "helpers.h"
 
 extern "C" {
@@ -108,6 +109,27 @@ shortcut_get_start_programs(PyObject *, PyObject *, PyObject *)
     PyObject *r = PyUnicode_FromWideChar(path, -1);
     CoTaskMemFree(path);
     return r;
+}
+
+
+PyObject *
+shortcut_default_cwd(PyObject *, PyObject *, PyObject *)
+{
+    static const KNOWNFOLDERID fids[] = { FOLDERID_Documents, FOLDERID_Profile };
+    for (auto i = std::begin(fids); i != std::end(fids); ++i) {
+        wchar_t *path;
+        if (SUCCEEDED(SHGetKnownFolderPath(
+            *i,
+            KF_FLAG_NO_PACKAGE_REDIRECTION,
+            NULL,
+            &path
+        ))) {
+            PyObject *r = PyUnicode_FromWideChar(path, -1);
+            CoTaskMemFree(path);
+            return r;
+        }
+    }
+    return Py_GetConstant(Py_CONSTANT_NONE);
 }
 
 

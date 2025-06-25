@@ -793,13 +793,15 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     from_script = None
     enable_shortcut_kinds = None
     disable_shortcut_kinds = None
-    default_install_tag = DEFAULT_TAG
+    default_install_tag = None
 
     def __init__(self, args, root=None):
         super().__init__(args, root)
 
         if not self.source:
             self.source = DEFAULT_SOURCE_URL
+        if not self.default_install_tag:
+            self.default_install_tag = self.default_tag
         if "://" not in str(self.source):
             try:
                 self.source = Path(self.source).absolute().as_uri()

@@ -17,6 +17,8 @@ if not hasattr(_native, "coinitialize"):
         if k[:1] not in ("", "_"):
             setattr(_native, k, getattr(_native_test, k))
 
+_native.coinitialize()
+
 
 # Importing in order carefully to ensure the variables we override are handled
 # correctly by submodules.

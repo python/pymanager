@@ -51,7 +51,8 @@ def _make(root, prefix, item, allow_warn=True):
         lnk,
         target,
         arguments=_unprefix(item.get("Arguments"), prefix),
-        working_directory=_unprefix(item.get("WorkingDirectory"), prefix),
+        working_directory=_unprefix(item.get("WorkingDirectory"), prefix)
+            or _native.shortcut_default_cwd(),
         icon=_unprefix(item.get("Icon"), prefix),
         icon_index=item.get("IconIndex", 0),
     )

@@ -1,7 +1,10 @@
 {
     "install": {
         "source": "%PYTHON_MANAGER_SOURCE_URL%",
-        "fallback_source": "./bundled/fallback-index.json"
+        "fallback_source": "./bundled/fallback-index.json",
+
+        "#": "Install 3.14 (prerelease) by default during prerelease PyManager",
+        "default_install_tag": "3-dev"
     },
     "list": {
         "format": "%PYTHON_MANAGER_LIST_FORMAT%"

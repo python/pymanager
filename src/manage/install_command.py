@@ -604,8 +604,8 @@ def execute(cmd):
     if not cmd.by_id:
         for arg in cmd.args:
             if arg.casefold() == "default".casefold():
-                LOGGER.debug("Replacing 'default' with '%s'", cmd.default_tag)
-                cmd.tags.append(tag_or_range(cmd.default_tag))
+                LOGGER.debug("Replacing 'default' with '%s'", cmd.default_install_tag)
+                cmd.tags.append(tag_or_range(cmd.default_install_tag))
             else:
                 try:
                     cmd.tags.append(tag_or_range(arg))
@@ -613,7 +613,7 @@ def execute(cmd):
                     LOGGER.warn("%s", ex)
 
         if not cmd.tags and cmd.automatic:
-            cmd.tags = [tag_or_range(cmd.default_tag)]
+            cmd.tags = [tag_or_range(cmd.default_install_tag)]
     else:
         if cmd.from_script:
             raise ArgumentError("Cannot use --by-id and --from-script together")
@@ -629,9 +629,9 @@ def execute(cmd):
             try:
                 tag = cmd.tags[0]
             except IndexError:
-                if cmd.default_tag:
-                    LOGGER.debug("No tags provided, installing default tag %s", cmd.default_tag)
-                    tag = cmd.default_tag
+                if cmd.default_install_tag:
+                    LOGGER.debug("No tags provided, installing default tag %s", cmd.default_install_tag)
+                    tag = cmd.default_install_tag
                 else:
                     LOGGER.debug("No tags provided, installing first runtime in feed")
                     tag = None
@@ -671,7 +671,7 @@ def execute(cmd):
             if spec:
                 cmd.tags.append(tag_or_range(spec))
             else:
-                cmd.tags.append(tag_or_range(cmd.default_tag))
+                cmd.tags.append(tag_or_range(cmd.default_install_tag))
 
         if cmd.virtual_env:
             LOGGER.debug("Clearing virtual_env setting to avoid conflicts during install.")

@@ -208,6 +208,8 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
 
 def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=False):
     for k, v in from_cfg.items():
+        if k.startswith("#"):
+            continue
         try:
             into = into_cfg[k]
         except LookupError:

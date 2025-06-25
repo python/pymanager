@@ -51,6 +51,15 @@ void err_SetFromWindowsErrWithMessage(int error, const char *message, const wcha
         cause = PyErr_GetRaisedException();
     }
 
+    if ((error & 0xFFFF0000) == 0x80070000) {
+        // Error code is an HRESULT containing a regular Windows error
+        error &= 0xFFFF;
+    }
+    if (!hModule && error >= 12000 && error <= 12184) {
+        // Error codes are from WinHTTP, which means we need a module
+        hModule = GetModuleHandleW(L"winhttp");
+    }
+
     if (!os_message) {
         DWORD len = FormatMessageW(
             /* Error API error */

@@ -103,6 +103,47 @@ def test_write_alias_fallback_platform(alias_checker):
     alias_checker.check_w64(alias_checker.Cmd("-spam"), "1.0", "testB")
 
 
+@pytest.mark.parametrize("default", [1, 0])
+def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
+    prefix = Path(tmp_path) / "runtime"
+
+    class Cmd:
+        global_dir = Path(tmp_path) / "bin"
+        launcher_exe = None
+        def get_installs(self):
+            return [
+                {
+                    "alias": [
+                        {"name": "python3.exe", "target": "p.exe"},
+                        {"name": "pythonw3.exe", "target": "pw.exe", "windowed": 1},
+                    ],
+                    "default": default,
+                    "prefix": prefix,
+                }
+            ]
+
+    prefix.mkdir(exist_ok=True, parents=True)
+    (prefix / "p.exe").write_bytes(b"")
+    (prefix / "pw.exe").write_bytes(b"")
+
+    written = []
+    def write_alias(*a):
+        written.append(a)
+
+    monkeypatch.setattr(IC, "_write_alias", write_alias)
+    monkeypatch.setattr(IC, "SHORTCUT_HANDLERS", {})
+
+    IC.update_all_shortcuts(Cmd())
+
+    if default:
+        # Main test: python.exe and pythonw.exe are added in automatically
+        assert sorted(w[2]["name"] for w in written) == ["python.exe", "python3.exe", "pythonw.exe", "pythonw3.exe"]
+    else:
+        assert sorted(w[2]["name"] for w in written) == ["python3.exe", "pythonw3.exe"]
+    # Ensure we still only have the two targets
+    assert set(w[3].name for w in written) == {"p.exe", "pw.exe"}
+
+
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
     class Cmd:
         global_dir = Path(tmp_path)

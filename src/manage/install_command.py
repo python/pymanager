@@ -295,7 +295,20 @@ def update_all_shortcuts(cmd):
     shortcut_written = {}
     for i in cmd.get_installs():
         if cmd.global_dir:
-            for a in i.get("alias", ()):
+            aliases = i.get("alias", ())
+
+            # Generate a python.exe for the default runtime in case the user
+            # later disables/removes the global python.exe command.
+            if i.get("default"):
+                aliases = list(i.get("alias", ()))
+                alias_1 = [a for a in aliases if not a.get("windowed")]
+                alias_2 = [a for a in aliases if a.get("windowed")]
+                if alias_1:
+                    aliases.append({**alias_1[0], "name": "python.exe"})
+                if alias_2:
+                    aliases.append({**alias_2[0], "name": "pythonw.exe"})
+
+            for a in aliases:
                 if a["name"].casefold() in alias_written:
                     continue
                 target = i["prefix"] / a["target"]
@@ -576,6 +589,10 @@ def execute(cmd):
 
     cmd.tags = []
 
+    if cmd.virtual_env:
+        LOGGER.debug("Clearing virtual_env setting to avoid conflicts during install.")
+        cmd.virtual_env = None
+
     if cmd.refresh:
         if cmd.args:
             LOGGER.warn("Ignoring arguments; --refresh always refreshes all installs.")
@@ -673,9 +690,6 @@ def execute(cmd):
             else:
                 cmd.tags.append(tag_or_range(cmd.default_tag))
 
-        if cmd.virtual_env:
-            LOGGER.debug("Clearing virtual_env setting to avoid conflicts during install.")
-            cmd.virtual_env = None
         installed = list(cmd.get_installs())
 
         if cmd.download:

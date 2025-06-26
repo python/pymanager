@@ -22,7 +22,7 @@ LOGGER = logging.LOGGER
 # or check out the docs for administrative controls:
 #    https://docs.python.org/using/windows
 DEFAULT_SOURCE_URL = "https://www.python.org/ftp/python/index-windows.json"
-DEFAULT_TAG = "3.14"
+DEFAULT_TAG = "3"
 
 
 # TODO: Remove the /dev/ for stable release
@@ -253,6 +253,7 @@ CONFIG_SCHEMA = {
         "fallback_source": (str, None, "env", "path", "uri"),
         "enable_shortcut_kinds": (str, config_split_append),
         "disable_shortcut_kinds": (str, config_split_append),
+        "default_install_tag": (str, None),
     },
 
     "first_run": {
@@ -792,12 +793,15 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     from_script = None
     enable_shortcut_kinds = None
     disable_shortcut_kinds = None
+    default_install_tag = None
 
     def __init__(self, args, root=None):
         super().__init__(args, root)
 
         if not self.source:
             self.source = DEFAULT_SOURCE_URL
+        if not self.default_install_tag:
+            self.default_install_tag = self.default_tag
         if "://" not in str(self.source):
             try:
                 self.source = Path(self.source).absolute().as_uri()

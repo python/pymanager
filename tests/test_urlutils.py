@@ -227,7 +227,7 @@ def inject_error():
 def test_bits_errors(localserver, tmp_path, inject_error):
     import uuid
 
-    ERROR_MR_MID_NOT_FOUND = 0x8007013D
+    ERROR_MR_MID_NOT_FOUND = 0x13D
 
     dest = tmp_path / "read.txt"
     url = localserver + "/128kb"

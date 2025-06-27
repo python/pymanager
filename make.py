@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from pathlib import PurePath
 from subprocess import check_call as run
 from _make_helper import get_dirs, rmtree, unlink
 
@@ -38,13 +39,27 @@ except subprocess.CalledProcessError:
     pass
 
 # Run main build - this fills in BUILD and LAYOUT
-run([sys.executable, "-m", "pymsbuild", "wheel"],
+run([sys.executable, "-m", "pymsbuild", "msix"],
     cwd=DIRS["root"],
     env={**os.environ, "BUILD_SOURCEBRANCH": ref})
 
 # Bundle current latest release
-run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", TEMP / "bundle", "default"])
-(LAYOUT / "bundled").mkdir(parents=True, exist_ok=True)
-(TEMP / "bundle" / "index.json").rename(LAYOUT / "bundled" / "fallback-index.json")
-for f in (TEMP / "bundle").iterdir():
-    f.rename(LAYOUT / "bundled" / f.name)
+run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", LAYOUT / "bundled", "default"])
+(LAYOUT / "bundled" / "index.json").rename(LAYOUT / "bundled" / "fallback-index.json")
+
+# Update package state for when we pack
+new_lines = []
+state_txt = LAYOUT.parent / "__state.txt"
+for line in state_txt.read_text("utf-8").splitlines():
+    if not line or "=" in line or line.startswith("#"):
+        new_lines.append(line)
+        continue
+    # Exclude the in-proc shell extension from the MSIX
+    if PurePath(line).match("pyshellext*.dll"):
+        continue
+    new_lines.append(line)
+# Include the bundled files in the MSIX
+for f in LAYOUT.rglob(r"bundled\*"):
+    new_lines.append(str(f.relative_to(state_txt.parent)))
+
+state_txt.write_text("\n".join(new_lines), encoding="utf-8")

@@ -323,6 +323,19 @@ stages:
         workingDirectory: $(Pipeline.Workspace)
         displayName: 'Download PuTTY binaries'
 
+      - powershell: |
+          $files = gci -File * -EA SilentlyContinue
+          $hashes = $files  | `
+              Sort-Object Name | `
+              Format-Table Name, @{
+                Label="MD5";
+                Expression={(Get-FileHash $_ -Algorithm MD5).Hash}
+              }, Length -AutoSize | `
+              Out-String -Width 4096
+          $hashes
+        workingDirectory: $(DIST_DIR)
+        displayName: 'Generate hashes (MD5)'
+
       - ${{ if ne(parameters.PublishAppinstaller, 'true') }}:
         - powershell: |
             "Not uploading these files:"

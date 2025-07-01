@@ -625,20 +625,46 @@ def is_valid_url(url):
 
 
 class IndexDownloader:
-    def __init__(self, source, index_cls, auth=None, cache=None):
+    def __init__(self, source, index_cls, auth=None, cache=None, disk_cache=None):
         self.index_cls = index_cls
         self._url = source.rstrip("/")
         if not self._url.casefold().endswith(".json".casefold()):
             self._url += "/index.json"
         self._auth = auth if auth is not None else {}
         self._cache = cache if cache is not None else {}
+        self._disk_cache = Path(disk_cache) if disk_cache is not None else None
         self._urlopen = urlopen
+        self._used_auth = False
+
+    def _use_disk_cache(self, url, data=None):
+        if not self._disk_cache:
+            return None
+        try:
+            if extract_url_auth(url):
+                return None
+        except OSError:
+            return None
+        from hashlib import sha256
+        from time import time
+        path = self._disk_cache / (sha256(url.encode("utf-8", "unicodeescape")).hexdigest() + ".cache")
+        if data:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            return
+        try:
+            if time() - path.lstat().st_mtime < 60:
+                return path.read_bytes()
+            path.unlink()
+            return None
+        except OSError:
+            return None
 
     def __iter__(self):
         return self
 
     def on_auth(self, url):
         # TODO: Try looking for parent paths from URL
+        self._used_auth = True
         try:
             return self._auth[url]
         except LookupError:
@@ -658,14 +684,21 @@ class IndexDownloader:
         except LookupError:
             data = None
 
+        data = self._use_disk_cache(url)
+        if data:
+            LOGGER.debug("Fetched from disk cache")
+
         if not data:
             try:
+                self._used_auth = False
                 data = self._cache[url] = self._urlopen(
                     url,
                     "GET",
                     {"Accepts": "application/json"},
                     on_auth_request=self.on_auth,
                 )
+                if not self._used_auth:
+                    self._use_disk_cache(url, data)
             except FileNotFoundError: # includes 404
                 LOGGER.error("Unable to find runtimes index at %s", sanitise_url(url))
                 raise

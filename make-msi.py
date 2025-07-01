@@ -12,13 +12,13 @@ MSBUILD_CMD = get_msbuild()
 DIRS = get_dirs()
 BUILD = DIRS["build"]
 TEMP = DIRS["temp"]
-LAYOUT = DIRS["out"]
+LAYOUT = DIRS["out"] / "python-manager"
 SRC = DIRS["src"]
 DIST = DIRS["dist"]
 
 # Calculate output names (must be after building)
-NAME = get_output_name(DIRS)
-VERSION = get_msix_version(DIRS)
+NAME = get_output_name(DIRS["out"])
+VERSION = get_msix_version(LAYOUT / "appxmanifest.xml")
 
 # Package into MSI
 pydllname = [p.stem for p in (LAYOUT / "runtime").glob("python*.dll")][0]

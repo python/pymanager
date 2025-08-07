@@ -129,7 +129,8 @@ per_exe_settings(
     }
     const wchar_t *name = &argv0[n];
 #endif
-    if (CompareStringOrdinal(name, cch, L"python", -1, TRUE) == CSTR_EQUAL) {
+    if (CompareStringOrdinal(name, cch, L"python", -1, TRUE) == CSTR_EQUAL
+        || CompareStringOrdinal(name, cch, L"pythonw", -1, TRUE) == CSTR_EQUAL) {
         *default_command = NULL;
         *commands = false;
         *cli_tag = false;
@@ -137,7 +138,8 @@ per_exe_settings(
         *autoinstall = false;
         return;
     }
-    if (CompareStringOrdinal(name, cch, L"python3", -1, TRUE) == CSTR_EQUAL) {
+    if (CompareStringOrdinal(name, cch, L"python3", -1, TRUE) == CSTR_EQUAL
+        || CompareStringOrdinal(name, cch, L"pythonw3", -1, TRUE) == CSTR_EQUAL) {
         *default_command = NULL;
         *commands = false;
         *cli_tag = false;
@@ -145,7 +147,8 @@ per_exe_settings(
         *autoinstall = false;
         return;
     }
-    if (CompareStringOrdinal(name, cch, L"py", -1, TRUE) == CSTR_EQUAL) {
+    if (CompareStringOrdinal(name, cch, L"py", -1, TRUE) == CSTR_EQUAL
+        || CompareStringOrdinal(name, cch, L"pyw", -1, TRUE) == CSTR_EQUAL) {
         *default_command = NULL;
         *commands = argc >= 2;
         *cli_tag = argc >= 2;
@@ -153,7 +156,8 @@ per_exe_settings(
         *autoinstall = argc >= 2 && !wcscmp(argv[1], L"exec");
         return;
     }
-    if (CompareStringOrdinal(name, cch, L"pymanager", -1, TRUE) == CSTR_EQUAL) {
+    if (CompareStringOrdinal(name, cch, L"pymanager", -1, TRUE) == CSTR_EQUAL
+        || CompareStringOrdinal(name, cch, L"pywmanager", -1, TRUE) == CSTR_EQUAL) {
         *default_command = argc >= 2 ? L"**help_with_error" : L"help";
         *commands = argc >= 2;
         *cli_tag = false;

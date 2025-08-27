@@ -35,7 +35,7 @@
     <util:QueryNativeMachine />
 
     <Component Id="ProductComponent" Directory="INSTALLFOLDER" Guid="8BEC1259-B220-499B-9656-DC59B7F5BE24">
-      <File KeyPath="yes" Source="py-manager.exe" Name="python.exe" Id="python.exe" />
+      <File KeyPath="yes" Source="python.exe" Name="python.exe" Id="python.exe" />
       <File Source="pymanager.exe" Name="pymanager.exe" />
       <File Source="py.exe" Name="py.exe" />
       <File Source="python3.exe" Name="python3.exe" />

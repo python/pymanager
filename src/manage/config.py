@@ -92,15 +92,15 @@ def load_config(root, override_file, schema):
 
 
 def load_one_config(cfg, file, schema, *, overwrite=False):
-    LOGGER.verbose("Loading configuration from %s", file)
     try:
         with open(file, "r", encoding="utf-8-sig") as f:
+            LOGGER.verbose("Loading configuration from %s", file)
             cfg2 = json.load(f)
     except FileNotFoundError:
         LOGGER.verbose("Skipping configuration at %s because it does not exist", file)
         return
     except OSError as ex:
-        LOGGER.warn("Failed to read %s: %s", file, ex)
+        LOGGER.warn("Failed to read configuration from %s: %s", file, ex)
         LOGGER.debug("TRACEBACK:", exc_info=True)
         return
     except ValueError as ex:
@@ -159,6 +159,9 @@ def _expand_vars(v, env):
 
 def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False):
     for k, v in list(cfg.items()):
+        if k.startswith("#"):
+            continue
+
         try:
             subschema = schema[k]
         except LookupError:

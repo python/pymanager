@@ -254,6 +254,7 @@ CONFIG_SCHEMA = {
         "enable_shortcut_kinds": (str, config_split_append),
         "disable_shortcut_kinds": (str, config_split_append),
         "default_install_tag": (str, None),
+        "preserve_site_on_upgrade": (config_bool, None),
     },
 
     "first_run": {
@@ -794,6 +795,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     enable_shortcut_kinds = None
     disable_shortcut_kinds = None
     default_install_tag = None
+    preserve_site_on_upgrade = True
 
     def __init__(self, args, root=None):
         super().__init__(args, root)

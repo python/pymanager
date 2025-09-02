@@ -526,6 +526,7 @@ def _restore_site(cmd, state):
                 if not i.is_dir() and not i.is_file():
                     LOGGER.verbose("Not restoring %s because it is not a " +
                                    "normal file or directory.", i)
+                    continue
                 d = dest / i.name
                 if d.exists():
                     LOGGER.verbose("Not restoring %s because %s exists", i, d)
@@ -644,7 +645,6 @@ def _merge_existing_index(versions, index_json):
     else:
         LOGGER.debug("Merging into existing %s", index_json)
         current = {i["url"].casefold() for i in versions}
-        added = []
         for install in existing_index["versions"]:
             if install.get("url", "").casefold() not in current:
                 LOGGER.debug("Merging %s", install.get("url", "<unspecified>"))

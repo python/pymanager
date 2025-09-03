@@ -230,3 +230,62 @@ def test_merge_existing_index_not_valid(tmp_path):
     new = [1, 2, 3]
     IC._merge_existing_index(new, existing)
     assert new == [1, 2, 3]
+
+
+def test_preserve_site(tmp_path):
+    root = tmp_path / "root"
+    preserved = tmp_path / "_root"
+    site = root / "site-packages"
+    not_site = root / "site-not-packages"
+    A = site / "A"
+    B = site / "B.txt"
+    C = site / "C.txt"
+    A.mkdir(parents=True, exist_ok=True)
+    B.write_bytes(b"")
+    C.write_bytes(b"original")
+
+    class Cmd:
+        preserve_site_on_upgrade = False
+        force = False
+        repair = False
+
+    state = IC._preserve_site(Cmd, root)
+    assert not state
+    assert not preserved.exists()
+    Cmd.preserve_site_on_upgrade = True
+    Cmd.force = True
+    state = IC._preserve_site(Cmd, root)
+    assert not state
+    assert not preserved.exists()
+    Cmd.force = False
+    Cmd.repair = True
+    state = IC._preserve_site(Cmd, root)
+    assert not state
+    assert not preserved.exists()
+
+    Cmd.repair = False
+    state = IC._preserve_site(Cmd, root)
+    assert state == [(site, preserved / "0"), (None, preserved)]
+    assert preserved.is_dir()
+
+    root.rename(root.parent / "ex_root_1")
+    IC._restore_site(Cmd, state)
+    assert root.is_dir()
+    assert A.is_dir()
+    assert B.is_file()
+    assert C.is_file()
+    assert b"original" == C.read_bytes()
+    assert not preserved.exists()
+
+    state = IC._preserve_site(Cmd, root)
+    assert state == [(site, preserved / "0"), (None, preserved)]
+
+    assert not C.exists()
+    C.parent.mkdir(parents=True, exist_ok=True)
+    C.write_bytes(b"updated")
+    IC._restore_site(Cmd, state)
+    assert A.is_dir()
+    assert B.is_file()
+    assert C.is_file()
+    assert b"updated" == C.read_bytes()
+    assert not preserved.exists()

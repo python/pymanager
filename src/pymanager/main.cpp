@@ -578,7 +578,7 @@ wmain(int argc, wchar_t **argv)
 
     // Use the default command if we have one
     if (default_cmd) {
-        if (!wcscmp(default_cmd, L"__help_with_error")) {
+        if (!wcscmp(default_cmd, L"**help_with_error")) {
             const wchar_t *new_argv[] = {argv[0], default_cmd, argv[1]};
             return run_command(3, new_argv);
         }

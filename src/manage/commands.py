@@ -919,6 +919,8 @@ class HelpWithErrorCommand(HelpCommand):
     def __init__(self, args, root=None):
         # Essentially disable argument processing for this command
         super().__init__(args[:1], root)
+        # First argument was "**help_with_error", so ignore it.
+        # Subsequent arguments should be what was originally passed
         self.args = args[1:]
 
     def execute(self):

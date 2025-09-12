@@ -373,7 +373,11 @@ class BaseCommand:
                 seen_cmd = True
             elif a.startswith(("-", "/")):
                 a, sep, v = a.partition(":")
-                if not sep:
+                if sep:
+                    if "=" in a:
+                        a, sep, v_pre = a.partition("=")
+                        v = f"{v_pre}:{v}"
+                else:
                     a, sep, v = a.partition("=")
                 set_next = a.lstrip("-/").lower()
                 try:

@@ -81,3 +81,25 @@ def test_legacy_listpaths_command_help(assert_log, patched_installs):
     assert_log(
         assert_log.skip_until(r".*List command.+py list.+"),
     )
+
+
+def test_install_command_args():
+    # This is not meant to be exhaustive test of every possible option, but
+    # should cover all of the code paths in BaseCommand.__init__.
+    for args in [
+        ["-v", "-y"],
+        ["--v", "--y"],
+        ["/v", "/y"],
+    ]:
+        cmd = commands.InstallCommand(args)
+        assert cmd.log_level == logging.VERBOSE
+        assert not cmd.confirm
+
+    for args in [
+        ["--log", "C:\\LOG.txt"],
+        ["/log", "C:\\LOG.txt"],
+        ["--log:C:\\LOG.txt"],
+        ["--log=C:\\LOG.txt"],
+    ]:
+        cmd = commands.InstallCommand(args)
+        assert cmd.log_file == "C:\\LOG.txt"

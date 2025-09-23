@@ -495,7 +495,11 @@ def _preserve_site(cmd, root):
                     break
                 except OSError:
                     LOGGER.verbose("Failed to remove %s.", target)
-            LOGGER.info("Preserving %s during update.", dirs[0].relative_to(root))
+            try:
+                LOGGER.info("Preserving %s during update.", dirs[0].relative_to(root))
+            except ValueError:
+                # Just in case a directory goes weird, so we don't break
+                LOGGER.verbose(exc_info=True)
             LOGGER.verbose("Moving %s to %s", dirs[0], target)
             try:
                 dirs[0].rename(target)

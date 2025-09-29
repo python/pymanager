@@ -458,6 +458,14 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     return package
 
 
+def _should_preserve_on_upgrade(cmd, root, path):
+    if path.match("site-packages"):
+        return True
+    if path.parent == root and path.match("Scripts"):
+        return True
+    return False
+
+
 def _preserve_site(cmd, root):
     if not root.is_dir():
         return None
@@ -473,12 +481,12 @@ def _preserve_site(cmd, root):
     state = []
     i = 0
     dirs = [root]
-    root = root.with_name(f"_{root.name}")
-    root.mkdir(parents=True, exist_ok=True)
+    target_root = root.with_name(f"_{root.name}")
+    target_root.mkdir(parents=True, exist_ok=True)
     while dirs:
-        if dirs[0].match("site-packages"):
+        if _should_preserve_on_upgrade(cmd, root, dirs[0]):
             while True:
-                target = root / str(i)
+                target = target_root / str(i)
                 i += 1
                 try:
                     unlink(target)
@@ -487,7 +495,12 @@ def _preserve_site(cmd, root):
                     break
                 except OSError:
                     LOGGER.verbose("Failed to remove %s.", target)
-            LOGGER.info("Preserving %s during update as %s.", dirs[0], target)
+            try:
+                LOGGER.info("Preserving %s during update.", dirs[0].relative_to(root))
+            except ValueError:
+                # Just in case a directory goes weird, so we don't break
+                LOGGER.verbose(exc_info=True)
+            LOGGER.verbose("Moving %s to %s", dirs[0], target)
             try:
                 dirs[0].rename(target)
             except OSError:
@@ -498,8 +511,8 @@ def _preserve_site(cmd, root):
         else:
             dirs.extend(d for d in dirs[0].iterdir() if d.is_dir())
         dirs.pop(0)
-    # Append None, root last so that root gets cleaned up after restore is done
-    state.append((None, root))
+    # Append None, target_root last to clean up after restore is done
+    state.append((None, target_root))
     return state
 
 
@@ -520,7 +533,7 @@ def _restore_site(cmd, state):
             except KeyboardInterrupt:
                 break
             continue
-        LOGGER.info("Restoring %s from %s after update.", dest, src)
+        LOGGER.verbose("Restoring %s from %s after update.", dest, src)
         try:
             for i in src.iterdir():
                 if not i.is_dir() and not i.is_file():
@@ -534,6 +547,7 @@ def _restore_site(cmd, state):
                 LOGGER.verbose("Restoring %s to %s", i, d)
                 d.parent.mkdir(parents=True, exist_ok=True)
                 i.rename(d)
+            LOGGER.info("Restored %s", dest.name)
         except OSError:
             LOGGER.warn("Failed to restore %s during update.", dest)
             LOGGER.verbose("TRACEBACK", exc_info=True)

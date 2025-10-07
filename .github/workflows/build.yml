@@ -130,7 +130,7 @@ jobs:
         gcm pythonw
 
     - name: 'Show help output'
-      run: pymanager
+      run: pymanager help
 
     - name: 'Install default runtime'
       run: pymanager install default

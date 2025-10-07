@@ -68,10 +68,10 @@ stages:
       vmImage: 'windows-latest'
 
     variables:
-    - ${{ if eq(parameters.Sign, 'true') }}:
-      - group: CPythonSign
     - ${{ if eq(parameters.TestSign, 'true') }}:
       - group: CPythonTestSign
+    - ${{ elseif eq(parameters.Sign, 'true') }}:
+      - group: CPythonSign
     - ${{ if eq(parameters.Publish, 'true') }}:
       - group: PythonOrgPublish
 
@@ -145,20 +145,21 @@ stages:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-      - powershell: >
-          dir -r *.exe, *.pyd | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST1
-          }
+      - task: AzureCLI@2
         displayName: 'Sign binaries'
-        workingDirectory: $(LAYOUT_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
+        inputs:
+          azureSubscription: 'Python Signing'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            dir -r *.exe, *.pyd | %{
+            sign code trusted-signing "$_"
+            -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
+            -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
+            -d "PyManager $(Build.BuildNumber)"
+            -fl $env:SIGNLIST1
+            }
+          workingDirectory: $(LAYOUT_DIR)
 
     - powershell: |
         python make-msix.py
@@ -180,49 +181,35 @@ stages:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-      - powershell: >
-          dir *.msix | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST2
-          }
-        displayName: 'Sign MSIX package'
-        workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
+      - task: AzureCLI@2
+        displayName: 'Sign packages'
+        inputs:
+          azureSubscription: 'Python Signing'
+          scriptType: ps
+          scriptLocation: inlineScript
+          inlineScript: |
+            dir *.msix, *.msi | %{
+            sign code trusted-signing "$_"
+            -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
+            -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
+            -d "PyManager $(Build.BuildNumber)"
+            -fl $env:SIGNLIST2
+            }
+          workingDirectory: $(DIST_DIR)
 
-      - powershell: >
-          dir *.msi | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST3
-          }
-        displayName: 'Sign MSI package'
-        workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
-
-    - ${{ if eq(parameters.Sign, 'true') }}:
-      - powershell: Write-Host "##vso[build.addbuildtag]signed"
-        displayName: 'Add signed build tag'
-    - ${{ elseif eq(parameters.TestSign, 'true') }}:
+    - ${{ if eq(parameters.TestSign, 'true') }}:
       - powershell: Write-Host "##vso[build.addbuildtag]test-signed"
         displayName: 'Add test-signed build tag'
+    - ${{ elseif eq(parameters.Sign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]signed"
+        displayName: 'Add signed build tag'
 
     - publish: $(DIST_DIR)
       artifact: dist
       displayName: Publish distribution artifacts
 
     - ${{ if eq(parameters.PostTest, 'true') }}:
-      - ${{ if eq(parameters.Sign, 'true') }}:
+      - ${{ if and(ne(parameters.TestSign, 'true'), eq(parameters.Sign, 'true')) }}:
         - powershell: |
             $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
             Add-AppxPackage $msix

@@ -27,10 +27,6 @@ parameters:
   displayName: "Post test"
   type: boolean
   default: true
-- name: PostTestWithHangs
-  displayName: "Post tests that may hang"
-  type: boolean
-  default: true
 - name: OverrideRef
   displayName: "Force version (else uses tag)"
   type: string
@@ -65,7 +61,7 @@ stages:
   - job: Build
 
     pool:
-      vmImage: 'windows-2022'
+      vmImage: 'windows-latest'
 
     variables:
     - ${{ if eq(parameters.TestSign, 'true') }}:
@@ -234,7 +230,6 @@ stages:
         - powershell: |
             $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
             Add-AppxPackage $msix
-            Get-AppxPackage PythonSoftwareFoundation.PythonManager
           displayName: 'Install signed MSIX'
 
       - ${{ else }}:
@@ -243,10 +238,18 @@ stages:
             cp $msix "${msix}.zip"
             Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
             Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
-            Get-AppxPackage PythonSoftwareFoundation.PythonManager
           displayName: 'Register unsigned MSIX'
           env:
             TEST_MSIX: $(TEST_MSIX_DIR)
+
+      - powershell: |
+          $p = Get-AppxPackage PythonSoftwareFoundation.PythonManager
+          $p
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -CheckOnLaunch $false
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -ShowPrompt $false
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -PauseUpdates -HoursToPause 1
+          Get-AppxPackageAutoUpdateSettings $p.PackageFamilyName
+        displayName: 'Update MSIX settings'
 
       - powershell: |
           # Some of these are likely present due to the machine configuration,
@@ -254,11 +257,10 @@ stages:
           gcm pymanager, pywmanager, py, python, pyw, pythonw | Format-Table -AutoSize
         displayName: 'Ensure global commands are present'
 
-      - ${{ if eq(parameters.PostTestWithHangs, 'true') }}:
-        - powershell: |
-            pymanager help
-          displayName: 'Show help output'
-          timeoutInMinutes: 1
+      - powershell: |
+          pymanager help
+        displayName: 'Show help output'
+        timeoutInMinutes: 1
 
       - powershell: |
           pymanager install -vv default

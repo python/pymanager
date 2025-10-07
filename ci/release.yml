@@ -27,6 +27,10 @@ parameters:
   displayName: "Post test"
   type: boolean
   default: true
+- name: PostTestWithHangs
+  displayName: "Post tests that may hang"
+  type: boolean
+  default: true
 - name: OverrideRef
   displayName: "Force version (else uses tag)"
   type: string
@@ -237,47 +241,49 @@ stages:
             TEST_MSIX: $(TEST_MSIX_DIR)
 
       - powershell: |
-          gcm pymanager
-          gcm pywmanager
-          # These are likely present due to the machine configuration,
+          # Some of these are likely present due to the machine configuration,
           # but we'll check for them anyway.
-          gcm py
-          gcm python
-          gcm pyw
-          gcm pythonw
+          gcm pymanager, pywmanager, py, python, pyw, pythonw | Format-Table -AutoSize
         displayName: 'Ensure global commands are present'
 
-      - powershell: |
-          pymanager help
-        displayName: 'Show help output'
+      - ${{ if eq(parameters.PostTestWithHangs, 'true') }}:
+        - powershell: |
+            pymanager help
+          displayName: 'Show help output'
+          timeoutInMinutes: 1
 
       - powershell: |
           pymanager install -vv default
         displayName: 'Install default runtime'
+        timeoutInMinutes: 5
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager list
         displayName: 'List installed runtimes'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager --list-paths
         displayName: 'List installed runtimes (legacy)'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager exec -m site
         displayName: 'Launch default runtime'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager uninstall -y default
         displayName: 'Uninstall runtime'
+        timeoutInMinutes: 3
         env:
           PYMANAGER_DEBUG: true
 
@@ -291,6 +297,7 @@ stages:
           pymanager install --configure -y
           if ($?) { pymanager list }
         displayName: 'Emulate first launch'
+        timeoutInMinutes: 5
         env:
           PYTHON_MANAGER_INCLUDE_UNMANAGED: false
           PYTHON_MANAGER_CONFIG: .\test-config.json
@@ -302,6 +309,7 @@ stages:
           pymanager list --source .\bundle
           pymanager install --source .\bundle 3 3-32 3-64 3-arm64
         displayName: 'Offline bundle download and install'
+        timeoutInMinutes: 5
         env:
           PYMANAGER_DEBUG: true
 

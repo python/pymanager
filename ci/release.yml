@@ -136,7 +136,7 @@ stages:
         workingDirectory: $(Build.BinariesDirectory)
 
       - task: AzureCLI@2
-        displayName: 'Azure CLI'
+        displayName: 'Azure Login (1/2)'
         inputs:
           azureSubscription: 'Python Signing'
           scriptType: 'ps'
@@ -145,10 +145,15 @@ stages:
             "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]$servicePrincipalId" 
             "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$idToken"
             "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]$tenantId"
-            $tokenPath = "$env:AGENT_TEMPDIRECTORY\federated-token.jwt"
-            Set-Content -Path $tokenPath -Value $env:idToken
-            Write-Host "##vso[task.setvariable variable=AZURE_FEDERATED_TOKEN_FILE]$tokenPath"
           addSpnToEnvironment: true
+
+      - powershell: >
+          az login --service-principal
+          -u $(AZURE_CLIENT_ID)
+          --tenant $(AZURE_TENANT_ID)
+          --allow-no-subscriptions
+          --federated-token $(AZURE_ID_TOKEN)
+        displayName: 'Azure Login (2/2)'
 
     - powershell: |
         python make.py
@@ -170,10 +175,6 @@ stages:
           }
         displayName: 'Sign binaries'
         workingDirectory: $(LAYOUT_DIR)
-        env:
-          AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
-          AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
-          AZURE_TENANT_ID: $(AZURE_TENANT_ID)
 
     - powershell: |
         python make-msix.py
@@ -205,10 +206,6 @@ stages:
           }
         displayName: 'Sign MSIX package'
         workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
-          AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
-          AZURE_TENANT_ID: $(AZURE_TENANT_ID)
 
       - powershell: >
           dir *.msi | %{
@@ -220,10 +217,6 @@ stages:
           }
         displayName: 'Sign MSI package'
         workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
-          AZURE_CLIENT_SECRET: $(AZURE_CLIENT_SECRET)
-          AZURE_TENANT_ID: $(AZURE_TENANT_ID)
 
     - ${{ if eq(parameters.TestSign, 'true') }}:
       - powershell: Write-Host "##vso[build.addbuildtag]test-signed"

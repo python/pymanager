@@ -248,7 +248,7 @@ stages:
         displayName: 'Ensure global commands are present'
 
       - powershell: |
-          pymanager
+          pymanager help
         displayName: 'Show help output'
 
       - powershell: |

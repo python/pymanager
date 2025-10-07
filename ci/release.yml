@@ -145,6 +145,9 @@ stages:
             "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]$servicePrincipalId" 
             "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$idToken"
             "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]$tenantId"
+            $tokenPath = "$env:AGENT_TEMPDIRECTORY\federated-token.jwt"
+            Set-Content -Path $tokenPath -Value $env:idToken
+            Write-Host "##vso[task.setvariable variable=AZURE_FEDERATED_TOKEN_FILE]$tokenPath"
           addSpnToEnvironment: true
 
     - powershell: |

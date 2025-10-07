@@ -153,11 +153,11 @@ stages:
           scriptLocation: inlineScript
           inlineScript: |
             dir -r *.exe, *.pyd | %{
-            sign code trusted-signing "$_"
-            -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-            -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-            -d "PyManager $(Build.BuildNumber)"
-            -fl $env:SIGNLIST1
+              sign code trusted-signing "$_" `
+                -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256 `
+                -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)" `
+                -d "PyManager $(Build.BuildNumber)" `
+                -fl $env:SIGNLIST1
             }
           workingDirectory: $(LAYOUT_DIR)
 
@@ -189,11 +189,11 @@ stages:
           scriptLocation: inlineScript
           inlineScript: |
             dir *.msix, *.msi | %{
-            sign code trusted-signing "$_"
-            -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-            -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-            -d "PyManager $(Build.BuildNumber)"
-            -fl $env:SIGNLIST2
+              sign code trusted-signing "$_" `
+                -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256 `
+                -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)" `
+                -d "PyManager $(Build.BuildNumber)" `
+                -fl $env:SIGNLIST2
             }
           workingDirectory: $(DIST_DIR)
 

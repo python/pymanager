@@ -64,10 +64,10 @@ stages:
       vmImage: 'windows-latest'
 
     variables:
-    - ${{ if eq(parameters.Sign, 'true') }}:
-      - group: CPythonSign
     - ${{ if eq(parameters.TestSign, 'true') }}:
       - group: CPythonTestSign
+    - ${{ elseif eq(parameters.Sign, 'true') }}:
+      - group: CPythonSign
     - ${{ if eq(parameters.Publish, 'true') }}:
       - group: PythonOrgPublish
 
@@ -131,6 +131,26 @@ stages:
         displayName: 'Install signing tool and generate files'
         workingDirectory: $(Build.BinariesDirectory)
 
+      - task: AzureCLI@2
+        displayName: 'Azure Login (1/2)'
+        inputs:
+          azureSubscription: 'Python Signing'
+          scriptType: 'ps'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]${env:servicePrincipalId}" 
+            "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]${env:idToken}"
+            "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]${env:tenantId}"
+          addSpnToEnvironment: true
+
+      - powershell: >
+          az login --service-principal
+          -u $(AZURE_CLIENT_ID)
+          --tenant $(AZURE_TENANT_ID)
+          --allow-no-subscriptions
+          --federated-token $(AZURE_ID_TOKEN)
+        displayName: 'Azure Login (2/2)'
+
     - powershell: |
         python make.py
       displayName: 'Build package'
@@ -151,10 +171,6 @@ stages:
           }
         displayName: 'Sign binaries'
         workingDirectory: $(LAYOUT_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
     - powershell: |
         python make-msix.py
@@ -186,10 +202,6 @@ stages:
           }
         displayName: 'Sign MSIX package'
         workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
       - powershell: >
           dir *.msi | %{
@@ -201,28 +213,23 @@ stages:
           }
         displayName: 'Sign MSI package'
         workingDirectory: $(DIST_DIR)
-        env:
-          AZURE_CLIENT_ID: $(TrustedSigningClientId)
-          AZURE_CLIENT_SECRET: $(TrustedSigningSecret)
-          AZURE_TENANT_ID: $(TrustedSigningTenantId)
 
-    - ${{ if eq(parameters.Sign, 'true') }}:
-      - powershell: Write-Host "##vso[build.addbuildtag]signed"
-        displayName: 'Add signed build tag'
-    - ${{ elseif eq(parameters.TestSign, 'true') }}:
+    - ${{ if eq(parameters.TestSign, 'true') }}:
       - powershell: Write-Host "##vso[build.addbuildtag]test-signed"
         displayName: 'Add test-signed build tag'
+    - ${{ elseif eq(parameters.Sign, 'true') }}:
+      - powershell: Write-Host "##vso[build.addbuildtag]signed"
+        displayName: 'Add signed build tag'
 
     - publish: $(DIST_DIR)
       artifact: dist
       displayName: Publish distribution artifacts
 
     - ${{ if eq(parameters.PostTest, 'true') }}:
-      - ${{ if eq(parameters.Sign, 'true') }}:
+      - ${{ if and(ne(parameters.TestSign, 'true'), eq(parameters.Sign, 'true')) }}:
         - powershell: |
             $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
             Add-AppxPackage $msix
-            Get-AppxPackage PythonSoftwareFoundation.PythonManager
           displayName: 'Install signed MSIX'
 
       - ${{ else }}:
@@ -231,53 +238,62 @@ stages:
             cp $msix "${msix}.zip"
             Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
             Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
-            Get-AppxPackage PythonSoftwareFoundation.PythonManager
           displayName: 'Register unsigned MSIX'
           env:
             TEST_MSIX: $(TEST_MSIX_DIR)
 
       - powershell: |
-          gcm pymanager
-          gcm pywmanager
-          # These are likely present due to the machine configuration,
+          $p = Get-AppxPackage PythonSoftwareFoundation.PythonManager
+          $p
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -CheckOnLaunch $false
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -ShowPrompt $false
+          Set-AppxPackageAutoUpdateSettings $p.PackageFamilyName -PauseUpdates -HoursToPause 1
+          Get-AppxPackageAutoUpdateSettings $p.PackageFamilyName
+        displayName: 'Update MSIX settings'
+
+      - powershell: |
+          # Some of these are likely present due to the machine configuration,
           # but we'll check for them anyway.
-          gcm py
-          gcm python
-          gcm pyw
-          gcm pythonw
+          gcm pymanager, pywmanager, py, python, pyw, pythonw | Format-Table -AutoSize
         displayName: 'Ensure global commands are present'
 
       - powershell: |
           pymanager help
         displayName: 'Show help output'
+        timeoutInMinutes: 1
 
       - powershell: |
           pymanager install -vv default
         displayName: 'Install default runtime'
+        timeoutInMinutes: 5
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager list
         displayName: 'List installed runtimes'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager --list-paths
         displayName: 'List installed runtimes (legacy)'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager exec -m site
         displayName: 'Launch default runtime'
+        timeoutInMinutes: 1
         env:
           PYMANAGER_DEBUG: true
 
       - powershell: |
           pymanager uninstall -y default
         displayName: 'Uninstall runtime'
+        timeoutInMinutes: 3
         env:
           PYMANAGER_DEBUG: true
 
@@ -291,6 +307,7 @@ stages:
           pymanager install --configure -y
           if ($?) { pymanager list }
         displayName: 'Emulate first launch'
+        timeoutInMinutes: 5
         env:
           PYTHON_MANAGER_INCLUDE_UNMANAGED: false
           PYTHON_MANAGER_CONFIG: .\test-config.json
@@ -302,6 +319,7 @@ stages:
           pymanager list --source .\bundle
           pymanager install --source .\bundle 3 3-32 3-64 3-arm64
         displayName: 'Offline bundle download and install'
+        timeoutInMinutes: 5
         env:
           PYMANAGER_DEBUG: true
 

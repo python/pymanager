@@ -988,7 +988,7 @@ class FirstRun(BaseCommand):
     check_app_alias = True
     check_long_paths = True
     check_py_on_path = True
-    check_any_install = True
+    check_any_install = False
     check_latest_install = True
     check_global_dir = True
 

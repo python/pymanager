@@ -18,7 +18,6 @@ def _iterdir(p, only_files=False):
 
 
 def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment"):
-    import os
     import winreg
 
     if hive is None:

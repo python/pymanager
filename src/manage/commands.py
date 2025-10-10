@@ -262,6 +262,7 @@ CONFIG_SCHEMA = {
         "check_long_paths": (config_bool, None, "env"),
         "check_py_on_path": (config_bool, None, "env"),
         "check_any_install": (config_bool, None, "env"),
+        "check_latest_install": (config_bool, None, "env"),
         "check_global_dir": (config_bool, None, "env"),
     },
 
@@ -698,8 +699,13 @@ Shows installed Python runtimes, optionally filtered or formatted.
     one = False
     unmanaged = True
     source = None
+    fallback_source = None
     default_source = False
     keep_log = False
+
+    # Not settable from the CLI/config, but used internally
+    formatter_callable = None
+    fallback_source_only = False
 
     def execute(self):
         from .list_command import execute
@@ -708,6 +714,7 @@ Shows installed Python runtimes, optionally filtered or formatted.
             LOGGER.debug("Loading 'install' command to get source")
             inst_cmd = COMMANDS["install"](["install"], self.root)
             self.source = inst_cmd.source
+            self.fallback_source = inst_cmd.fallback_source
         if self.source and "://" not in str(self.source):
             try:
                 self.source = Path(self.source).absolute().as_uri()
@@ -982,6 +989,7 @@ class FirstRun(BaseCommand):
     check_long_paths = True
     check_py_on_path = True
     check_any_install = True
+    check_latest_install = True
     check_global_dir = True
 
     def execute(self):

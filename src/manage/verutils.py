@@ -13,15 +13,19 @@ class Version:
     }
 
     _TEXT_UNMAP = {v: k for k, v in TEXT_MAP.items()}
+    _LEVELS = None
 
     # Versions with more fields than this will be truncated.
     MAX_FIELDS = 8
 
     def __init__(self, s):
         import re
-        levels = "|".join(re.escape(k) for k in self.TEXT_MAP if k)
+        if isinstance(s, Version):
+            s = s.s
+        if not Version._LEVELS:
+            Version._LEVELS = "|".join(re.escape(k) for k in self.TEXT_MAP if k)
         m = re.match(
-            r"^(?P<numbers>\d+(\.\d+)*)([\.\-]?(?P<level>" + levels + r")[\.]?(?P<serial>\d*))?$",
+            r"^(?P<numbers>\d+(\.\d+)*)([\.\-]?(?P<level>" + Version._LEVELS + r")[\.]?(?P<serial>\d*))?$",
             s,
             re.I,
         )

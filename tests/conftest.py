@@ -149,6 +149,7 @@ def localserver():
 
 class FakeConfig:
     def __init__(self, global_dir, installs=[]):
+        self.root = global_dir.parent if global_dir else None
         self.global_dir = global_dir
         self.confirm = False
         self.installs = list(installs)

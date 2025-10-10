@@ -99,6 +99,27 @@ def test_check_any_install(fake_config):
     assert firstrun.check_any_install(fake_config) == True
 
 
+def test_check_latest_install(fake_config, monkeypatch):
+    fake_config.default_tag = "1"
+    fake_config.default_platform = "-64"
+    assert firstrun.check_latest_install(fake_config) == False
+
+    fake_config.installs.append({"tag": "1.0-64"})
+    assert firstrun.check_latest_install(fake_config) == False
+
+    def _fallbacks(cmd):
+        return [{"install-for": ["1.0-64"]}]
+
+    monkeypatch.setattr(firstrun, "_list_available_fallback_runtimes", _fallbacks)
+    assert firstrun.check_latest_install(fake_config) == True
+
+    def _fallbacks(cmd):
+        return [{"install-for": ["1.0-32"]}]
+
+    monkeypatch.setattr(firstrun, "_list_available_fallback_runtimes", _fallbacks)
+    assert firstrun.check_latest_install(fake_config) == False
+
+
 def test_welcome(assert_log):
     welcome = firstrun._Welcome()
     assert_log(assert_log.end_of_log())

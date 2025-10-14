@@ -8,6 +8,7 @@ from pathlib import PurePath
 
 from manage.scriptutils import (
     find_install_from_script,
+    _find_shebang_command,
     _read_script,
     NewEncoding,
     _maybe_quote,
@@ -67,6 +68,25 @@ def test_read_shebang(fake_config, tmp_path, script, expect):
         assert expect == actual
     except LookupError:
         assert not expect
+
+
+def test_default_py_shebang(fake_config, tmp_path):
+    inst = _fake_install("1.0", company="PythonCore", prefix=PurePath("C:\\TestRoot"), default=True)
+    inst["run-for"] = [
+        dict(name="python.exe", target=".\\python.exe"),
+        dict(name="pythonw.exe", target=".\\pythonw.exe", windowed=1),
+    ]
+    fake_config.installs[:] = [inst]
+
+    # Finds the install's default executable
+    assert _find_shebang_command(fake_config, "python")["executable"].match("test-binary-1.0.exe")
+    assert _find_shebang_command(fake_config, "py")["executable"].match("test-binary-1.0.exe")
+    assert _find_shebang_command(fake_config, "python1.0")["executable"].match("test-binary-1.0.exe")
+    # Finds the install's run-for executable with windowed=1
+    assert _find_shebang_command(fake_config, "pythonw")["executable"].match("pythonw.exe")
+    assert _find_shebang_command(fake_config, "pyw")["executable"].match("pythonw.exe")
+    assert _find_shebang_command(fake_config, "pythonw1.0")["executable"].match("pythonw.exe")
+
 
 
 @pytest.mark.parametrize("script, expect", [

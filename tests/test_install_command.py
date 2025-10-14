@@ -104,6 +104,59 @@ def test_write_alias_fallback_platform(alias_checker):
     alias_checker.check_w64(alias_checker.Cmd("-spam"), "1.0", "testB")
 
 
+def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
+    fake_config.launcher_exe = tmp_path / "non-existent.exe"
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Checking for launcher.*",
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Skipping %s alias because the launcher template was not found.",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
+    class FakeLauncherPath:
+        stem = "test"
+        suffix = ".exe"
+        parent = tmp_path
+
+        @staticmethod
+        def is_file():
+            return True
+
+        @staticmethod
+        def read_bytes():
+            raise OSError("no reading for the test")
+
+    fake_config.scratch = {}
+    fake_config.launcher_exe = FakeLauncherPath
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to read launcher template at %s.",
+        "Failed to read %s",
+        assert_log.end_of_log(),
+    )
+
+
 @pytest.mark.parametrize("default", [1, 0])
 def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
     prefix = Path(tmp_path) / "runtime"

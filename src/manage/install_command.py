@@ -249,13 +249,6 @@ def _write_alias(cmd, install, alias, target):
             LOGGER.debug("Skipping %s alias because the launcher template was not found.", alias["name"])
         return
 
-    launcher_remap = cmd.scratch.setdefault("install_command._write_alias.launcher_remap", {})
-    LOGGER.debug("remap %s", launcher_remap)
-    try:
-        launcher = launcher_remap[str(launcher)]
-    except KeyError:
-        pass
-
     try:
         launcher_bytes = launcher.read_bytes()
     except OSError:
@@ -263,7 +256,7 @@ def _write_alias(cmd, install, alias, target):
         if str(launcher) not in warnings_shown:
             LOGGER.warn("Failed to read launcher template at %s.", launcher)
             warnings_shown.add(str(launcher))
-        LOGGER.debug(exc_info=True)
+        LOGGER.debug("Failed to read %s", launcher, exc_info=True)
         return
 
     existing_bytes = b''
@@ -275,7 +268,13 @@ def _write_alias(cmd, install, alias, target):
     except OSError:
         LOGGER.debug("Failed to read existing alias launcher.")
 
-    if existing_bytes != launcher_bytes:
+    launcher_remap = cmd.scratch.setdefault("install_command._write_alias.launcher_remap", {})
+
+    if existing_bytes == launcher_bytes:
+        # Valid existing launcher, so save its path in case we need it later
+        # for a hard link.
+        launcher_remap.setdefault(launcher.name, p)
+    else:
         # First try and create a hard link
         unlink(p)
         try:
@@ -285,13 +284,21 @@ def _write_alias(cmd, install, alias, target):
             if ex.winerror != 17:
                 # Report errors other than cross-drive links
                 LOGGER.debug("Failed to create hard link for command.", exc_info=True)
-            try:
-                p.write_bytes(launcher_bytes)
-                LOGGER.debug("Created %s as copy of %s", p.name, launcher.name)
-                launcher_remap[str(launcher)] = p
-            except OSError:
-                LOGGER.error("Failed to create global command %s.", alias["name"])
-                LOGGER.debug(exc_info=True)
+            launcher2 = launcher_remap.get(launcher.name)
+            if launcher2:
+                try:
+                    os.link(launcher, p)
+                except OSError:
+                    LOGGER.debug("Failed to create hard link from fallback launcher")
+                    launcher2 = None
+            if not launcher2:
+                try:
+                    p.write_bytes(launcher_bytes)
+                    LOGGER.debug("Created %s as copy of %s", p.name, launcher.name)
+                    launcher_remap[launcher.name] = p
+                except OSError:
+                    LOGGER.error("Failed to create global command %s.", alias["name"])
+                    LOGGER.debug(exc_info=True)
 
     p_target = p.with_name(p.name + ".__target__")
     try:

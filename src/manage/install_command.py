@@ -225,11 +225,12 @@ def _if_exists(launcher, plat):
 
 def _write_alias(cmd, install, alias, target):
     p = (cmd.global_dir / alias["name"])
+    target = Path(target)
     ensure_tree(p)
-    unlink(p)
     launcher = cmd.launcher_exe
     if alias.get("windowed"):
         launcher = cmd.launcherw_exe or launcher
+
     plat = install["tag"].rpartition("-")[-1]
     if plat:
         LOGGER.debug("Checking for launcher for platform -%s", plat)
@@ -247,8 +248,61 @@ def _write_alias(cmd, install, alias, target):
         else:
             LOGGER.debug("Skipping %s alias because the launcher template was not found.", alias["name"])
         return
-    p.write_bytes(launcher.read_bytes())
-    p.with_name(p.name + ".__target__").write_text(str(target), encoding="utf-8")
+
+    launcher_remap = cmd.scratch.setdefault("install_command._write_alias.launcher_remap", {})
+    LOGGER.debug("remap %s", launcher_remap)
+    try:
+        launcher = launcher_remap[str(launcher)]
+    except KeyError:
+        pass
+
+    try:
+        launcher_bytes = launcher.read_bytes()
+    except OSError:
+        warnings_shown = cmd.scratch.setdefault("install_command._write_alias.warnings_shown", set())
+        if str(launcher) not in warnings_shown:
+            LOGGER.warn("Failed to read launcher template at %s.", launcher)
+            warnings_shown.add(str(launcher))
+        LOGGER.debug(exc_info=True)
+        return
+
+    existing_bytes = b''
+    try:
+        with open(p, 'rb') as f:
+            existing_bytes = f.read(len(launcher_bytes) + 1)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        LOGGER.debug("Failed to read existing alias launcher.")
+
+    if existing_bytes != launcher_bytes:
+        # First try and create a hard link
+        unlink(p)
+        try:
+            os.link(launcher, p)
+            LOGGER.debug("Created %s as hard link to %s", p.name, launcher.name)
+        except OSError as ex:
+            if ex.winerror != 17:
+                # Report errors other than cross-drive links
+                LOGGER.debug("Failed to create hard link for command.", exc_info=True)
+            try:
+                p.write_bytes(launcher_bytes)
+                LOGGER.debug("Created %s as copy of %s", p.name, launcher.name)
+                launcher_remap[str(launcher)] = p
+            except OSError:
+                LOGGER.error("Failed to create global command %s.", alias["name"])
+                LOGGER.debug(exc_info=True)
+
+    p_target = p.with_name(p.name + ".__target__")
+    try:
+        if target.match(p_target.read_text(encoding="utf-8")):
+            return
+    except FileNotFoundError:
+        pass
+    except (OSError, UnicodeDecodeError):
+        LOGGER.debug("Failed to read existing target path.", exc_info=True)
+
+    p_target.write_text(str(target), encoding="utf-8")
 
 
 def _create_shortcut_pep514(cmd, install, shortcut):

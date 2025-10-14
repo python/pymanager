@@ -22,6 +22,7 @@ class AliasChecker:
         default_platform = "-64"
 
         def __init__(self, platform=None):
+            self.scratch = {}
             if platform:
                 self.default_platform = platform
 
@@ -81,19 +82,19 @@ class AliasChecker:
 
 
 def test_write_alias_tag_with_platform(alias_checker):
-    alias_checker.check_32(alias_checker.Cmd, "1.0-32", "testA")
-    alias_checker.check_w32(alias_checker.Cmd, "1.0-32", "testB")
-    alias_checker.check_64(alias_checker.Cmd, "1.0-64", "testC")
-    alias_checker.check_w64(alias_checker.Cmd, "1.0-64", "testD")
-    alias_checker.check_arm64(alias_checker.Cmd, "1.0-arm64", "testE")
-    alias_checker.check_warm64(alias_checker.Cmd, "1.0-arm64", "testF")
+    alias_checker.check_32(alias_checker.Cmd(), "1.0-32", "testA")
+    alias_checker.check_w32(alias_checker.Cmd(), "1.0-32", "testB")
+    alias_checker.check_64(alias_checker.Cmd(), "1.0-64", "testC")
+    alias_checker.check_w64(alias_checker.Cmd(), "1.0-64", "testD")
+    alias_checker.check_arm64(alias_checker.Cmd(), "1.0-arm64", "testE")
+    alias_checker.check_warm64(alias_checker.Cmd(), "1.0-arm64", "testF")
 
 
 def test_write_alias_default_platform(alias_checker):
     alias_checker.check_32(alias_checker.Cmd("-32"), "1.0", "testA")
     alias_checker.check_w32(alias_checker.Cmd("-32"), "1.0", "testB")
-    alias_checker.check_64(alias_checker.Cmd, "1.0", "testC")
-    alias_checker.check_w64(alias_checker.Cmd, "1.0", "testD")
+    alias_checker.check_64(alias_checker.Cmd(), "1.0", "testC")
+    alias_checker.check_w64(alias_checker.Cmd(), "1.0", "testD")
     alias_checker.check_arm64(alias_checker.Cmd("-arm64"), "1.0", "testE")
     alias_checker.check_warm64(alias_checker.Cmd("-arm64"), "1.0", "testF")
 
@@ -110,6 +111,7 @@ def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
     class Cmd:
         global_dir = Path(tmp_path) / "bin"
         launcher_exe = None
+        scratch = {}
         def get_installs(self):
             return [
                 {
@@ -146,6 +148,7 @@ def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
 
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
     class Cmd:
+        scratch = {}
         global_dir = Path(tmp_path)
         def get_installs(self):
             return installs.get_installs(None)
@@ -163,6 +166,7 @@ def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path
 
 def test_print_path_warning(patched_installs, assert_log, tmp_path):
     class Cmd:
+        scratch = {}
         global_dir = Path(tmp_path)
         def get_installs(self):
             return installs.get_installs(None)

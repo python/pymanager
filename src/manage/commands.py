@@ -351,6 +351,10 @@ class BaseCommand:
     show_help = False
 
     def __init__(self, args, root=None):
+        # Storage for command-specific data per-command execution.
+        # All data should use a unique key.
+        self.scratch = {}
+
         cmd_args = {
             k: v for k, v in
             [*CLI_SCHEMA.items(), *CLI_SCHEMA.get(self.CMD, {}).items()]

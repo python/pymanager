@@ -223,7 +223,7 @@ def _if_exists(launcher, plat):
     return launcher
 
 
-def _write_alias(cmd, install, alias, target):
+def _write_alias(cmd, install, alias, target, _link=os.link):
     p = (cmd.global_dir / alias["name"])
     target = Path(target)
     ensure_tree(p)
@@ -278,7 +278,7 @@ def _write_alias(cmd, install, alias, target):
         # First try and create a hard link
         unlink(p)
         try:
-            os.link(launcher, p)
+            _link(launcher, p)
             LOGGER.debug("Created %s as hard link to %s", p.name, launcher.name)
         except OSError as ex:
             if ex.winerror != 17:
@@ -287,7 +287,7 @@ def _write_alias(cmd, install, alias, target):
             launcher2 = launcher_remap.get(launcher.name)
             if launcher2:
                 try:
-                    os.link(launcher, p)
+                    _link(launcher2, p)
                 except OSError:
                     LOGGER.debug("Failed to create hard link from fallback launcher")
                     launcher2 = None

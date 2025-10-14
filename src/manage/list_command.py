@@ -1,5 +1,4 @@
 import json
-import sys
 
 from . import logging
 from .exceptions import ArgumentError
@@ -285,16 +284,20 @@ def _get_installs_from_index(indexes, filters):
 def execute(cmd):
     LOGGER.debug("BEGIN list_command.execute: %r", cmd.args)
 
-    try:
-        LOGGER.debug("Get formatter %s", cmd.format)
-        formatter = FORMATTERS[cmd.format]
-    except LookupError:
-        formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
-        expect = ", ".join(sorted(formatters))
-        raise ArgumentError(f"'{cmd.format}' is not a valid format; expected one of: {expect}") from None
+    if cmd.formatter_callable:
+        formatter = cmd.formatter_callable
+    else:
+        try:
+            LOGGER.debug("Get formatter %s", cmd.format)
+            formatter = FORMATTERS[cmd.format]
+        except LookupError:
+            formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
+            expect = ", ".join(sorted(formatters))
+            raise ArgumentError(f"'{cmd.format}' is not a valid format; expected one of: {expect}") from None
 
     from .tagutils import tag_or_range, install_matches_any
     tags = []
+    plat = None
     for arg in cmd.args:
         if arg.casefold() == "default".casefold():
             LOGGER.debug("Replacing 'default' with '%s'", cmd.default_tag)
@@ -302,19 +305,46 @@ def execute(cmd):
         else:
             try:
                 tags.append(tag_or_range(arg))
+                try:
+                    if not plat:
+                        plat = tags[-1].platform
+                except AttributeError:
+                    pass
             except ValueError as ex:
                 LOGGER.warn("%s", ex)
+    plat = plat or cmd.default_platform
 
     if cmd.source:
         from .indexutils import Index
         from .urlutils import IndexDownloader
-        try:
-            installs = _get_installs_from_index(
-                IndexDownloader(cmd.source, Index),
-                tags,
-            )
-        except OSError as ex:
-            raise SystemExit(1) from ex
+        installs = []
+        first_exc = None
+        for source in [
+            None if cmd.fallback_source_only else cmd.source,
+            cmd.fallback_source,
+        ]:
+            if source:
+                try:
+                    installs = _get_installs_from_index(
+                        IndexDownloader(source, Index),
+                        tags,
+                    )
+                    break
+                except OSError as ex:
+                    if first_exc is None:
+                        first_exc = ex
+        if first_exc:
+            raise SystemExit(1) from first_exc
+        if cmd.one:
+            # Pick the first non-prerelease that'll install for our platform
+            best = [i for i in installs
+                    if any(t.endswith(plat) for t in i.get("install-for", []))]
+            for i in best:
+                if not i["sort-version"].is_prerelease:
+                    installs = [i]
+                    break
+            else:
+                installs = best[:1] or installs
     elif cmd.install_dir:
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)

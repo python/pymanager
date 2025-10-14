@@ -31,7 +31,9 @@ class ListCapture:
         self.captured = []
         self.source = None
         self.install_dir = "<none>"
+        self.default_platform = "-64"
         self.format = "test"
+        self.formatter_callable = None
         self.one = False
         self.unmanaged = True
         list_command.FORMATTERS["test"] = lambda c, i: self.captured.extend(i)

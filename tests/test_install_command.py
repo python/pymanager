@@ -22,6 +22,7 @@ class AliasChecker:
         default_platform = "-64"
 
         def __init__(self, platform=None):
+            self.scratch = {}
             if platform:
                 self.default_platform = platform
 
@@ -81,19 +82,19 @@ class AliasChecker:
 
 
 def test_write_alias_tag_with_platform(alias_checker):
-    alias_checker.check_32(alias_checker.Cmd, "1.0-32", "testA")
-    alias_checker.check_w32(alias_checker.Cmd, "1.0-32", "testB")
-    alias_checker.check_64(alias_checker.Cmd, "1.0-64", "testC")
-    alias_checker.check_w64(alias_checker.Cmd, "1.0-64", "testD")
-    alias_checker.check_arm64(alias_checker.Cmd, "1.0-arm64", "testE")
-    alias_checker.check_warm64(alias_checker.Cmd, "1.0-arm64", "testF")
+    alias_checker.check_32(alias_checker.Cmd(), "1.0-32", "testA")
+    alias_checker.check_w32(alias_checker.Cmd(), "1.0-32", "testB")
+    alias_checker.check_64(alias_checker.Cmd(), "1.0-64", "testC")
+    alias_checker.check_w64(alias_checker.Cmd(), "1.0-64", "testD")
+    alias_checker.check_arm64(alias_checker.Cmd(), "1.0-arm64", "testE")
+    alias_checker.check_warm64(alias_checker.Cmd(), "1.0-arm64", "testF")
 
 
 def test_write_alias_default_platform(alias_checker):
     alias_checker.check_32(alias_checker.Cmd("-32"), "1.0", "testA")
     alias_checker.check_w32(alias_checker.Cmd("-32"), "1.0", "testB")
-    alias_checker.check_64(alias_checker.Cmd, "1.0", "testC")
-    alias_checker.check_w64(alias_checker.Cmd, "1.0", "testD")
+    alias_checker.check_64(alias_checker.Cmd(), "1.0", "testC")
+    alias_checker.check_w64(alias_checker.Cmd(), "1.0", "testD")
     alias_checker.check_arm64(alias_checker.Cmd("-arm64"), "1.0", "testE")
     alias_checker.check_warm64(alias_checker.Cmd("-arm64"), "1.0", "testF")
 
@@ -103,6 +104,120 @@ def test_write_alias_fallback_platform(alias_checker):
     alias_checker.check_w64(alias_checker.Cmd("-spam"), "1.0", "testB")
 
 
+def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
+    fake_config.launcher_exe = tmp_path / "non-existent.exe"
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Checking for launcher.*",
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Skipping %s alias because the launcher template was not found.",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
+    class FakeLauncherPath:
+        stem = "test"
+        suffix = ".exe"
+        parent = tmp_path
+
+        @staticmethod
+        def is_file():
+            return True
+
+        @staticmethod
+        def read_bytes():
+            raise OSError("no reading for the test")
+
+    fake_config.scratch = {}
+    fake_config.launcher_exe = FakeLauncherPath
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to read launcher template at %s\\.",
+        "Failed to read %s",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
+    def fake_link(x, y):
+        raise OSError("Error for testing")
+
+    fake_config.scratch = {}
+    fake_config.launcher_exe = tmp_path / "launcher.txt"
+    fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+        _link=fake_link
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to create hard link.+",
+        "Created %s as copy of %s",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path):
+    # This is for the fairly expected case of the PyManager install being on one
+    # drive, but the global commands directory being on another. In this
+    # situation, we can't hard link directly into the app files, and will need
+    # to copy. But we only need to copy once, so if a launcher_remap has been
+    # set (in the current process), then we have an available copy already and
+    # can link to that.
+
+    def fake_link(x, y):
+        if x.match("launcher.txt"):
+            raise OSError(17, "Error for testing")
+
+    fake_config.scratch = {
+        "install_command._write_alias.launcher_remap": {"launcher.txt": tmp_path / "actual_launcher.txt"},
+    }
+    fake_config.launcher_exe = tmp_path / "launcher.txt"
+    fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
+    (tmp_path / "actual_launcher.txt").write_bytes(b'Arbitrary contents')
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+        _link=fake_link
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to create hard link.+",
+        ("Created %s as hard link to %s", ("test.exe", "actual_launcher.txt")),
+        assert_log.end_of_log(),
+    )
+
+
 @pytest.mark.parametrize("default", [1, 0])
 def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
     prefix = Path(tmp_path) / "runtime"
@@ -110,6 +225,7 @@ def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
     class Cmd:
         global_dir = Path(tmp_path) / "bin"
         launcher_exe = None
+        scratch = {}
         def get_installs(self):
             return [
                 {
@@ -146,6 +262,7 @@ def test_write_alias_default(alias_checker, monkeypatch, tmp_path, default):
 
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
     class Cmd:
+        scratch = {}
         global_dir = Path(tmp_path)
         def get_installs(self):
             return installs.get_installs(None)
@@ -163,6 +280,7 @@ def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path
 
 def test_print_path_warning(patched_installs, assert_log, tmp_path):
     class Cmd:
+        scratch = {}
         global_dir = Path(tmp_path)
         def get_installs(self):
             return installs.get_installs(None)

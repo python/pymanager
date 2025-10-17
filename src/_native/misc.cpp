@@ -233,4 +233,25 @@ PyObject *broadcast_settings_change(PyObject *, PyObject *, PyObject *) {
     return Py_GetConstant(Py_CONSTANT_NONE);
 }
 
+typedef enum {
+    CPU_X86     = 0,
+    CPU_X86_64  = 9,
+    CPU_ARM     = 5,
+    CPU_ARM64   = 12,
+    CPU_UNKNOWN = 0xffff
+} CpuArchitecture;
+
+PyObject *get_processor_architecture(PyObject *, PyObject *, PyObject *) {
+    SYSTEM_INFO system_info;
+    GetNativeSystemInfo(&system_info);
+    
+    switch (system_info.wProcessorArchitecture) {
+        case CPU_X86: return PyUnicode_FromString("-32");
+        case CPU_X86_64: return PyUnicode_FromString("-64");
+        case CPU_ARM: return PyUnicode_FromString("-arm");
+        case CPU_ARM64: return PyUnicode_FromString("-arm64");
+        default: return PyUnicode_FromString("-64"); // x86-64
+    }
+}
+
 }

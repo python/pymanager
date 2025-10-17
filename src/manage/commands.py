@@ -447,6 +447,9 @@ class BaseCommand:
                 _set_args.add(k)
 
         if not self.default_platform:
+            from _native import get_processor_architecture
+            LOGGER.debug("Get CPU architecture, its prefix is %s", get_processor_architecture())
+
             # Currently, we always default to -64.
             self.default_platform = "-64"
 

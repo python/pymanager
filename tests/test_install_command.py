@@ -151,8 +151,69 @@ def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
     assert_log(
         "Checking for launcher.*",
         "Create %s linking to %s",
-        "Failed to read launcher template at %s.",
+        "Failed to read launcher template at %s\\.",
         "Failed to read %s",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
+    def fake_link(x, y):
+        raise OSError("Error for testing")
+
+    fake_config.scratch = {}
+    fake_config.launcher_exe = tmp_path / "launcher.txt"
+    fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+        _link=fake_link
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to create hard link.+",
+        "Created %s as copy of %s",
+        assert_log.end_of_log(),
+    )
+
+
+def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path):
+    # This is for the fairly expected case of the PyManager install being on one
+    # drive, but the global commands directory being on another. In this
+    # situation, we can't hard link directly into the app files, and will need
+    # to copy. But we only need to copy once, so if a launcher_remap has been
+    # set (in the current process), then we have an available copy already and
+    # can link to that.
+
+    def fake_link(x, y):
+        if x.match("launcher.txt"):
+            raise OSError(17, "Error for testing")
+
+    fake_config.scratch = {
+        "install_command._write_alias.launcher_remap": {"launcher.txt": tmp_path / "actual_launcher.txt"},
+    }
+    fake_config.launcher_exe = tmp_path / "launcher.txt"
+    fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
+    (tmp_path / "actual_launcher.txt").write_bytes(b'Arbitrary contents')
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    IC._write_alias(
+        fake_config,
+        {"tag": "test"},
+        {"name": "test.exe"},
+        tmp_path / "target.exe",
+        _link=fake_link
+    )
+    assert_log(
+        "Checking for launcher.*",
+        "Create %s linking to %s",
+        "Failed to create hard link.+",
+        ("Created %s as hard link to %s", ("test.exe", "actual_launcher.txt")),
         assert_log.end_of_log(),
     )
 

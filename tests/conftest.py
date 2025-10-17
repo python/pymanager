@@ -159,7 +159,14 @@ class FakeConfig:
     def get_installs(self, *, include_unmanaged=True, set_default=True):
         return self.installs
 
-    def get_install_to_run(self, tag):
+    def get_install_to_run(self, tag, *, windowed=False):
+        if windowed:
+            i = self.get_install_to_run(tag)
+            target = [t for t in i.get("run-for", []) if t.get("windowed")]
+            if target:
+                return {**i, "executable": i["prefix"] / target[0]["target"]}
+            return i
+
         company, _, tag = tag.replace("/", "\\").rpartition("\\")
         return [i for i in self.installs
                 if i["tag"] == tag and (not company or i["company"] == company)][0]

@@ -19,11 +19,16 @@ def _find_shebang_command(cmd, full_cmd):
     if not sh_cmd.match("*.exe"):
         sh_cmd = sh_cmd.with_name(sh_cmd.name + ".exe")
 
-    is_default = sh_cmd.match("python.exe") or sh_cmd.match("py.exe")
+    is_wdefault = sh_cmd.match("pythonw.exe") or sh_cmd.match("pyw.exe")
+    is_default = is_wdefault or sh_cmd.match("python.exe") or sh_cmd.match("py.exe")
 
     for i in cmd.get_installs():
         if is_default and i.get("default"):
-            return i
+            if is_wdefault:
+                target = [t for t in i.get("run-for", []) if t.get("windowed")]
+                if target:
+                    return {**i, "executable": i["prefix"] / target[0]["target"]}
+            return {**i, "executable": i["prefix"] / i["executable"]}
         for a in i.get("alias", ()):
             if sh_cmd.match(a["name"]):
                 LOGGER.debug("Matched alias %s in %s", a["name"], i["id"])
@@ -35,7 +40,10 @@ def _find_shebang_command(cmd, full_cmd):
             LOGGER.debug("Matched executable %s in %s", i["executable"], i["id"])
             return i
 
-    # Fallback search for 'python<TAG>.exe' shebangs
+    # Fallback search for 'python[w]<TAG>.exe' shebangs
+    if sh_cmd.match("pythonw*.exe"):
+        tag = sh_cmd.name[7:-4]
+        return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=True)
     if sh_cmd.match("python*.exe"):
         tag = sh_cmd.name[6:-4]
         return cmd.get_install_to_run(f"PythonCore/{tag}")

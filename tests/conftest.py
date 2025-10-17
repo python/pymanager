@@ -17,6 +17,8 @@ if not hasattr(_native, "coinitialize"):
         if k[:1] not in ("", "_"):
             setattr(_native, k, getattr(_native_test, k))
 
+_native.coinitialize()
+
 
 # Importing in order carefully to ensure the variables we override are handled
 # correctly by submodules.
@@ -147,6 +149,7 @@ def localserver():
 
 class FakeConfig:
     def __init__(self, global_dir, installs=[]):
+        self.root = global_dir.parent if global_dir else None
         self.global_dir = global_dir
         self.confirm = False
         self.installs = list(installs)
@@ -204,6 +207,14 @@ class RegistryFixture:
                     winreg.SetValueEx(_subkey, k, None, winreg.REG_QWORD, v)
             else:
                 raise TypeError("unsupported type in registry")
+
+    def getvalue(self, subkey, valuename):
+        with winreg.OpenKeyEx(self.key, subkey) as key:
+            return winreg.QueryValueEx(key, valuename)[0]
+
+    def getvalueandkind(self, subkey, valuename):
+        with winreg.OpenKeyEx(self.key, subkey) as key:
+            return winreg.QueryValueEx(key, valuename)
 
 
 @pytest.fixture(scope='function')

@@ -122,7 +122,7 @@ launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWO
         goto exit;
     }
 
-    si.dwFlags = STARTF_USESTDHANDLES;
+    si.dwFlags |= STARTF_USESTDHANDLES;
     if (!CreateProcessW(executable, newCmdLine, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
         lastError = GetLastError();
         goto exit;

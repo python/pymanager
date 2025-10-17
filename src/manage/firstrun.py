@@ -248,6 +248,51 @@ def check_any_install(cmd):
     return True
 
 
+def _list_available_fallback_runtimes(cmd):
+    from .commands import find_command
+
+    candidates = []
+    try:
+        list_cmd = find_command(["list", "--online", "-1", "default"], cmd.root)
+        list_cmd.formatter_callable = lambda cmd, installs: candidates.extend(installs)
+        list_cmd.fallback_source_only = True
+        list_cmd.execute()
+        if not candidates:
+            list_cmd.fallback_source_only = False
+            list_cmd.execute()
+    except Exception:
+        LOGGER.debug("Check skipped: Failed to find 'list' command.", exc_info=True)
+        return []
+    except SystemExit:
+        LOGGER.debug("Check skipped: Failed to execute 'list' command.")
+        return []
+
+    return candidates
+
+
+def check_latest_install(cmd):
+    LOGGER.debug("Checking if any default runtime is installed")
+
+    available = _list_available_fallback_runtimes(cmd)
+    if not available:
+        return "skip"
+
+    installs = cmd.get_installs(include_unmanaged=True, set_default=False)
+    if not installs:
+        LOGGER.debug("Check failed: no installs found")
+        return False
+
+    present = {i.get("tag") for i in installs}
+    available = set(j for i in available for j in i.get("install-for", []))
+    LOGGER.debug("Already installed: %s", sorted(present))
+    LOGGER.debug("Available: %s", sorted(available))
+    if available & present:
+        LOGGER.debug("Check passed: installs found")
+        return True
+    LOGGER.debug("Check failed: no equivalent 'default' runtime installed")
+    return False
+
+
 def do_install(cmd):
     from .commands import find_command
     try:
@@ -360,16 +405,19 @@ def first_run(cmd):
             welcome()
             line_break()
             shown_any = True
-            LOGGER.print("!Y!The directory for versioned Python commands is not "
+            LOGGER.print("!Y!The global shortcuts directory is not "
                          "configured.!W!", level=logging.WARN)
-            LOGGER.print("\nThis will prevent commands like !B!python3.14.exe!W! "
-                         "working, but will not affect the !B!python!W! or "
-                         "!B!py!W! commands (for example, !B!py -V:3.14!W!).",
+            LOGGER.print("\nConfiguring this enables commands like "
+                         "!B!python3.14.exe!W! to run from your terminal, "
+                         "but is not needed for the !B!python!W! or !B!py!W! "
+                         "commands (for example, !B!py -V:3.14!W!).",
                          wrap=True)
-            LOGGER.print("\nWe can add the directory to PATH now, but you will "
-                         "need to restart your terminal to see the change, and "
-                         "must manually edit environment variables to later "
-                         "remove the entry.\n", wrap=True)
+            LOGGER.print("\nWe can add the directory (!B!%s!W!) to PATH now, "
+                         "but you will need to restart your terminal to use "
+                         "it. The entry will be removed if you run !B!py "
+                         "uninstall --purge!W!, or else you can remove it "
+                         "manually when uninstalling Python.\n", cmd.global_dir,
+                         wrap=True)
             if (
                 not cmd.confirm or
                 not cmd.ask_ny("Add commands directory to your PATH now?")
@@ -398,6 +446,22 @@ def first_run(cmd):
                 do_install(cmd)
         elif cmd.explicit:
             LOGGER.info("Checked for any Python installs")
+
+    if cmd.check_latest_install:
+        if not check_latest_install(cmd):
+            welcome()
+            line_break()
+            shown_any = True
+            LOGGER.print("!Y!You do not have the latest Python runtime.!W!",
+                         level=logging.WARN)
+            LOGGER.print("\nInstall the current latest version of CPython? If "
+                         "not, you can use '!B!py install default!W!' later to "
+                         "install.\n", wrap=True)
+            LOGGER.info("")
+            if not cmd.confirm or cmd.ask_yn("Install CPython now?"):
+                do_install(cmd)
+        elif cmd.explicit:
+            LOGGER.info("Checked for the latest available Python install")
 
     if shown_any or cmd.explicit:
         line_break()

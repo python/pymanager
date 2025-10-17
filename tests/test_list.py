@@ -31,7 +31,9 @@ class ListCapture:
         self.captured = []
         self.source = None
         self.install_dir = "<none>"
+        self.default_platform = "-64"
         self.format = "test"
+        self.formatter_callable = None
         self.one = False
         self.unmanaged = True
         list_command.FORMATTERS["test"] = lambda c, i: self.captured.extend(i)
@@ -223,3 +225,12 @@ def test_csv_expand():
         dict(a=5, b=[6]),
         dict(a=7, b=8),
     ]
+
+
+def test_formats(assert_log):
+    list_command.list_formats(None, ["fake", "installs", "that", "should", "crash", 123])
+    assert_log(
+        r".*Format\s+Description",
+        r"table\s+Lists.+",
+        # Assume the rest are okay
+    )

@@ -22,7 +22,7 @@ LOGGER = logging.LOGGER
 # or check out the docs for administrative controls:
 #    https://docs.python.org/using/windows
 DEFAULT_SOURCE_URL = "https://www.python.org/ftp/python/index-windows.json"
-DEFAULT_TAG = "3.14"
+DEFAULT_TAG = "3"
 
 
 # TODO: Remove the /dev/ for stable release
@@ -84,12 +84,12 @@ PYMANAGER_USAGE_DOCS = [
 ]
 
 
-GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must come after a command)!W!
+GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must follow the command)!W!
     -v, --verbose    Increased output (!B!log_level={logging.INFO}!W!)
     -vv              Further increased output (!B!log_level={logging.DEBUG}!W!)
     -q, --quiet      Less output (!B!log_level={logging.WARN}!W!)
     -qq              Even less output (!B!log_level={logging.ERROR}!W!)
-    -y, --yes        Always confirm prompts (!B!confirm=false!W!)
+    -y, --yes        Always accept confirmation prompts (!B!confirm=false!W!)
     -h, -?, --help   Show help for a specific command
     --config=!B!<PATH>!W!  Override configuration with JSON file
 """
@@ -251,6 +251,8 @@ CONFIG_SCHEMA = {
         "fallback_source": (str, None, "env", "path", "uri"),
         "enable_shortcut_kinds": (str, config_split_append),
         "disable_shortcut_kinds": (str, config_split_append),
+        "default_install_tag": (str, None),
+        "preserve_site_on_upgrade": (config_bool, None),
     },
 
     "first_run": {
@@ -260,6 +262,7 @@ CONFIG_SCHEMA = {
         "check_long_paths": (config_bool, None, "env"),
         "check_py_on_path": (config_bool, None, "env"),
         "check_any_install": (config_bool, None, "env"),
+        "check_latest_install": (config_bool, None, "env"),
         "check_global_dir": (config_bool, None, "env"),
     },
 
@@ -371,7 +374,11 @@ class BaseCommand:
                 seen_cmd = True
             elif a.startswith(("-", "/")):
                 a, sep, v = a.partition(":")
-                if not sep:
+                if sep:
+                    if "=" in a:
+                        a, sep, v_pre = a.partition("=")
+                        v = f"{v_pre}:{v}"
+                else:
                     a, sep, v = a.partition("=")
                 set_next = a.lstrip("-/").lower()
                 try:
@@ -665,22 +672,23 @@ Shows installed Python runtimes, optionally filtered or formatted.
 > py list !B![options] [<FILTER> ...]!W!
 
 !G!Options:!W!
-    -f, --format=!B!<table,json,jsonl,id,exe,prefix>!W!
-                     Specify output formatting (!B!list.format=...!W!)
-    -1, --one        Only display first result
+    -f, --format=!B!<table,json,jsonl,csv,exe,prefix,url,formats>!W!
+                     Specify list format, defaults to !B!table!W!.
+                     Pass !B!-f formats!W! for the full list of formats.
+    -1, --one        Only display first result that matches the filter
     --online         List runtimes available to install from the default index
     -s, --source=!B!<URL>!W!
                      List runtimes from a particular index
-    --only-managed   Only list Python installs managed by the tool (!B!list.unmanaged=false!W!)
+    --only-managed   Only list Python installs managed by the tool
     <FILTER>         Filter results (Company\Tag with optional <, <=, >, >= prefix)
 
 !B!EXAMPLE:!W! List all installed runtimes
 > py list
 
-!B!EXAMPLE:!W! Display executable of default runtime
+!B!EXAMPLE:!W! Display the executable of the default runtime
 > py list --one -f=exe
 
-!B!EXAMPLE:!W! Show JSON details for all installs since 3.10
+!B!EXAMPLE:!W! Show JSON details for each install since 3.10
 > py list -f=jsonl >=3.10
 
 !B!EXAMPLE:!W! Find 3.12 runtimes available for install
@@ -691,8 +699,13 @@ Shows installed Python runtimes, optionally filtered or formatted.
     one = False
     unmanaged = True
     source = None
+    fallback_source = None
     default_source = False
     keep_log = False
+
+    # Not settable from the CLI/config, but used internally
+    formatter_callable = None
+    fallback_source_only = False
 
     def execute(self):
         from .list_command import execute
@@ -701,6 +714,7 @@ Shows installed Python runtimes, optionally filtered or formatted.
             LOGGER.debug("Loading 'install' command to get source")
             inst_cmd = COMMANDS["install"](["install"], self.root)
             self.source = inst_cmd.source
+            self.fallback_source = inst_cmd.fallback_source
         if self.source and "://" not in str(self.source):
             try:
                 self.source = Path(self.source).absolute().as_uri()
@@ -789,12 +803,16 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     from_script = None
     enable_shortcut_kinds = None
     disable_shortcut_kinds = None
+    default_install_tag = None
+    preserve_site_on_upgrade = True
 
     def __init__(self, args, root=None):
         super().__init__(args, root)
 
         if not self.source:
             self.source = DEFAULT_SOURCE_URL
+        if not self.default_install_tag:
+            self.default_install_tag = self.default_tag
         if "://" not in str(self.source):
             try:
                 self.source = Path(self.source).absolute().as_uri()
@@ -912,6 +930,8 @@ class HelpWithErrorCommand(HelpCommand):
     def __init__(self, args, root=None):
         # Essentially disable argument processing for this command
         super().__init__(args[:1], root)
+        # First argument was "**help_with_error", so ignore it.
+        # Subsequent arguments should be what was originally passed
         self.args = args[1:]
 
     def execute(self):
@@ -968,7 +988,8 @@ class FirstRun(BaseCommand):
     check_app_alias = True
     check_long_paths = True
     check_py_on_path = True
-    check_any_install = True
+    check_any_install = False
+    check_latest_install = True
     check_global_dir = True
 
     def execute(self):

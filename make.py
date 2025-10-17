@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 from subprocess import check_call as run
-from _make_helper import get_dirs, rmtree, unlink
+from _make_helper import get_dirs, rmtree
 
 # Clean DEBUG flag in case it affects build
 os.environ["PYMANAGER_DEBUG"] = ""

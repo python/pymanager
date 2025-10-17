@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <windows.h>
 #include <bits.h>
+#include <winhttp.h>
 #include <typeinfo>
 
 #include "helpers.h"
@@ -204,6 +205,30 @@ PyObject *bits_serialize_job(PyObject *, PyObject *args, PyObject *kwargs) {
 }
 
 
+static HRESULT _job_setproxy(IBackgroundCopyJob *job) {
+    WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxy_config = { 0 };
+    if (WinHttpGetIEProxyConfigForCurrentUser(&proxy_config)) {
+        if (proxy_config.lpszProxy || proxy_config.lpszAutoConfigUrl || proxy_config.fAutoDetect) {
+            // Global settings are present, and so BITS's default behaviour
+            // should be fine.
+            if (proxy_config.lpszProxy) {
+                GlobalFree(proxy_config.lpszProxy);
+            }
+            if (proxy_config.lpszProxyBypass) {
+                GlobalFree(proxy_config.lpszProxyBypass);
+            }
+            if (proxy_config.lpszAutoConfigUrl) {
+                GlobalFree(proxy_config.lpszAutoConfigUrl);
+            }
+            return S_OK;
+        }
+    }
+
+    // Probably no static settings, so tell BITS to do autodetection.
+    return job->SetProxySettings(BG_JOB_PROXY_USAGE_AUTODETECT, NULL, NULL);
+}
+
+
 static HRESULT _job_setcredentials(IBackgroundCopyJob *job, wchar_t *username, wchar_t *password) {
     IBackgroundCopyJob2 *job2 = NULL;
     HRESULT hr;
@@ -254,6 +279,10 @@ PyObject *bits_begin(PyObject *, PyObject *args, PyObject *kwargs) {
     if (FAILED(hr = _inject_hr[0])
         || FAILED(hr = bcm->CreateJob(name, BG_JOB_TYPE_DOWNLOAD, &jobId, &job))) {
         error_from_bits_hr(bcm, hr, "Creating download job");
+        goto done;
+    }
+    if (FAILED(hr = _job_setproxy(job))) {
+        error_from_bits_hr(bcm, hr, "Setting proxy");
         goto done;
     }
     if ((username || password) && FAILED(hr = _job_setcredentials(job, username, password))) {

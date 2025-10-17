@@ -295,7 +295,20 @@ def update_all_shortcuts(cmd):
     shortcut_written = {}
     for i in cmd.get_installs():
         if cmd.global_dir:
-            for a in i.get("alias", ()):
+            aliases = i.get("alias", ())
+
+            # Generate a python.exe for the default runtime in case the user
+            # later disables/removes the global python.exe command.
+            if i.get("default"):
+                aliases = list(i.get("alias", ()))
+                alias_1 = [a for a in aliases if not a.get("windowed")]
+                alias_2 = [a for a in aliases if a.get("windowed")]
+                if alias_1:
+                    aliases.append({**alias_1[0], "name": "python.exe"})
+                if alias_2:
+                    aliases.append({**alias_2[0], "name": "pythonw.exe"})
+
+            for a in aliases:
                 if a["name"].casefold() in alias_written:
                     continue
                 target = i["prefix"] / a["target"]
@@ -445,6 +458,101 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     return package
 
 
+def _should_preserve_on_upgrade(cmd, root, path):
+    if path.match("site-packages"):
+        return True
+    if path.parent == root and path.match("Scripts"):
+        return True
+    return False
+
+
+def _preserve_site(cmd, root):
+    if not root.is_dir():
+        return None
+    if not cmd.preserve_site_on_upgrade:
+        LOGGER.verbose("Not preserving site directory because of config")
+        return None
+    if cmd.force:
+        LOGGER.verbose("Not preserving site directory because of --force")
+        return None
+    if cmd.repair:
+        LOGGER.verbose("Not preserving site directory because of --repair")
+        return None
+    state = []
+    i = 0
+    dirs = [root]
+    target_root = root.with_name(f"_{root.name}")
+    target_root.mkdir(parents=True, exist_ok=True)
+    while dirs:
+        if _should_preserve_on_upgrade(cmd, root, dirs[0]):
+            while True:
+                target = target_root / str(i)
+                i += 1
+                try:
+                    unlink(target)
+                    break
+                except FileNotFoundError:
+                    break
+                except OSError:
+                    LOGGER.verbose("Failed to remove %s.", target)
+            try:
+                LOGGER.info("Preserving %s during update.", dirs[0].relative_to(root))
+            except ValueError:
+                # Just in case a directory goes weird, so we don't break
+                LOGGER.verbose(exc_info=True)
+            LOGGER.verbose("Moving %s to %s", dirs[0], target)
+            try:
+                dirs[0].rename(target)
+            except OSError:
+                LOGGER.warn("Failed to preserve %s during update.", dirs[0])
+                LOGGER.verbose("TRACEBACK", exc_info=True)
+            else:
+                state.append((dirs[0], target))
+        else:
+            dirs.extend(d for d in dirs[0].iterdir() if d.is_dir())
+        dirs.pop(0)
+    # Append None, target_root last to clean up after restore is done
+    state.append((None, target_root))
+    return state
+
+
+def _restore_site(cmd, state):
+    if not state:
+        return
+    for dest, src in state:
+        if not dest:
+            LOGGER.verbose("Removing preserved directory at %s", src)
+            try:
+                rmtree(
+                    src,
+                    "Removing temporary files is taking some time. " +
+                    "You can continue to wait or press Ctrl+C to abort. " +
+                    "Python has been installed, but some harmless temporary " +
+                    "files may remain on disk."
+                )
+            except KeyboardInterrupt:
+                break
+            continue
+        LOGGER.verbose("Restoring %s from %s after update.", dest, src)
+        try:
+            for i in src.iterdir():
+                if not i.is_dir() and not i.is_file():
+                    LOGGER.verbose("Not restoring %s because it is not a " +
+                                   "normal file or directory.", i)
+                    continue
+                d = dest / i.name
+                if d.exists():
+                    LOGGER.verbose("Not restoring %s because %s exists", i, d)
+                    continue
+                LOGGER.verbose("Restoring %s to %s", i, d)
+                d.parent.mkdir(parents=True, exist_ok=True)
+                i.rename(d)
+            LOGGER.info("Restored %s", dest.name)
+        except OSError:
+            LOGGER.warn("Failed to restore %s during update.", dest)
+            LOGGER.verbose("TRACEBACK", exc_info=True)
+
+
 def _install_one(cmd, source, install, *, target=None):
     if cmd.repair:
         LOGGER.info("Repairing %s.", install['display-name'])
@@ -461,6 +569,8 @@ def _install_one(cmd, source, install, *, target=None):
     package = _download_one(cmd, source, install, cmd.download_dir)
 
     dest = target or (cmd.install_dir / install["id"])
+
+    preserved_site = _preserve_site(cmd, dest)
 
     LOGGER.verbose("Extracting %s to %s", package, dest)
     if not cmd.repair:
@@ -531,7 +641,28 @@ def _install_one(cmd, source, install, *, target=None):
         with open(dest / "__install__.json", "w", encoding="utf-8") as f:
             json.dump(install, f, default=str)
 
+    _restore_site(cmd, preserved_site)
+
     LOGGER.verbose("Install complete")
+
+
+def _merge_existing_index(versions, index_json):
+    try:
+        with open(index_json, "r", encoding="utf-8") as f:
+            existing_index = json.load(f)
+        list(existing_index["versions"])
+    except FileNotFoundError:
+        pass
+    except (json.JSONDecodeError, KeyError, ValueError):
+        LOGGER.warn("Existing index file appeared invalid and was overwritten.")
+        LOGGER.debug("TRACEBACK", exc_info=True)
+    else:
+        LOGGER.debug("Merging into existing %s", index_json)
+        current = {i["url"].casefold() for i in versions}
+        for install in existing_index["versions"]:
+            if install.get("url", "").casefold() not in current:
+                LOGGER.debug("Merging %s", install.get("url", "<unspecified>"))
+                versions.append(install)
 
 
 def _fatal_install_error(cmd, ex):
@@ -553,6 +684,12 @@ def _fatal_install_error(cmd, ex):
 
 def execute(cmd):
     LOGGER.debug("BEGIN install_command.execute: %r", cmd.args)
+
+    cmd.tags = []
+
+    if cmd.virtual_env:
+        LOGGER.debug("Clearing virtual_env setting to avoid conflicts during install.")
+        cmd.virtual_env = None
 
     if cmd.refresh:
         if cmd.args:
@@ -580,11 +717,10 @@ def execute(cmd):
     download_index = {"versions": []}
 
     if not cmd.by_id:
-        cmd.tags = []
         for arg in cmd.args:
             if arg.casefold() == "default".casefold():
-                LOGGER.debug("Replacing 'default' with '%s'", cmd.default_tag)
-                cmd.tags.append(tag_or_range(cmd.default_tag))
+                LOGGER.debug("Replacing 'default' with '%s'", cmd.default_install_tag)
+                cmd.tags.append(tag_or_range(cmd.default_install_tag))
             else:
                 try:
                     cmd.tags.append(tag_or_range(arg))
@@ -592,7 +728,7 @@ def execute(cmd):
                     LOGGER.warn("%s", ex)
 
         if not cmd.tags and cmd.automatic:
-            cmd.tags = [tag_or_range(cmd.default_tag)]
+            cmd.tags = [tag_or_range(cmd.default_install_tag)]
     else:
         if cmd.from_script:
             raise ArgumentError("Cannot use --by-id and --from-script together")
@@ -608,9 +744,9 @@ def execute(cmd):
             try:
                 tag = cmd.tags[0]
             except IndexError:
-                if cmd.default_tag:
-                    LOGGER.debug("No tags provided, installing default tag %s", cmd.default_tag)
-                    tag = cmd.default_tag
+                if cmd.default_install_tag:
+                    LOGGER.debug("No tags provided, installing default tag %s", cmd.default_install_tag)
+                    tag = cmd.default_install_tag
                 else:
                     LOGGER.debug("No tags provided, installing first runtime in feed")
                     tag = None
@@ -650,11 +786,8 @@ def execute(cmd):
             if spec:
                 cmd.tags.append(tag_or_range(spec))
             else:
-                cmd.tags.append(tag_or_range(cmd.default_tag))
+                cmd.tags.append(tag_or_range(cmd.default_install_tag))
 
-        if cmd.virtual_env:
-            LOGGER.debug("Clearing virtual_env setting to avoid conflicts during install.")
-            cmd.virtual_env = None
         installed = list(cmd.get_installs())
 
         if cmd.download:
@@ -752,6 +885,7 @@ def execute(cmd):
             return _fatal_install_error(cmd, ex)
 
         if cmd.download:
+            _merge_existing_index(download_index["versions"], cmd.download / "index.json")
             with open(cmd.download / "index.json", "w", encoding="utf-8") as f:
                 json.dump(download_index, f, indent=2, default=str)
             LOGGER.info("Offline index has been generated at !Y!%s!W!.", cmd.download)

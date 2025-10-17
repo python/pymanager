@@ -1,5 +1,4 @@
 import json
-import sys
 
 from . import logging
 from .exceptions import ArgumentError
@@ -34,6 +33,8 @@ def _ljust(s, n):
 
 
 def format_table(cmd, installs):
+    "Lists as a user-friendly table"
+
     columns = {
         "tag-with-co": "Tag",
         "default-star": " ",
@@ -143,6 +144,7 @@ def _csv_filter_and_expand(installs, *, exclude=CSV_EXCLUDE, expand=CSV_EXPAND):
 
 
 def format_csv(cmd, installs):
+    "List as a comma-separated value table"
     import csv
     installs = list(_csv_filter_and_expand(installs))
     if not installs:
@@ -160,15 +162,18 @@ def format_csv(cmd, installs):
 
 
 def format_json(cmd, installs):
+    "Lists as a single JSON object"
     LOGGER.print_raw(json.dumps({"versions": installs}, default=str))
 
 
 def format_json_lines(cmd, installs):
+    "Lists as JSON on each line"
     for i in installs:
         LOGGER.print_raw(json.dumps(i, default=str))
 
 
 def format_bare_id(cmd, installs):
+    "Lists the runtime ID"
     for i in installs:
         # Don't print useless values (__active-virtual-env, __unmanaged-)
         if i["id"].startswith("__"):
@@ -177,11 +182,13 @@ def format_bare_id(cmd, installs):
 
 
 def format_bare_exe(cmd, installs):
+    "Lists the main executable path"
     for i in installs:
         LOGGER.print_raw(i["executable"])
 
 
 def format_bare_prefix(cmd, installs):
+    "Lists the prefix directory"
     for i in installs:
         try:
             LOGGER.print_raw(i["prefix"])
@@ -190,6 +197,7 @@ def format_bare_prefix(cmd, installs):
 
 
 def format_bare_url(cmd, installs):
+    "Lists the original source URL"
     for i in installs:
         try:
             LOGGER.print_raw(i["url"])
@@ -197,7 +205,25 @@ def format_bare_url(cmd, installs):
             pass
 
 
+def list_formats(cmd, installs):
+    "List the available list formats"
+    max_key_width = len("Format")
+    items = []
+    for k, v in FORMATTERS.items():
+        try:
+            doc = v.__doc__.partition("\n")[0].strip()
+        except AttributeError:
+            doc = ""
+        if len(k) > max_key_width:
+            max_key_width = len(k)
+        items.append((k, doc))
+    LOGGER.print(f"!B!{'Format':<{max_key_width}} Description!W!", always=True)
+    for k, doc in items:
+        LOGGER.print(f"{k:<{max_key_width}} {doc}", always=True)
+
+
 def format_legacy(cmd, installs, paths=False):
+    "List runtimes using the old format"
     seen_default = False
     # TODO: Filter out unmanaged runtimes that have managed equivalents
     # The default order (which should be preserved) of 'installs' will put the
@@ -219,6 +245,11 @@ def format_legacy(cmd, installs, paths=False):
         LOGGER.print_raw(tag.ljust(17), i["executable"] if paths else i["display-name"])
 
 
+def format_legacy_paths(cmd, installs):
+    "List runtime paths using the old format"
+    return format_legacy(cmd, installs, paths=True)
+
+
 FORMATTERS = {
     "table": format_table,
     "csv": format_csv,
@@ -229,7 +260,8 @@ FORMATTERS = {
     "prefix": format_bare_prefix,
     "url": format_bare_url,
     "legacy": format_legacy,
-    "legacy-paths": lambda cmd, i: format_legacy(cmd, i, paths=True),
+    "legacy-paths": format_legacy_paths,
+    "formats": list_formats,
 }
 
 
@@ -252,16 +284,20 @@ def _get_installs_from_index(indexes, filters):
 def execute(cmd):
     LOGGER.debug("BEGIN list_command.execute: %r", cmd.args)
 
-    try:
-        LOGGER.debug("Get formatter %s", cmd.format)
-        formatter = FORMATTERS[cmd.format]
-    except LookupError:
-        formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
-        expect = ", ".join(sorted(formatters))
-        raise ArgumentError(f"'{cmd.format}' is not a valid format; expected one of: {expect}") from None
+    if cmd.formatter_callable:
+        formatter = cmd.formatter_callable
+    else:
+        try:
+            LOGGER.debug("Get formatter %s", cmd.format)
+            formatter = FORMATTERS[cmd.format]
+        except LookupError:
+            formatters = FORMATTERS.keys() - {"legacy", "legacy-paths"}
+            expect = ", ".join(sorted(formatters))
+            raise ArgumentError(f"'{cmd.format}' is not a valid format; expected one of: {expect}") from None
 
     from .tagutils import tag_or_range, install_matches_any
     tags = []
+    plat = None
     for arg in cmd.args:
         if arg.casefold() == "default".casefold():
             LOGGER.debug("Replacing 'default' with '%s'", cmd.default_tag)
@@ -269,19 +305,46 @@ def execute(cmd):
         else:
             try:
                 tags.append(tag_or_range(arg))
+                try:
+                    if not plat:
+                        plat = tags[-1].platform
+                except AttributeError:
+                    pass
             except ValueError as ex:
                 LOGGER.warn("%s", ex)
+    plat = plat or cmd.default_platform
 
     if cmd.source:
         from .indexutils import Index
         from .urlutils import IndexDownloader
-        try:
-            installs = _get_installs_from_index(
-                IndexDownloader(cmd.source, Index, disk_cache=cmd.download_dir),
-                tags,
-            )
-        except OSError as ex:
-            raise SystemExit(1) from ex
+        installs = []
+        first_exc = None
+        for source in [
+            None if cmd.fallback_source_only else cmd.source,
+            cmd.fallback_source,
+        ]:
+            if source:
+                try:
+                    installs = _get_installs_from_index(
+                        IndexDownloader(source, Index, disk_cache=cmd.download_dir),
+                        tags,
+                    )
+                    break
+                except OSError as ex:
+                    if first_exc is None:
+                        first_exc = ex
+        if first_exc:
+            raise SystemExit(1) from first_exc
+        if cmd.one:
+            # Pick the first non-prerelease that'll install for our platform
+            best = [i for i in installs
+                    if any(t.endswith(plat) for t in i.get("install-for", []))]
+            for i in best:
+                if not i["sort-version"].is_prerelease:
+                    installs = [i]
+                    break
+            else:
+                installs = best[:1] or installs
     elif cmd.install_dir:
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)

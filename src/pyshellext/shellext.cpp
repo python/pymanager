@@ -335,6 +335,41 @@ public:
 };
 
 
+class PyManagerOperationInProgress
+{
+    HANDLE hGlobalSem;
+    bool busy;
+
+    bool _create() {
+        hGlobalSem = CreateSemaphoreExW(NULL, 0, 1,
+            L"PyManager-OperationInProgress", 0, SEMAPHORE_MODIFY_STATE | SYNCHRONIZE);
+
+        return (hGlobalSem && GetLastError() != ERROR_ALREADY_EXISTS);
+    }
+
+public:
+    PyManagerOperationInProgress()
+    {
+        busy = _create();
+    }
+
+    ~PyManagerOperationInProgress()
+    {
+        if (hGlobalSem) {
+            if (!busy) {
+                ReleaseSemaphore(hGlobalSem, 1, NULL);
+            }
+            CloseHandle(hGlobalSem);
+        }
+    }
+
+    operator bool()
+    {
+        return hGlobalSem && !busy;
+    }
+};
+
+
 class DECLSPEC_UUID(CLSID_IDLE_COMMAND) IdleCommand
     : public RuntimeClass<RuntimeClassFlags<ClassicCom>, IExplorerCommand, IObjectWithSite>
 {
@@ -429,7 +464,11 @@ public:
 
     IFACEMETHODIMP GetState(IShellItemArray *psiItemArray, BOOL fOkToBeSlow, EXPCMDSTATE *pCmdState)
     {
-        *pCmdState = idles.size() ? ECS_ENABLED : ECS_HIDDEN;
+        if (title.empty()) {
+            *pCmdState = ECS_HIDDEN;
+            return S_OK;
+        }
+        *pCmdState = idles.size() ? ECS_ENABLED : ECS_DISABLED;
         return S_OK;
     }
 

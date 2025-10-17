@@ -292,11 +292,7 @@ def _write_alias(cmd, install, alias, target, _link=os.link):
                 except FileNotFoundError:
                     raise
                 except OSError:
-                    LOGGER.debug("Failed to create hard link from fallback launcher")
-                    try:
-                        launcher_bytes = launcher2.read_bytes()
-                    except OSError:
-                        LOGGER.debug("Failed to read fallback launcher", exc_info=True)
+                    LOGGER.debug("Failed to create hard link to fallback launcher")
                     launcher2 = None
             if not launcher2:
                 try:

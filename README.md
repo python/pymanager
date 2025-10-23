@@ -67,7 +67,8 @@ as if it was properly installed.
 
 # Contributions
 
-Contributions are welcome under all the same conditions as for CPython.
+Contributions are welcome under all the same conditions as for CPython, see
+the [Python Developer's Guide](https://devguide.python.org/) for more information.
 
 # Release Schedule
 

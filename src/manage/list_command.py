@@ -326,7 +326,7 @@ def execute(cmd):
             if source:
                 try:
                     installs = _get_installs_from_index(
-                        IndexDownloader(source, Index),
+                        IndexDownloader(source, Index, disk_cache=cmd.download_dir),
                         tags,
                     )
                     break

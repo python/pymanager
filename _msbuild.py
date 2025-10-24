@@ -102,7 +102,7 @@ def main_exe(name):
         ItemDefinition('Link',
             SubSystem='CONSOLE',
             DelayLoadDLLs=f'{DLL_NAME}.dll;ole32.dll;shell32.dll;advapi32.dll',
-            DisableSpecificWarnings=Prepend('4199;'),
+            AdditionalOptions=Prepend('/IGNORE:4199 '),
         ),
         INCLUDE_TMPDIR,
         Manifest('default.manifest'),
@@ -124,7 +124,7 @@ def mainw_exe(name):
         ItemDefinition('Link',
             SubSystem='WINDOWS',
             DelayLoadDLLs=f'{DLL_NAME}.dll;ole32.dll;shell32.dll;advapi32.dll',
-            DisableSpecificWarnings=Prepend('4199;'),
+            AdditionalOptions=Prepend('/IGNORE:4199 '),
         ),
         INCLUDE_TMPDIR,
         ItemDefinition('ClCompile', PreprocessorDefinitions=Prepend(f'EXE_NAME=L"{name}";')),
@@ -296,6 +296,12 @@ def _make_xyzw_version(v, sep="."):
     return sep.join(map(str, (v.major, v.minor, micro, 0)))
 
 
+def _is_prerelease(v):
+    from packaging.version import parse
+    v = parse(v)
+    return bool(v.pre)
+
+
 def _patch_appx_identity(source, dest, **new):
     from xml.etree import ElementTree as ET
     NS = {}
@@ -335,7 +341,7 @@ def update_file(file, content):
 def init_METADATA():
     import os, re
     _, sep, version = os.getenv("BUILD_SOURCEBRANCH", os.getenv("GITHUB_REF", "")).rpartition("/")
-    if sep and "." in version:
+    if "." in version:
         from packaging.version import parse
         try:
             # Looks like a version tag
@@ -358,6 +364,8 @@ def init_PACKAGE(tag=None):
 
     tmpdir = get_current_build_state().temp_dir
     INCLUDE_TMPDIR.options["AdditionalIncludeDirectories"] = Prepend(f"{tmpdir};")
+
+    pre = _is_prerelease(METADATA["Version"])
 
     # GENERATE _version MODULE
     ver_py = tmpdir / "_version.py"
@@ -384,6 +392,9 @@ def init_PACKAGE(tag=None):
 
     appinstaller = tmpdir / "pymanager.appinstaller"
     _patch_appinstaller(PACKAGE.find("pymanager.appinstaller").source, appinstaller,
+        # Prerelease builds use a separate online appinstaller file
+        # Release builds upload to both files, to move beta users onto final
+        AppInstallerName="pymanager-preview" if pre else "pymanager",
         Version=appx_version,
         Publisher=appx_publisher,
         Url=appx_url,

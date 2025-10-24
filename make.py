@@ -21,9 +21,8 @@ if "-i" not in sys.argv:
 
 ref = "none"
 try:
-    if os.getenv("BUILD_SOURCEBRANCH"):
-        ref = os.getenv("BUILD_SOURCEBRANCH")
-    else:
+    ref = os.getenv("BUILD_SOURCEBRANCH", os.getenv("GITHUB_REF", ""))
+    if not ref:
         with subprocess.Popen(
             ["git", "describe", "HEAD", "--tags"],
             stdout=subprocess.PIPE,

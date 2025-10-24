@@ -2,7 +2,7 @@
 <AppInstaller
     xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
     Version="${Version}"
-    Uri="${Url}/pymanager.appinstaller">
+    Uri="${Url}/${AppInstallerName}.appinstaller">
 
     <MainPackage
         Name="PythonSoftwareFoundation.PythonManager"

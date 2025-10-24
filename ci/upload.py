@@ -209,7 +209,13 @@ else:
             u = UPLOAD_URL + f.name
             UPLOADS.append((f, u, url2path(u)))
 
-    # pymanager.appinstaller may be uploaded to either the preview URL or both.
+    # pymanager.appinstaller is always uploaded to the pymanager-preview URL,
+    # and where the file specifies a different location, is also updated as its
+    # own filename. Later validation checks that the URL listed in the file is
+    # one of the planned uploads. If we ever need to release an update for the
+    # "main" line but not prereleases, this code would have to be modified
+    # (but more likely we'd just immediately modify or replace
+    # 'pymanager.appinstaller' on the download server).
     f = UPLOAD_DIR / "pymanager.appinstaller"
     if f.is_file():
         u = UPLOAD_URL + "pymanager-preview.appinstaller"

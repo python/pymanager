@@ -244,7 +244,7 @@ typedef enum {
 PyObject *get_processor_architecture(PyObject *, PyObject *, PyObject *) {
     SYSTEM_INFO system_info;
     GetNativeSystemInfo(&system_info);
-    
+
     switch (system_info.wProcessorArchitecture) {
         case CPU_X86: return PyUnicode_FromString("-32");
         case CPU_X86_64: return PyUnicode_FromString("-64");

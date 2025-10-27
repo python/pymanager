@@ -8,7 +8,7 @@ from xml.etree import ElementTree as ET
 UPLOAD_URL_PREFIX = os.getenv("UPLOAD_URL_PREFIX", "https://www.python.org/ftp/")
 UPLOAD_PATH_PREFIX = os.getenv("UPLOAD_PATH_PREFIX", "/srv/www.python.org/ftp/")
 UPLOAD_URL = os.getenv("UPLOAD_URL")
-UPLOAD_DIR = os.getenv("UPLOAD_DIR")
+UPLOAD_DIR = os.getenv("UPLOAD_DIR", "dist")
 UPLOAD_HOST = os.getenv("UPLOAD_HOST", "")
 UPLOAD_HOST_KEY = os.getenv("UPLOAD_HOST_KEY", "")
 UPLOAD_KEYFILE = os.getenv("UPLOAD_KEYFILE", "")
@@ -126,6 +126,25 @@ def url2path(url):
     return UPLOAD_PATH_PREFIX + url[len(UPLOAD_URL_PREFIX) :]
 
 
+def appinstaller_uri_matches(file, name):
+    NS = {}
+    with open(file, "r", encoding="utf-8") as f:
+        NS = dict(e for _, e in ET.iterparse(f, events=("start-ns",)))
+    for k, v in NS.items():
+        ET.register_namespace(k, v)
+    NS["x"] = NS[""]
+
+    with open(file, "r", encoding="utf-8") as f:
+        xml = ET.parse(f)
+
+    self_uri = xml.find(".[@Uri]", NS).get("Uri")
+    if not self_uri:
+        print("##[error]Empty Uri attribute in appinstaller file")
+        sys.exit(2)
+
+    return self_uri.rpartition("/")[2].casefold() == name.casefold()
+
+
 def validate_appinstaller(file, uploads):
     NS = {}
     with open(file, "r", encoding="utf-8") as f:
@@ -141,10 +160,8 @@ def validate_appinstaller(file, uploads):
     if not self_uri:
         print("##[error]Empty Uri attribute in appinstaller file")
         sys.exit(2)
-    if not any(
-        u.casefold() == self_uri.casefold() and f == file
-        for f, u, _ in uploads
-    ):
+    upload_targets = [u for f, u, _ in uploads if f == file]
+    if not any(u.casefold() == self_uri.casefold() for u in upload_targets):
         print("##[error]Uri", self_uri, "in appinstaller file is not where "
               "the appinstaller file is being uploaded.")
         sys.exit(2)
@@ -164,6 +181,8 @@ def validate_appinstaller(file, uploads):
     print(file, "checked:")
     print("-", package_uri, "is part of this upload")
     print("-", self_uri, "is the destination of this file")
+    if len(upload_targets) > 1:
+        print(" - other destinations:", *(set(upload_targets) - set([self_uri])))
     print()
 
 
@@ -185,8 +204,24 @@ if UPLOADING_INDEX:
         u = UPLOAD_URL + f.name
         UPLOADS.append((f, u, url2path(u)))
 else:
-    for pat in ("python-manager-*.msix", "python-manager-*.msi", "pymanager.appinstaller"):
+    for pat in ("python-manager-*.msix", "python-manager-*.msi"):
         for f in UPLOAD_DIR.glob(pat):
+            u = UPLOAD_URL + f.name
+            UPLOADS.append((f, u, url2path(u)))
+
+    # pymanager.appinstaller is always uploaded to the pymanager-preview URL,
+    # and where the file specifies a different location, is also updated as its
+    # own filename. Later validation checks that the URL listed in the file is
+    # one of the planned uploads. If we ever need to release an update for the
+    # "main" line but not prereleases, this code would have to be modified
+    # (but more likely we'd just immediately modify or replace
+    # 'pymanager.appinstaller' on the download server).
+    f = UPLOAD_DIR / "pymanager.appinstaller"
+    if f.is_file():
+        u = UPLOAD_URL + "pymanager-preview.appinstaller"
+        UPLOADS.append((f, u, url2path(u)))
+
+        if not appinstaller_uri_matches(f, "pymanager-preview.appinstaller"):
             u = UPLOAD_URL + f.name
             UPLOADS.append((f, u, url2path(u)))
 
@@ -196,9 +231,8 @@ for f, u, p in UPLOADS:
     print(f"  Final URL: {u}")
 print()
 
-for f, *_ in UPLOADS:
-    if f.match("*.appinstaller"):
-        validate_appinstaller(f, UPLOADS)
+for f in {f for f, *_ in UPLOADS if f.match("*.appinstaller")}:
+    validate_appinstaller(f, UPLOADS)
 
 for f, u, p in UPLOADS:
     print("Upload", f, "to", p)

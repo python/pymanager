@@ -520,7 +520,7 @@ class BaseCommand:
         except OSError:
             LOGGER.debug("Failed to update %s", last_update_file, exc_info=True)
             return
-        LOGGER.print(WELCOME)
+        LOGGER.info(WELCOME)
 
     def dump_arguments(self):
         try:
@@ -720,7 +720,10 @@ Shows installed Python runtimes, optionally filtered or formatted.
 
     def execute(self):
         from .list_command import execute
-        self.show_welcome()
+        # gh-203: Don't show welcome message for "-1" to minimise the risk of it
+        # mixing with parsed output.
+        if not self.one:
+            self.show_welcome()
         if self.default_source:
             LOGGER.debug("Loading 'install' command to get source")
             inst_cmd = COMMANDS["install"](["install"], self.root)

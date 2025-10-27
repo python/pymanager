@@ -72,11 +72,12 @@ the [Python Developer's Guide](https://devguide.python.org/) for more informatio
 
 # Release Schedule
 
-As this project is currently considered to be in prerelease stage,
-the release schedule is "as needed".
-
 The release manager for the Python Install Manager on Windows is whoever is the
-build manager for Windows for CPython.
+build manager for Windows for CPython. Currently, this is @zooba.
+
+Releases are made as needed, with prereleases made at the release manager's
+judgement. Due to the broad user base of PyManager, we have to avoid significant
+changes to its interface, which means feature development is heavily restricted.
 
 ## Versioning
 

@@ -124,9 +124,9 @@ def test_welcome(assert_log):
     welcome = firstrun._Welcome()
     assert_log(assert_log.end_of_log())
     welcome()
-    assert_log(".*Welcome.*", assert_log.end_of_log())
+    assert_log(".*Welcome.*", "", r"!B!\*+!W!", "", assert_log.end_of_log())
     welcome()
-    assert_log(".*Welcome.*", assert_log.end_of_log())
+    assert_log(".*Welcome.*", "", r"!B!\*+!W!", "", assert_log.end_of_log())
 
 
 

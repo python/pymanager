@@ -317,6 +317,7 @@ class _Welcome:
             self._shown = True
             LOGGER.print("!G!Welcome to the Python installation manager "
                          "configuration helper.!W!")
+            line_break()
 
 
 def line_break():
@@ -329,18 +330,17 @@ def first_run(cmd):
     if not cmd.enabled:
         return
 
+    shown_any = False
+
     welcome = _Welcome()
     if cmd.explicit:
         welcome()
-
-    shown_any = False
+        shown_any = True
 
     if cmd.check_app_alias:
         r = check_app_alias(cmd)
         if not r:
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!Your app execution alias settings are configured to launch "
                          "other commands besides 'py' and 'python'.!W!",
                          level=logging.WARN)
@@ -358,17 +358,18 @@ def first_run(cmd):
                             "!B!App execution aliases!W! page and scroll to the "
                             "'!B!Python!W!' entries to enable the new commands.",
                             wrap=True)
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             if r == "skip":
                 LOGGER.info("Skipped app execution aliases check")
             else:
                 LOGGER.info("Checked app execution aliases")
+            line_break()
 
     if cmd.check_long_paths:
         if not check_long_paths(cmd):
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!Windows is not configured to allow paths longer than "
                          "260 characters.!W!", level=logging.WARN)
             LOGGER.print("\nPython and some other apps can exceed this limit, "
@@ -378,33 +379,35 @@ def first_run(cmd):
                          "path support enabled.\n", wrap=True)
             if not cmd.confirm or not cmd.ask_ny("Update setting now?"):
                 do_configure_long_paths(cmd)
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             LOGGER.info("Checked system long paths setting")
+            line_break()
 
     if cmd.check_py_on_path:
         r = check_py_on_path(cmd)
         if not r:
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!The legacy 'py' command is still installed.!W!", level=logging.WARN)
             LOGGER.print("\nThis may interfere with launching the new 'py' "
                          "command, and may be resolved by uninstalling "
                          "'!B!Python launcher!W!'.\n", wrap=True)
             if cmd.confirm and not cmd.ask_ny("Open Installed apps now?"):
                 os.startfile("ms-settings:appsfeatures")
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             if r == "skip":
                 LOGGER.info("Skipped check for legacy 'py' command")
             else:
                 LOGGER.info("Checked PATH for legacy 'py' command")
+            line_break()
 
     if cmd.check_global_dir:
         r = check_global_dir(cmd)
         if not r:
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!The global shortcuts directory is not "
                          "configured.!W!", level=logging.WARN)
             LOGGER.print("\nConfiguring this enables commands like "
@@ -423,18 +426,19 @@ def first_run(cmd):
                 not cmd.ask_ny("Add commands directory to your PATH now?")
             ):
                 do_global_dir_on_path(cmd)
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             if r == "skip":
                 LOGGER.info("Skipped check for commands directory on PATH")
             else:
                 LOGGER.info("Checked PATH for versioned commands directory")
+            line_break()
 
     # This check must be last, because a failed install may exit the program.
     if cmd.check_any_install:
         if not check_any_install(cmd):
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!You do not have any Python runtimes installed.!W!",
                          level=logging.WARN)
             LOGGER.print("\nInstall the current latest version of CPython? If "
@@ -444,14 +448,15 @@ def first_run(cmd):
             LOGGER.info("")
             if not cmd.confirm or cmd.ask_yn("Install CPython now?"):
                 do_install(cmd)
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             LOGGER.info("Checked for any Python installs")
+            line_break()
 
     if cmd.check_latest_install:
         if not check_latest_install(cmd):
             welcome()
-            line_break()
-            shown_any = True
             LOGGER.print("!Y!You do not have the latest Python runtime.!W!",
                          level=logging.WARN)
             LOGGER.print("\nInstall the current latest version of CPython? If "
@@ -460,11 +465,13 @@ def first_run(cmd):
             LOGGER.info("")
             if not cmd.confirm or cmd.ask_yn("Install CPython now?"):
                 do_install(cmd)
+            line_break()
+            shown_any = True
         elif cmd.explicit:
             LOGGER.info("Checked for the latest available Python install")
+            line_break()
 
-    if shown_any or cmd.explicit:
-        line_break()
+    if shown_any:
         LOGGER.print("!G!Configuration checks completed.!W!", level=logging.WARN)
         LOGGER.print("\nTo run these checks again, launch !B!Python install "
                      "manager!W! from your Start menu, or !B!py install "

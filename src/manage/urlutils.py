@@ -633,6 +633,7 @@ class IndexDownloader:
         self._auth = auth if auth is not None else {}
         self._cache = cache if cache is not None else {}
         self._urlopen = urlopen
+        self.quiet = False
 
     def __iter__(self):
         return self
@@ -667,17 +668,23 @@ class IndexDownloader:
                     on_auth_request=self.on_auth,
                 )
             except FileNotFoundError: # includes 404
-                LOGGER.error("Unable to find runtimes index at %s", sanitise_url(url))
+                (LOGGER.verbose if self.quiet else LOGGER.error)(
+                    "Unable to find runtimes index at %s",
+                    sanitise_url(url),
+                )
                 raise
             except OSError as ex:
-                LOGGER.error(
+                (LOGGER.verbose if self.quiet else LOGGER.error)(
                     "Unable to access runtimes index at %s: %s",
                     sanitise_url(url),
-                    ex.args[1] if len(ex.args) >= 2 else ex
+                    ex.args[1] if len(ex.args) >= 2 else ex,
                 )
                 raise
             except RuntimeError as ex:
-                LOGGER.error("An unexpected error occurred while downloading the index: %s", ex)
+                (LOGGER.verbose if self.quiet else LOGGER.error)(
+                    "An unexpected error occurred while downloading the index: %s",
+                    ex,
+                )
                 raise
 
         j = json.loads(data)

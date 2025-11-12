@@ -21,3 +21,6 @@ HRESULT ReadAllIdleInstalls(std::vector<IdleData> &idles, HKEY hive, LPCWSTR roo
 
 IExplorerCommand *MakeIdleCommand(HKEY hive, LPCWSTR root);
 IExplorerCommand *MakeLaunchCommand(std::wstring title, std::wstring exe, std::wstring idle);
+HRESULT GetDropArgumentsW(LPCWSTR args, std::wstring &parsed);
+HRESULT GetDropArgumentsA(LPCSTR args, std::wstring &parsed);
+HRESULT GetDropDescription(LPCOLESTR pszFileName, DWORD dwMode, std::wstring &message, std::wstring &insert);

@@ -238,4 +238,63 @@ abort:
 }
 
 
+PyObject *shellext_GetDropArgumentsW(PyObject *, PyObject *args, PyObject *)
+{
+    Py_buffer value;
+    if (!PyArg_ParseTuple(args, "y*", &value)) {
+        return NULL;
+    }
+    PyObject *r = NULL;
+    std::wstring parsed;
+    HRESULT hr = GetDropArgumentsW((wchar_t *)value.buf, parsed);
+    PyBuffer_Release(&value);
+    if (SUCCEEDED(hr)) {
+        r = PyUnicode_FromWideChar(parsed.data(), parsed.size());
+    } else {
+        PyErr_SetFromWindowsErr((int)hr);
+    }
+    return r;
+}
+
+PyObject *shellext_GetDropArgumentsA(PyObject *, PyObject *args, PyObject *)
+{
+    Py_buffer value;
+    if (!PyArg_ParseTuple(args, "y*", &value)) {
+        return NULL;
+    }
+    PyObject *r = NULL;
+    std::wstring parsed;
+    HRESULT hr = GetDropArgumentsA((char *)value.buf, parsed);
+    PyBuffer_Release(&value);
+    if (SUCCEEDED(hr)) {
+        r = PyUnicode_FromWideChar(parsed.data(), parsed.size());
+    } else {
+        PyErr_SetFromWindowsErr((int)hr);
+    }
+    return r;
+}
+
+PyObject *shellext_GetDropDescription(PyObject *, PyObject *args, PyObject *)
+{
+    wchar_t *value1;
+    Py_ssize_t value2;
+    if (!PyArg_ParseTuple(args, "O&n", as_utf16, &value1, &value2)) {
+        return NULL;
+    }
+    PyObject *r = NULL;
+    std::wstring parsed1, parsed2;
+    HRESULT hr = GetDropDescription(value1, value2, parsed1, parsed2);
+    if (SUCCEEDED(hr)) {
+        r = Py_BuildValue(
+            "u#u#",
+            parsed1.data(), (Py_ssize_t)parsed1.size(),
+            parsed2.data(), (Py_ssize_t)parsed2.size()
+        );
+    } else {
+        PyErr_SetFromWindowsErr((int)hr);
+    }
+    return r;
+}
+
+
 }

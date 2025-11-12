@@ -164,7 +164,7 @@ def launcher_exe(name, platform, windowed=False):
 def pyshellext(ext='.exe', **props):
     link_opts = ItemDefinition(
         'Link',
-        AdditionalDependencies=Prepend('RuntimeObject.lib;'),
+        AdditionalDependencies=Prepend('RuntimeObject.lib;pathcch.lib;'),
     )
     if ext != '.exe':
         link_opts.options['ModuleDefinitionFile'] = '$(SourceRootDir)src\\pyshellext\\pyshellext.def'

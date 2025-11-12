@@ -101,3 +101,19 @@ def test_IdleCommand(idle_reg):
         f"{sys._base_executable},-4",
         *(i[0] for i in reversed(idle_reg.all)),
     ]
+
+
+def test_DragDropDescription():
+    assert ("Open with %1", "test.exe") == SE.shellext_GetDropDescription(
+        r"C:\Fake\Path\test.exe", 0
+    )
+
+
+def test_GetDropArgumentsW():
+    actual = SE.shellext_GetDropArgumentsW("arg 1\0arg2\0arg 3\0\0".encode("utf-16-le"))
+    assert actual == '"arg 1" arg2 "arg 3"'
+
+
+def test_GetDropArgumentsA():
+    actual = SE.shellext_GetDropArgumentsA("arg 1\0arg2\0arg 3\0\0".encode("ascii"))
+    assert actual == '"arg 1" arg2 "arg 3"'

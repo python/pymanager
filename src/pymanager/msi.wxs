@@ -63,12 +63,23 @@
                      Name="ExplorerCommandHandler"
                      Value="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}"
                      Type="string" />
+      <RegistryValue Root="HKCR" Key="Python.File\shellex\DropHandler"
+                     Value="{EAF5E48F-F54A-4A03-824B-CA880772EE20}"
+                     Type="string" />
 
       <ProgId Id="Python.NoConFile" Description="Python Script (Windowed)" Advertise="no" Icon="py.ico">
         <Extension Id="pyw" ContentType="text/x-python">
             <Verb Id="open" TargetFile="pythonw.exe" Argument="&quot;%1&quot; %*" />
         </Extension>
       </ProgId>
+      <RegistryValue Root="HKCR" Key="Python.NoConFile\shell\EditWithIDLE"
+                     Name="ExplorerCommandHandler"
+                     Value="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}"
+                     Type="string" />
+      <RegistryValue Root="HKCR" Key="Python.NoConFile\shellex\DropHandler"
+                     Value="{EAF5E48F-F54A-4A03-824B-CA880772EE20}"
+                     Type="string" />
+
       <ProgId Id="Python.CompiledFile" Description="Compiled Python Script" Advertise="no" Icon="pyc.ico">
         <Extension Id="pyc" ContentType="application/x-python-code">
           <Verb Id="open" TargetFile="python.exe" Argument="&quot;%1&quot; %*" />
@@ -111,6 +122,7 @@
                Condition="WIX_NATIVE_MACHINE = 34404">
       <File Source="pyshellext-64.dll">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="InprocServer32" />
+        <Class Id="{EAF5E48F-F54A-4A03-824B-CA880772EE20}" Advertise="no" Context="InprocServer32" />
       </File>
     </Component>
 
@@ -119,6 +131,7 @@
                Condition="WIX_NATIVE_MACHINE = 43620">
       <File Source="pyshellext-arm64.dll">
         <Class Id="{C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1}" Advertise="no" Context="InprocServer32" />
+        <Class Id="{EAF5E48F-F54A-4A03-824B-CA880772EE20}" Advertise="no" Context="InprocServer32" />
       </File>
     </Component>
 

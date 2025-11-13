@@ -272,6 +272,13 @@
                         </uap:SupportedFileTypes>
                     </uap:FileTypeAssociation>
                 </uap:Extension>
+                <desktop4:Extension Category="windows.fileExplorerContextMenus">
+                    <desktop4:FileExplorerContextMenus>
+                        <desktop4:ItemType Type=".pyw">
+                            <desktop4:Verb Id="EditInIdle" Clsid="C7E29CB0-9691-4DE8-B72B-6719DDC0B4A1" />
+                        </desktop4:ItemType>
+                    </desktop4:FileExplorerContextMenus>
+                </desktop4:Extension>
             </Extensions>
         </Application>
     </Applications>

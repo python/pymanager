@@ -548,13 +548,13 @@ public:
             cfDropDescription = RegisterClipboardFormat(CFSTR_DROPDESCRIPTION);
         }
         if (!cfDropDescription) {
-            OutputDebugString(L"PyShellExt::DllMain - failed to get CFSTR_DROPDESCRIPTION format");
+            OutputDebugString(L"PyShellExt::DragDropSupport - failed to get CFSTR_DROPDESCRIPTION format");
         }
         if (!cfDragWindow) {
             cfDragWindow = RegisterClipboardFormat(L"DragWindow");
         }
         if (!cfDragWindow) {
-            OutputDebugString(L"PyShellExt::DllMain - failed to get DragWindow format");
+            OutputDebugString(L"PyShellExt::DragDropSupport - failed to get DragWindow format");
         }
     }
 
@@ -771,10 +771,13 @@ public:
     // IDropTarget implementation
 
     STDMETHODIMP DragEnter(IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
-        HWND hwnd;
+        HWND hwnd = NULL;
 
         OutputDebugString(L"PyShellExt::DragDropSupport::DragEnter");
 
+        if (data_obj) {
+            data_obj->Release();
+        }
         pDataObj->AddRef();
         data_obj = pDataObj;
 
@@ -794,10 +797,15 @@ public:
     }
 
     STDMETHODIMP DragLeave() {
+        if (data_obj) {
+            data_obj->Release();
+            data_obj = NULL;
+        }
         return S_OK;
     }
 
     STDMETHODIMP DragOver(DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) {
+        *pdwEffect = DROPEFFECT_MOVE;
         return S_OK;
     }
 

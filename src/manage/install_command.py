@@ -25,6 +25,8 @@ from .urlutils import (
 DOWNLOAD_CACHE = {}
 
 
+DEFAULT_SITE_DIRS = ["Lib\\site-packages", "Scripts"]
+
 def _multihash(file, hashes):
     import hashlib
     LOGGER.debug("Calculating hashes: %s", ", ".join(hashes))
@@ -346,10 +348,21 @@ def _cleanup_arp_entries(cmd, install_shortcut_pairs):
     cleanup([i for i, s in install_shortcut_pairs], cmd.tags)
 
 
+def _create_entrypoints(cmd, install, shortcut):
+    from .entrypointutils import scan_and_create
+    scan_and_create(cmd, install, shortcut)
+
+
+def _cleanup_entrypoints(cmd, install_shortcut_pairs):
+    from .entrypointutils import cleanup
+    cleanup(cmd, install_shortcut_pairs)
+
+
 SHORTCUT_HANDLERS = {
     "pep514": (_create_shortcut_pep514, _cleanup_shortcut_pep514),
     "start": (_create_start_shortcut, _cleanup_start_shortcut),
     "uninstall": (_create_arp_entry, _cleanup_arp_entries),
+    "site-dirs": (_create_entrypoints, _cleanup_entrypoints),
 }
 
 
@@ -395,6 +408,16 @@ def update_all_shortcuts(cmd):
             else:
                 create(cmd, i, s)
                 shortcut_written.setdefault(s["kind"], []).append((i, s))
+
+        # Earlier releases may not have site_dirs. If not, assume
+        if ("site-dirs" in (cmd.enable_shortcut_kinds or ("site-dirs",)) and
+            "site-dirs" not in (cmd.disable_shortcut_kinds or ()) and
+            all(s["kind"] != "site-dirs" for s in i.get("shortcuts", ()))):
+
+            create, cleanup = SHORTCUT_HANDLERS["site-dirs"]
+            s = dict(kind="site-dirs", dirs=DEFAULT_SITE_DIRS)
+            create(cmd, i, s)
+            shortcut_written.setdefault("site-dirs", []).append((i, s))
 
     if cmd.global_dir and cmd.global_dir.is_dir() and cmd.launcher_exe:
         for target in cmd.global_dir.glob("*.exe.__target__"):
@@ -522,15 +545,7 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     return package
 
 
-def _should_preserve_on_upgrade(cmd, root, path):
-    if path.match("site-packages"):
-        return True
-    if path.parent == root and path.match("Scripts"):
-        return True
-    return False
-
-
-def _preserve_site(cmd, root):
+def _preserve_site(cmd, root, install):
     if not root.is_dir():
         return None
     if not cmd.preserve_site_on_upgrade:
@@ -542,39 +557,47 @@ def _preserve_site(cmd, root):
     if cmd.repair:
         LOGGER.verbose("Not preserving site directory because of --repair")
         return None
+
     state = []
     i = 0
-    dirs = [root]
+
+    site_dirs = DEFAULT_SITE_DIRS
+    for s in install.get("shortcuts", ()):
+        if s["kind"] == "site-dirs":
+            site_dirs = s.get("dirs", ())
+            break
+
     target_root = root.with_name(f"_{root.name}")
     target_root.mkdir(parents=True, exist_ok=True)
-    while dirs:
-        if _should_preserve_on_upgrade(cmd, root, dirs[0]):
-            while True:
-                target = target_root / str(i)
-                i += 1
-                try:
-                    unlink(target)
-                    break
-                except FileNotFoundError:
-                    break
-                except OSError:
-                    LOGGER.verbose("Failed to remove %s.", target)
+
+    for dirname in site_dirs:
+        d = root / dirname
+        if not d.is_dir():
+            continue
+
+        while True:
+            target = target_root / str(i)
+            i += 1
             try:
-                LOGGER.info("Preserving %s during update.", dirs[0].relative_to(root))
-            except ValueError:
-                # Just in case a directory goes weird, so we don't break
-                LOGGER.verbose(exc_info=True)
-            LOGGER.verbose("Moving %s to %s", dirs[0], target)
-            try:
-                dirs[0].rename(target)
+                unlink(target)
+                break
+            except FileNotFoundError:
+                break
             except OSError:
-                LOGGER.warn("Failed to preserve %s during update.", dirs[0])
-                LOGGER.verbose("TRACEBACK", exc_info=True)
-            else:
-                state.append((dirs[0], target))
+                LOGGER.verbose("Failed to remove %s.", target)
+        try:
+            LOGGER.info("Preserving %s during update.", d.relative_to(root))
+        except ValueError:
+            # Just in case a directory goes weird, so we don't break
+            LOGGER.verbose(exc_info=True)
+        LOGGER.verbose("Moving %s to %s", d, target)
+        try:
+            d.rename(target)
+        except OSError:
+            LOGGER.warn("Failed to preserve %s during update.", d)
+            LOGGER.verbose("TRACEBACK", exc_info=True)
         else:
-            dirs.extend(d for d in dirs[0].iterdir() if d.is_dir())
-        dirs.pop(0)
+            state.append((d, target))
     # Append None, target_root last to clean up after restore is done
     state.append((None, target_root))
     return state
@@ -634,7 +657,7 @@ def _install_one(cmd, source, install, *, target=None):
 
     dest = target or (cmd.install_dir / install["id"])
 
-    preserved_site = _preserve_site(cmd, dest)
+    preserved_site = _preserve_site(cmd, dest, install)
 
     LOGGER.verbose("Extracting %s to %s", package, dest)
     if not cmd.repair:

@@ -217,106 +217,6 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
             LOGGER.debug("Attempted to overwrite: %s", dest)
 
 
-def _if_exists(launcher, plat):
-    suffix = "." + launcher.suffix.lstrip(".")
-    plat_launcher = launcher.parent / f"{launcher.stem}{plat}{suffix}"
-    if plat_launcher.is_file():
-        return plat_launcher
-    return launcher
-
-
-def _write_alias(cmd, install, alias, target, _link=os.link):
-    p = (cmd.global_dir / alias["name"])
-    target = Path(target)
-    ensure_tree(p)
-    launcher = cmd.launcher_exe
-    if alias.get("windowed"):
-        launcher = cmd.launcherw_exe or launcher
-
-    plat = install["tag"].rpartition("-")[-1]
-    if plat:
-        LOGGER.debug("Checking for launcher for platform -%s", plat)
-        launcher = _if_exists(launcher, f"-{plat}")
-    if not launcher.is_file():
-        LOGGER.debug("Checking for launcher for default platform %s", cmd.default_platform)
-        launcher = _if_exists(launcher, cmd.default_platform)
-    if not launcher.is_file():
-        LOGGER.debug("Checking for launcher for -64")
-        launcher = _if_exists(launcher, "-64")
-    LOGGER.debug("Create %s linking to %s using %s", alias["name"], target, launcher)
-    if not launcher or not launcher.is_file():
-        if install_matches_any(install, getattr(cmd, "tags", None)):
-            LOGGER.warn("Skipping %s alias because the launcher template was not found.", alias["name"])
-        else:
-            LOGGER.debug("Skipping %s alias because the launcher template was not found.", alias["name"])
-        return
-
-    try:
-        launcher_bytes = launcher.read_bytes()
-    except OSError:
-        warnings_shown = cmd.scratch.setdefault("install_command._write_alias.warnings_shown", set())
-        if str(launcher) not in warnings_shown:
-            LOGGER.warn("Failed to read launcher template at %s.", launcher)
-            warnings_shown.add(str(launcher))
-        LOGGER.debug("Failed to read %s", launcher, exc_info=True)
-        return
-
-    existing_bytes = b''
-    try:
-        with open(p, 'rb') as f:
-            existing_bytes = f.read(len(launcher_bytes) + 1)
-    except FileNotFoundError:
-        pass
-    except OSError:
-        LOGGER.debug("Failed to read existing alias launcher.")
-
-    launcher_remap = cmd.scratch.setdefault("install_command._write_alias.launcher_remap", {})
-
-    if existing_bytes == launcher_bytes:
-        # Valid existing launcher, so save its path in case we need it later
-        # for a hard link.
-        launcher_remap.setdefault(launcher.name, p)
-    else:
-        # First try and create a hard link
-        unlink(p)
-        try:
-            _link(launcher, p)
-            LOGGER.debug("Created %s as hard link to %s", p.name, launcher.name)
-        except OSError as ex:
-            if ex.winerror != 17:
-                # Report errors other than cross-drive links
-                LOGGER.debug("Failed to create hard link for command.", exc_info=True)
-            launcher2 = launcher_remap.get(launcher.name)
-            if launcher2:
-                try:
-                    _link(launcher2, p)
-                    LOGGER.debug("Created %s as hard link to %s", p.name, launcher2.name)
-                except FileNotFoundError:
-                    raise
-                except OSError:
-                    LOGGER.debug("Failed to create hard link to fallback launcher")
-                    launcher2 = None
-            if not launcher2:
-                try:
-                    p.write_bytes(launcher_bytes)
-                    LOGGER.debug("Created %s as copy of %s", p.name, launcher.name)
-                    launcher_remap[launcher.name] = p
-                except OSError:
-                    LOGGER.error("Failed to create global command %s.", alias["name"])
-                    LOGGER.debug(exc_info=True)
-
-    p_target = p.with_name(p.name + ".__target__")
-    try:
-        if target.match(p_target.read_text(encoding="utf-8")):
-            return
-    except FileNotFoundError:
-        pass
-    except (OSError, UnicodeDecodeError):
-        LOGGER.debug("Failed to read existing target path.", exc_info=True)
-
-    p_target.write_text(str(target), encoding="utf-8")
-
-
 def _create_shortcut_pep514(cmd, install, shortcut):
     from .pep514utils import update_registry
     update_registry(cmd.pep514_root, install, shortcut, cmd.tags)
@@ -349,13 +249,13 @@ def _cleanup_arp_entries(cmd, install_shortcut_pairs):
 
 
 def _create_entrypoints(cmd, install, shortcut):
-    from .entrypointutils import scan_and_create
-    scan_and_create(cmd, install, shortcut)
+    from .aliasutils import scan_and_create_entrypoints
+    scan_and_create_entrypoints(cmd, install, shortcut)
 
 
 def _cleanup_entrypoints(cmd, install_shortcut_pairs):
-    from .entrypointutils import cleanup
-    cleanup(cmd, install_shortcut_pairs)
+    from .aliasutils import cleanup_entrypoints
+    cleanup_entrypoints(cmd, install_shortcut_pairs)
 
 
 SHORTCUT_HANDLERS = {
@@ -366,18 +266,20 @@ SHORTCUT_HANDLERS = {
 }
 
 
-def update_all_shortcuts(cmd):
+def update_all_shortcuts(cmd, *, _create_alias=None):
+    if not _create_alias:
+        from .aliasutils import create_alias as _create_alias
+
     LOGGER.debug("Updating global shortcuts")
     alias_written = set()
     shortcut_written = {}
     for i in cmd.get_installs():
         if cmd.global_dir:
-            aliases = i.get("alias", ())
+            aliases = list(i.get("alias", ()))
 
             # Generate a python.exe for the default runtime in case the user
             # later disables/removes the global python.exe command.
             if i.get("default"):
-                aliases = list(i.get("alias", ()))
                 alias_1 = [a for a in aliases if not a.get("windowed")]
                 alias_2 = [a for a in aliases if a.get("windowed")]
                 if alias_1:
@@ -392,7 +294,7 @@ def update_all_shortcuts(cmd):
                 if not target.is_file():
                     LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
                     continue
-                _write_alias(cmd, i, a, target)
+                _create_alias(cmd, i, a, target)
                 alias_written.add(a["name"].casefold())
 
         for s in i.get("shortcuts", ()):

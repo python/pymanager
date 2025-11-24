@@ -142,6 +142,63 @@ get_executable(wchar_t *executable, unsigned int bufferSize)
 }
 
 
+int
+insert_script(int *argc, wchar_t ***argv)
+{
+    DWORD len = GetModuleFileNameW(NULL, NULL, 0);
+    if (len == 0) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    } else if (len < 5) {
+        return 0;
+    }
+
+    HANDLE ph = GetProcessHeap();
+    DWORD path_len = len + 7;
+    wchar_t *path = (wchar_t *)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t) * path_len);
+    len = path ? GetModuleFileNameW(NULL, path, path_len) : 0;
+    if (len == 0) {
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    if (wcsicmp(&path[len - 4], L".exe")) {
+        HeapFree(ph, 0, path);
+        return 0;
+    }
+
+    wcscpy_s(&path[len - 4], path_len, L"-script.py");
+    WIN32_FIND_DATAW fd;
+    HANDLE fh = FindFirstFileW(path, &fd);
+    if (fh == INVALID_HANDLE_VALUE) {
+        int err = GetLastError();
+        HeapFree(ph, 0, path);
+        switch (err) {
+        case ERROR_INVALID_FUNCTION:
+        case ERROR_FILE_NOT_FOUND:
+        case ERROR_PATH_NOT_FOUND:
+            return 0;
+        default:
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+    }
+    CloseHandle(fh);
+
+    wchar_t **argv2 = (wchar_t **)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t *) * (*argc + 1));
+    if (!argv2) {
+        HeapFree(ph, 0, path);
+        return HRESULT_FROM_WIN32(GetLastError());
+    }
+
+    // Deliberately letting our memory leak - it'll be cleaned up when the
+    // process ends, and this is not a loop.
+    argv2[0] = (*argv)[0];
+    argv2[1] = path;
+    for (int i = 1; i < (*argc); ++i) {
+        argv2[i + 1] = (*argv)[i];
+    }
+    *argv = argv2;
+    return 0;
+}
+
 
 int
 try_load_python3_dll(const wchar_t *executable, unsigned int bufferSize, void **mainFunction)
@@ -213,6 +270,11 @@ wmain(int argc, wchar_t **argv)
     int err = get_executable(executable, MAXLEN);
     if (err) {
         return print_error(err, L"Failed to get target path");
+    }
+
+    err = insert_script(&argc, &argv);
+    if (err) {
+        return print_error(err, L"Failed to insert script path");
     }
 
     void *main_func = NULL;

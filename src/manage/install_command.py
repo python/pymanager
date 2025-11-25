@@ -269,6 +269,7 @@ SHORTCUT_HANDLERS = {
 def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
     if not _create_alias:
         from .aliasutils import create_alias as _create_alias
+    if not _cleanup_alias:
         from .aliasutils import cleanup_alias as _cleanup_alias
 
     LOGGER.debug("Updating global shortcuts")

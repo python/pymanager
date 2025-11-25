@@ -145,43 +145,56 @@ get_executable(wchar_t *executable, unsigned int bufferSize)
 int
 insert_script(int *argc, wchar_t ***argv)
 {
-    DWORD len = GetModuleFileNameW(NULL, NULL, 0);
-    if (len == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
-    } else if (len < 5) {
-        return 0;
-    }
-
     HANDLE ph = GetProcessHeap();
-    DWORD path_len = len + 7;
-    wchar_t *path = (wchar_t *)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t) * path_len);
-    len = path ? GetModuleFileNameW(NULL, path, path_len) : 0;
-    if (len == 0) {
-        return HRESULT_FROM_WIN32(GetLastError());
+    wchar_t *path = NULL;
+    DWORD path_len = 0;
+    DWORD len = 0;
+    int error = 0;
+    const wchar_t *SUFFIX = L".__script__.py";
+
+    // Get our path in a dynamic buffer with enough space to add SUFFIX
+    while (len >= path_len) {
+        if (path) {
+            HeapFree(ph, 0, path);
+        }
+        path_len += 260;
+
+        path = (wchar_t *)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t) * path_len);
+        if (!path) {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
+        len = GetModuleFileNameW(NULL, path, path_len - wcslen(SUFFIX));
+        if (len == 0) {
+            error = GetLastError();
+            HeapFree(ph, 0, path);
+            return HRESULT_FROM_WIN32(error);
+        }
     }
 
-    if (wcsicmp(&path[len - 4], L".exe")) {
-        HeapFree(ph, 0, path);
-        return 0;
-    }
+    wcscpy_s(&path[len], path_len, SUFFIX);
 
-    wcscpy_s(&path[len - 4], path_len, L"-script.py");
+    // Check that we have a script file. FindFirstFile should be fastest.
     WIN32_FIND_DATAW fd;
     HANDLE fh = FindFirstFileW(path, &fd);
     if (fh == INVALID_HANDLE_VALUE) {
-        int err = GetLastError();
+        error = GetLastError();
         HeapFree(ph, 0, path);
-        switch (err) {
+        switch (error) {
         case ERROR_INVALID_FUNCTION:
         case ERROR_FILE_NOT_FOUND:
         case ERROR_PATH_NOT_FOUND:
+            // This is the typical exit for normal launches. We ought to be nice
+            // and fast up until this point, but can be slower through every
+            // other path.
             return 0;
         default:
-            return HRESULT_FROM_WIN32(GetLastError());
+            return HRESULT_FROM_WIN32(error);
         }
     }
     CloseHandle(fh);
 
+    // Create a new argv that will be used to launch the script.
     wchar_t **argv2 = (wchar_t **)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t *) * (*argc + 1));
     if (!argv2) {
         HeapFree(ph, 0, path);

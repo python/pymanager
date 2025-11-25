@@ -266,12 +266,12 @@ SHORTCUT_HANDLERS = {
 }
 
 
-def update_all_shortcuts(cmd, *, _create_alias=None):
+def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
     if not _create_alias:
         from .aliasutils import create_alias as _create_alias
+        from .aliasutils import cleanup_alias as _cleanup_alias
 
     LOGGER.debug("Updating global shortcuts")
-    alias_written = set()
     shortcut_written = {}
     for i in cmd.get_installs():
         if cmd.global_dir:
@@ -288,14 +288,11 @@ def update_all_shortcuts(cmd, *, _create_alias=None):
                     aliases.append({**alias_2[0], "name": "pythonw.exe"})
 
             for a in aliases:
-                if a["name"].casefold() in alias_written:
-                    continue
                 target = i["prefix"] / a["target"]
                 if not target.is_file():
                     LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
                     continue
                 _create_alias(cmd, i, a, target)
-                alias_written.add(a["name"].casefold())
 
         for s in i.get("shortcuts", ()):
             if cmd.enable_shortcut_kinds and s["kind"] not in cmd.enable_shortcut_kinds:
@@ -321,15 +318,7 @@ def update_all_shortcuts(cmd, *, _create_alias=None):
             create(cmd, i, s)
             shortcut_written.setdefault("site-dirs", []).append((i, s))
 
-    if cmd.global_dir and cmd.global_dir.is_dir() and cmd.launcher_exe:
-        for target in cmd.global_dir.glob("*.exe.__target__"):
-            alias = target.with_suffix("")
-            if alias.name.casefold() not in alias_written:
-                LOGGER.debug("Unlink %s", alias)
-                unlink(alias, f"Attempting to remove {alias} is taking some time. " +
-                               "Ensure it is not is use, and please continue to wait " +
-                               "or press Ctrl+C to abort.")
-                target.unlink()
+    _cleanup_alias(cmd)
 
     for k, (_, cleanup) in SHORTCUT_HANDLERS.items():
         cleanup(cmd, shortcut_written.get(k, []))

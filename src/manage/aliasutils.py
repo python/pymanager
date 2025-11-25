@@ -5,6 +5,37 @@ from .logging import LOGGER
 from .pathutils import Path
 from .tagutils import install_matches_any
 
+SCRIPT_CODE = """import sys
+
+# Clear sys.path[0] if it contains this script.
+# Be careful to use the most compatible Python code possible.
+try:
+    if sys.path[0]:
+        if sys.argv[0].startswith(sys.path[0]):
+            sys.path[0] = ""
+        else:
+            open(sys.path[0] + "/" + sys.argv[0], "rb").close()
+            sys.path[0] = ""
+except OSError:
+    pass
+except AttributeError:
+    pass
+except IndexError:
+    pass
+
+# Replace argv[0] with our executable instead of the script name.
+try:
+    if sys.argv[0][-14:].upper() == ".__SCRIPT__.PY":
+        sys.argv[0] = sys.argv[0][:-14]
+        sys.orig_argv[0] = sys.argv[0]
+except AttributeError:
+    pass
+except IndexError:
+    pass
+
+from {mod} import {func}
+sys.exit({func}())
+"""
 
 def _if_exists(launcher, plat):
     suffix = "." + launcher.suffix.lstrip(".")
@@ -15,12 +46,21 @@ def _if_exists(launcher, plat):
 
 
 def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link):
-    p = (cmd.global_dir / alias["name"])
+    p = cmd.global_dir / alias["name"]
+    if not p.match("*.exe"):
+        p = p.with_name(p.name + ".exe")
     target = Path(target)
     ensure_tree(p)
     launcher = cmd.launcher_exe
     if alias.get("windowed"):
         launcher = cmd.launcherw_exe or launcher
+
+    alias_written = cmd.scratch.setdefault("aliasutils.create_alias.alias_written", set())
+    n = p.stem.casefold()
+    if n in alias_written:
+        # We've already written this alias in this session, so skip it.
+        return
+    alias_written.add(n)
 
     plat = install["tag"].rpartition("-")[-1]
     if plat:
@@ -60,7 +100,6 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
         LOGGER.debug("Failed to read existing alias launcher.")
 
     launcher_remap = cmd.scratch.setdefault("aliasutils.create_alias.launcher_remap", {})
-
     if existing_bytes == launcher_bytes:
         # Valid existing launcher, so save its path in case we need it later
         # for a hard link.
@@ -106,7 +145,7 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
     if do_update:
         p_target.write_text(str(target), encoding="utf-8")
 
-    p_script = p.with_name(p.name + "-script.py")
+    p_script = p.with_name(p.name + ".__script__.py")
     if script_code:
         do_update = True
         try:
@@ -124,6 +163,24 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
             LOGGER.error("Failed to clean up existing alias. Re-run with -v "
                          "or check the install log for details.")
             LOGGER.info("Failed to remove %s.", p_script, exc_info=True)
+
+
+def cleanup_alias(cmd):
+    if not cmd.global_dir or not cmd.global_dir.is_dir():
+        return
+
+    alias_written = cmd.scratch.get("aliasutils.create_alias.alias_written") or ()
+
+    for alias in cmd.global_dir.glob("*.exe"):
+        target = alias.with_name(alias.name + ".__target__")
+        script = alias.with_name(alias.name + ".__script__.py")
+        if alias.stem.casefold() not in alias_written:
+            LOGGER.debug("Unlink %s", alias)
+            unlink(alias, f"Attempting to remove {alias} is taking some time. " +
+                           "Ensure it is not is use, and please continue to wait " +
+                           "or press Ctrl+C to abort.")
+            unlink(target)
+            unlink(script)
 
 
 def _parse_entrypoint_line(line):
@@ -170,7 +227,7 @@ def _scan_one(root):
                     if name and mod and func:
                         yield (
                             {**alias, "name": name},
-                            f"import sys; from {mod} import {func}; sys.exit({func}())",
+                            SCRIPT_CODE.format(mod=mod, func=func),
                         )
 
 

@@ -216,3 +216,42 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
         assert_log.end_of_log(),
     )
 
+
+def test_parse_entrypoint_line():
+    for line, expect in [
+        ("", (None, None, None)),
+        ("# comment", (None, None, None)),
+        ("name-only", (None, None, None)),
+        ("name=value", (None, None, None)),
+        ("name=mod:func", ("name", "mod", "func")),
+        ("name=mod:func#comment", ("name", "mod", "func")),
+        (" name = mod : func ", ("name", "mod", "func")),
+        ("name=mod:func[extra]", ("name", "mod", "func")),
+        ("name=mod:func [extra]", ("name", "mod", "func")),
+    ]:
+        assert expect == AU._parse_entrypoint_line(line)
+
+
+def test_scan_entrypoints(tmp_path):
+    site = tmp_path / "site"
+    A = site / "a.dist-info"
+    B = site / "b.dist-info"
+    A.mkdir(exist_ok=True, parents=True)
+    B.mkdir(exist_ok=True, parents=True)
+    (A / "entry_points.txt").write_text("""# Test entries
+[console_scripts]
+a_cmd = a:main
+a2_cmd = a:main2 [spam]
+
+[gui_scripts]
+aw_cmd = a:main
+""")
+    actual = list(AU._scan_one(site))
+    assert [a[0]["name"] for a in actual] == [
+        "a_cmd", "a2_cmd", "aw_cmd"
+    ]
+    assert [a[0]["windowed"] for a in actual] == [0, 0, 1]
+    assert [a[1].rpartition("; ")[2] for a in actual] == [
+        "sys.exit(main())", "sys.exit(main2())", "sys.exit(main())"
+    ]
+

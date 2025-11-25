@@ -127,9 +127,10 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
 
 
 def _parse_entrypoint_line(line):
+    line = line.partition("#")[0]
     name, sep, rest = line.partition("=")
     name = name.strip()
-    if name and sep and rest:
+    if name and name[0].isalnum() and sep and rest:
         mod, sep, rest = rest.partition(":")
         mod = mod.strip()
         if mod and sep and rest:
@@ -140,40 +141,43 @@ def _parse_entrypoint_line(line):
     return None, None, None
 
 
+def _scan_one(root):
+    # Scan d for dist-info directories with entry_points.txt
+    dist_info = [d for d in root.glob("*.dist-info") if d.is_dir()]
+    LOGGER.debug("Found %i dist-info directories in %s", len(dist_info), root)
+    entrypoints = [f for f in [d / "entry_points.txt" for d in dist_info] if f.is_file()]
+    LOGGER.debug("Found %i entry_points.txt files in %s", len(entrypoints), root)
+
+    # Filter down to [console_scripts] and [gui_scripts]
+    for ep in entrypoints:
+        try:
+            f = open(ep, "r", encoding="utf-8", errors="strict")
+        except OSError:
+            LOGGER.debug("Failed to read %s", ep, exc_info=True)
+            continue
+
+        with f:
+            alias = None
+            for line in f:
+                if line.strip() == "[console_scripts]":
+                    alias = dict(windowed=0)
+                elif line.strip() == "[gui_scripts]":
+                    alias = dict(windowed=1)
+                elif line.lstrip().startswith("["):
+                    alias = None
+                elif alias is not None:
+                    name, mod, func = _parse_entrypoint_line(line)
+                    if name and mod and func:
+                        yield (
+                            {**alias, "name": name},
+                            f"import sys; from {mod} import {func}; sys.exit({func}())",
+                        )
+
+
 def _scan(prefix, dirs):
     for dirname in dirs or ():
         root = prefix / dirname
-
-        # Scan d for dist-info directories with entry_points.txt
-        dist_info = [d for d in root.listdir() if d.match("*.dist-info") and d.is_dir()]
-        LOGGER.debug("Found %i dist-info directories in %s", len(dist_info), root)
-        entrypoints = [f for f in [d / "entry_points.txt" for d in dist_info] if f.is_file()]
-        LOGGER.debug("Found %i entry_points.txt files in %s", len(entrypoints), root)
-
-        # Filter down to [console_scripts] and [gui_scripts]
-        for ep in entrypoints:
-            try:
-                f = open(ep, "r", encoding="utf-8", errors="strict")
-            except OSError:
-                LOGGER.debug("Failed to read %s", ep, exc_info=True)
-                continue
-
-            with f:
-                alias = None
-                for line in f:
-                    if line.strip() == "[console_scripts]":
-                        alias = dict(windowed=0)
-                    elif line.strip() == "[gui_scripts]":
-                        alias = dict(windowed=1)
-                    elif line.lstrip().startswith("["):
-                        alias = None
-                    elif alias is not None:
-                        name, mod, func = _parse_entrypoint_line(line)
-                        if name and mod and func:
-                            yield (
-                                {**alias, "name": name},
-                                f"import sys; from {mod} import {func}; sys.exit({func}())",
-                            )
+        yield from _scan_one(root)
 
 
 def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_alias):

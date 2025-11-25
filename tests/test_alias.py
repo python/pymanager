@@ -52,14 +52,14 @@ class AliasChecker:
         AU.create_alias(
             cmd,
             {"tag": tag},
-            {"name": f"{name}.txt", "windowed": windowed},
+            {"name": name, "windowed": windowed},
             self._expect_target,
         )
         print(*cmd.global_dir.glob("*"), sep="\n")
-        assert (cmd.global_dir / f"{name}.txt").is_file()
-        assert (cmd.global_dir / f"{name}.txt.__target__").is_file()
-        assert (cmd.global_dir / f"{name}.txt").read_text() == expect
-        assert (cmd.global_dir / f"{name}.txt.__target__").read_text() == self._expect_target
+        assert (cmd.global_dir / f"{name}.exe").is_file()
+        assert (cmd.global_dir / f"{name}.exe.__target__").is_file()
+        assert (cmd.global_dir / f"{name}.exe").read_text() == expect
+        assert (cmd.global_dir / f"{name}.exe.__target__").read_text() == self._expect_target
 
     def check_32(self, cmd, tag, name):
         self.check(cmd, tag, name, self._expect["-32"])
@@ -251,7 +251,7 @@ aw_cmd = a:main
         "a_cmd", "a2_cmd", "aw_cmd"
     ]
     assert [a[0]["windowed"] for a in actual] == [0, 0, 1]
-    assert [a[1].rpartition("; ")[2] for a in actual] == [
-        "sys.exit(main())", "sys.exit(main2())", "sys.exit(main())"
+    assert [a[1].rpartition("sys.exit")[2].strip() for a in actual] == [
+        "(main())", "(main2())", "(main())"
     ]
 

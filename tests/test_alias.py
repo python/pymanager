@@ -279,6 +279,46 @@ aw = a:main
         assert "from a import main" in expect["script_code"]
 
 
+@pytest.mark.parametrize("alias_set", ["none", "one", "onew", "two"])
+def test_scan_create_entrypoints_with_alias(fake_config, tmp_path, alias_set):
+    # In this test, we fake the scan, but vary the set of aliases associated
+    # with the installed runtime.
+    # If there are no aliases, we shouldn't create any entrypoints.
+    # If we have a non-windowed alias, we'll use that for both.
+    # If we have a windowed alias, we'll only create windowed entrypoints.
+    # If we have both, we'll use the appropriate one
+
+    def fake_scan(*a):
+        return [(dict(name="a", windowed=0), "CODE"),
+                (dict(name="aw", windowed=1), "CODE")]
+
+    alias = {
+        "none": [],
+        "one": [dict(target="test.exe", windowed=0)],
+        "onew": [dict(target="testw.exe", windowed=1)],
+        "two": [dict(target="test.exe", windowed=0),
+                dict(target="testw.exe", windowed=1)],
+    }[alias_set]
+
+    expect = {
+        "none": [],
+        "one": [("a", "test.exe"), ("aw", "test.exe")],
+        "onew": [("aw", "testw.exe")],
+        "two": [("a", "test.exe"), ("aw", "testw.exe")],
+    }[alias_set]
+
+    created = []
+    AU.scan_and_create_entrypoints(
+        fake_config,
+        dict(prefix=fake_config.root, id="test", alias=alias),
+        {},
+        _create_alias=lambda *a, **kw: created.append((a, kw)),
+        _scan=fake_scan,
+    )
+    names = [(c[0][2]["name"], c[0][3].name) for c in created]
+    assert names == expect
+
+
 def test_scan_entrypoints(tmp_path):
     site = tmp_path / "site"
     A = site / "a.dist-info"

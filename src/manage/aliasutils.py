@@ -248,17 +248,21 @@ def _scan(prefix, dirs):
         yield from _scan_one(root)
 
 
-def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_alias):
+def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_alias, _scan=_scan):
     prefix = install["prefix"]
     known = cmd.scratch.setdefault("entrypointutils.known", set())
 
     aliases = list(install.get("alias", ()))
     alias_1 = [a for a in aliases if not a.get("windowed")]
-    alias_2 = [a for a in aliases if a.get("windowed")]
-
     # If no windowed targets, we'll use the non-windowed one
-    targets = [prefix / a["target"] for a in [*alias_1[:1], *alias_2[:1], *alias_1[:1]]]
-    if len(targets) < 2:
+    alias_2 = [a for a in aliases if a.get("windowed")] or alias_1
+
+    targets = [
+        (prefix / alias_1[0]["target"]) if alias_1 else None,
+        (prefix / alias_2[0]["target"]) if alias_2 else None,
+    ]
+
+    if not any(targets):
         LOGGER.debug("No suitable alias found for %s. Skipping entrypoints",
                      install["id"])
         return
@@ -271,8 +275,12 @@ def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_ali
         known.add(n)
 
         # Copy the launcher template and create a standard __target__ file
-        _create_alias(cmd, install, alias, targets[alias.get("windowed", 0)],
-                      script_code=code)
+        target = targets[1 if alias.get("windowed", 0) else 0]
+        if not target:
+            LOGGER.debug("No suitable alias found for %s. Skipping this " +
+                         "entrypoint", alias["name"])
+            continue
+        _create_alias(cmd, install, alias, target, script_code=code)
 
 
 def cleanup_entrypoints(cmd, install_shortcut_pairs):

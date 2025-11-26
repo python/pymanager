@@ -149,7 +149,7 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
     if script_code:
         do_update = True
         try:
-            do_update = p_script.read_text(encoding="utf-8") == script_code
+            do_update = p_script.read_text(encoding="utf-8") != script_code
         except FileNotFoundError:
             pass
         except (OSError, UnicodeDecodeError):
@@ -198,6 +198,24 @@ def _parse_entrypoint_line(line):
     return None, None, None
 
 
+def _readlines(path):
+    try:
+        f = open(path, "r", encoding="utf-8", errors="strict")
+    except OSError:
+        LOGGER.debug("Failed to read %s", path, exc_info=True)
+        return
+
+    with f:
+        try:
+            while True:
+                yield next(f)
+        except StopIteration:
+            return
+        except UnicodeDecodeError:
+            LOGGER.debug("Failed to decode contents of %s", path, exc_info=True)
+            return
+
+
 def _scan_one(root):
     # Scan d for dist-info directories with entry_points.txt
     dist_info = [d for d in root.glob("*.dist-info") if d.is_dir()]
@@ -207,28 +225,21 @@ def _scan_one(root):
 
     # Filter down to [console_scripts] and [gui_scripts]
     for ep in entrypoints:
-        try:
-            f = open(ep, "r", encoding="utf-8", errors="strict")
-        except OSError:
-            LOGGER.debug("Failed to read %s", ep, exc_info=True)
-            continue
-
-        with f:
-            alias = None
-            for line in f:
-                if line.strip() == "[console_scripts]":
-                    alias = dict(windowed=0)
-                elif line.strip() == "[gui_scripts]":
-                    alias = dict(windowed=1)
-                elif line.lstrip().startswith("["):
-                    alias = None
-                elif alias is not None:
-                    name, mod, func = _parse_entrypoint_line(line)
-                    if name and mod and func:
-                        yield (
-                            {**alias, "name": name},
-                            SCRIPT_CODE.format(mod=mod, func=func),
-                        )
+        alias = None
+        for line in _readlines(ep):
+            if line.strip() == "[console_scripts]":
+                alias = dict(windowed=0)
+            elif line.strip() == "[gui_scripts]":
+                alias = dict(windowed=1)
+            elif line.lstrip().startswith("["):
+                alias = None
+            elif alias is not None:
+                name, mod, func = _parse_entrypoint_line(line)
+                if name and mod and func:
+                    yield (
+                        {**alias, "name": name},
+                        SCRIPT_CODE.format(mod=mod, func=func),
+                    )
 
 
 def _scan(prefix, dirs):

@@ -48,18 +48,23 @@ class AliasChecker:
     def __exit__(self, *exc_info):
         pass
 
-    def check(self, cmd, tag, name, expect, windowed=0):
+    def check(self, cmd, tag, name, expect, windowed=0, script_code=None):
         AU.create_alias(
             cmd,
             {"tag": tag},
             {"name": name, "windowed": windowed},
             self._expect_target,
+            script_code=script_code,
         )
         print(*cmd.global_dir.glob("*"), sep="\n")
         assert (cmd.global_dir / f"{name}.exe").is_file()
         assert (cmd.global_dir / f"{name}.exe.__target__").is_file()
         assert (cmd.global_dir / f"{name}.exe").read_text() == expect
         assert (cmd.global_dir / f"{name}.exe.__target__").read_text() == self._expect_target
+        if script_code:
+            assert (cmd.global_dir / f"{name}.exe.__script__.py").is_file()
+            assert (cmd.global_dir / f"{name}.exe.__script__.py").read_text() == script_code
+        assert name.casefold() in cmd.scratch["aliasutils.create_alias.alias_written"]
 
     def check_32(self, cmd, tag, name):
         self.check(cmd, tag, name, self._expect["-32"])
@@ -78,6 +83,10 @@ class AliasChecker:
 
     def check_warm64(self, cmd, tag, name):
         self.check(cmd, tag, name, self._expect["w-arm64"], windowed=1)
+
+    def check_script(self, cmd, tag, name, windowed=0):
+        self.check(cmd, tag, name, self._expect["w-32" if windowed else "-32"],
+                   windowed=windowed, script_code=secrets.token_hex(128))
 
 
 def test_write_alias_tag_with_platform(alias_checker):
@@ -101,6 +110,12 @@ def test_write_alias_default_platform(alias_checker):
 def test_write_alias_fallback_platform(alias_checker):
     alias_checker.check_64(alias_checker.Cmd("-spam"), "1.0", "testA")
     alias_checker.check_w64(alias_checker.Cmd("-spam"), "1.0", "testB")
+
+
+def test_write_script_alias(alias_checker):
+    alias_checker.check_script(alias_checker.Cmd(), "1.0-32", "testA", windowed=0)
+    alias_checker.check_script(alias_checker.Cmd(), "1.0-32", "testB", windowed=1)
+    alias_checker.check_script(alias_checker.Cmd(), "1.0-32", "testA", windowed=0)
 
 
 def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
@@ -232,6 +247,38 @@ def test_parse_entrypoint_line():
         assert expect == AU._parse_entrypoint_line(line)
 
 
+def test_scan_create_entrypoints(fake_config, tmp_path):
+    root = tmp_path / "test_install"
+    site = root / "site-packages"
+    A = site / "A.dist-info"
+    A.mkdir(parents=True, exist_ok=True)
+    (A / "entry_points.txt").write_text("""[console_scripts]
+a = a:main
+
+[gui_scripts]
+aw = a:main
+""")
+
+    install = dict(prefix=root, id="test", alias=[dict(target="target.exe")])
+
+    created = []
+    AU.scan_and_create_entrypoints(
+        fake_config,
+        install,
+        dict(dirs=["site-packages"]),
+        _create_alias=lambda *a, **kw: created.append((a, kw)),
+    )
+    assert 2 == len(created)
+    for name, windowed, c in zip("a aw".split(), [0, 1], created):
+        expect = dict(zip("cmd install alias target".split(), c[0])) | c[1]
+        assert expect["cmd"] is fake_config
+        assert expect["install"] is install
+        assert expect["alias"]["name"] == name
+        assert expect["alias"]["windowed"] == windowed
+        assert expect["target"].match("target.exe")
+        assert "from a import main" in expect["script_code"]
+
+
 def test_scan_entrypoints(tmp_path):
     site = tmp_path / "site"
     A = site / "a.dist-info"
@@ -243,8 +290,18 @@ def test_scan_entrypoints(tmp_path):
 a_cmd = a:main
 a2_cmd = a:main2 [spam]
 
+[other] # shouldn't be included
+a3_cmd = a:main3
+
 [gui_scripts]
 aw_cmd = a:main
+""")
+    (B / "entry_points.txt").write_bytes(b"""# Invalid file
+
+\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89
+
+[console_scripts]
+b_cmd = b:main
 """)
     actual = list(AU._scan_one(site))
     assert [a[0]["name"] for a in actual] == [
@@ -255,3 +312,24 @@ aw_cmd = a:main
         "(main())", "(main2())", "(main())"
     ]
 
+
+def test_cleanup_aliases(fake_config):
+    root = fake_config.global_dir
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "alias1.exe").write_bytes(b"")
+    (root / "alias1.exe.__target__").write_bytes(b"")
+    (root / "alias1.exe.__script__.py").write_bytes(b"")
+    (root / "alias2.exe").write_bytes(b"")
+    (root / "alias2.exe.__target__").write_bytes(b"")
+    (root / "alias2.exe.__script__.py").write_bytes(b"")
+    (root / "alias3.exe").write_bytes(b"")
+    (root / "alias3.exe.__target__").write_bytes(b"")
+    fake_config.scratch["aliasutils.create_alias.alias_written"] = set([
+        "alias1".casefold(),
+        "alias3".casefold(),
+    ])
+    AU.cleanup_alias(fake_config)
+    assert set(f.name for f in root.glob("*")) == set([
+        "alias1.exe", "alias1.exe.__target__", "alias1.exe.__script__.py",
+        "alias3.exe", "alias3.exe.__target__",
+    ])

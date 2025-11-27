@@ -231,9 +231,12 @@ def _scan(prefix, dirs):
         yield from _scan_one(root)
 
 
-def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_alias, _scan=_scan):
+def scan_and_create_entrypoints(cmd, install, shortcut, *, _create_alias=create_alias, _scan=_scan):
     prefix = install["prefix"]
-    known = cmd.scratch.setdefault("entrypointutils.known", set())
+
+    # We will be called multiple times, so need to keep the list of names we've
+    # already used in this session.
+    known = cmd.scratch.setdefault("aliasutils.scan_and_create_entrypoints.known", set())
 
     aliases = list(install.get("alias", ()))
     alias_1 = [a for a in aliases if not a.get("windowed")]

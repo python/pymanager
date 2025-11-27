@@ -132,7 +132,7 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
                     launcher_remap[launcher.name] = p
                 except OSError:
                     LOGGER.error("Failed to create global command %s.", alias["name"])
-                    LOGGER.debug(exc_info=True)
+                    LOGGER.debug("TRACEBACK", exc_info=True)
 
     p_target = p.with_name(p.name + ".__target__")
     do_update = True

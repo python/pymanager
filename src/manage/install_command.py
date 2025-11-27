@@ -481,13 +481,13 @@ def _preserve_site(cmd, root, install):
             LOGGER.info("Preserving %s during update.", d.relative_to(root))
         except ValueError:
             # Just in case a directory goes weird, so we don't break
-            LOGGER.verbose(exc_info=True)
+            LOGGER.verbose("Error information:", exc_info=True)
         LOGGER.verbose("Moving %s to %s", d, target)
         try:
             d.rename(target)
         except OSError:
             LOGGER.warn("Failed to preserve %s during update.", d)
-            LOGGER.verbose("TRACEBACK", exc_info=True)
+            LOGGER.verbose("Error information:", exc_info=True)
         else:
             state.append((d, target))
     # Append None, target_root last to clean up after restore is done

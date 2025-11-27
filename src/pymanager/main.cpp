@@ -630,7 +630,7 @@ wmain(int argc, wchar_t **argv)
     }
     #endif
 
-    err = launch(executable.c_str(), args.c_str(), skip_argc, &exitCode);
+    err = launch(executable.c_str(), GetCommandLineW(), args.c_str(), skip_argc, &exitCode);
 
     // TODO: Consider sharing print_error() with launcher.cpp
     // This will ensure error messages are aligned whether we're launching

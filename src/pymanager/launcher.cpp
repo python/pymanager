@@ -143,7 +143,7 @@ get_executable(wchar_t *executable, unsigned int bufferSize)
 
 
 int
-insert_script(int *argc, wchar_t ***argv)
+get_script(wchar_t **result_path)
 {
     HANDLE ph = GetProcessHeap();
     wchar_t *path = NULL;
@@ -194,22 +194,9 @@ insert_script(int *argc, wchar_t ***argv)
     }
     FindClose(fh);
 
-    // Create a new argv that will be used to launch the script.
-    wchar_t **argv2 = (wchar_t **)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t *) * (*argc + 1));
-    if (!argv2) {
-        HeapFree(ph, 0, path);
-        return HRESULT_FROM_WIN32(GetLastError());
-    }
-
     // Deliberately letting our memory leak - it'll be cleaned up when the
     // process ends, and this is not a loop.
-    argv2[0] = (*argv)[0];
-    argv2[1] = path;
-    for (int i = 1; i < (*argc); ++i) {
-        argv2[i + 1] = (*argv)[i];
-    }
-    *argv = argv2;
-    *argc += 1;
+    *result_path = path;
     return 0;
 }
 
@@ -280,21 +267,36 @@ wmain(int argc, wchar_t **argv)
 {
     int exit_code;
     wchar_t executable[MAXLEN];
+    wchar_t *script;
 
     int err = get_executable(executable, MAXLEN);
     if (err) {
         return print_error(err, L"Failed to get target path");
     }
 
-    err = insert_script(&argc, &argv);
+    err = get_script(&script);
     if (err) {
-        return print_error(err, L"Failed to insert script path");
+        return print_error(err, L"Failed to get script path");
     }
 
     void *main_func = NULL;
     err = try_load_python3_dll(executable, MAXLEN, (void **)&main_func);
     switch (err) {
     case 0:
+        if (script) {
+            wchar_t **argv2 = (wchar_t **)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                (argc + 1) * sizeof(wchar_t *));
+            if (!argv2) {
+                return HRESULT_FROM_WIN32(GetLastError());
+            }
+            argv2[0] = argv[0];
+            argv2[1] = script;
+            for (int i = 1; i < argc; ++i) {
+                argv2[i + 1] = argv[i];
+            }
+            argv = argv2;
+            argc += 1;
+        }
         err = launch_by_dll(main_func, executable, argc, argv, &exit_code);
         if (!err) {
             return exit_code;
@@ -324,7 +326,8 @@ wmain(int argc, wchar_t **argv)
         break;
     }
 
-    err = launch(executable, NULL, 0, (DWORD *)&exit_code);
+    err = launch(executable, GetCommandLineW(), script, 0, (DWORD *)&exit_code);
+
     if (!err) {
         return exit_code;
     }

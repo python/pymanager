@@ -1,6 +1,7 @@
 import os
 
-from .fsutils import ensure_tree, unlink
+from .exceptions import FilesInUseError
+from .fsutils import atomic_unlink, ensure_tree, unlink
 from .logging import LOGGER
 from .pathutils import Path
 from .tagutils import install_matches_any
@@ -165,24 +166,6 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
             LOGGER.info("Failed to remove %s.", p_script, exc_info=True)
 
 
-def cleanup_alias(cmd):
-    if not cmd.global_dir or not cmd.global_dir.is_dir():
-        return
-
-    alias_written = cmd.scratch.get("aliasutils.create_alias.alias_written") or ()
-
-    for alias in cmd.global_dir.glob("*.exe"):
-        target = alias.with_name(alias.name + ".__target__")
-        script = alias.with_name(alias.name + ".__script__.py")
-        if alias.stem.casefold() not in alias_written:
-            LOGGER.debug("Unlink %s", alias)
-            unlink(alias, f"Attempting to remove {alias} is taking some time. " +
-                           "Ensure it is not is use, and please continue to wait " +
-                           "or press Ctrl+C to abort.")
-            unlink(target)
-            unlink(script)
-
-
 def _parse_entrypoint_line(line):
     line = line.partition("#")[0]
     name, sep, rest = line.partition("=")
@@ -283,32 +266,27 @@ def scan_and_create_entrypoints(cmd, install, shortcut, _create_alias=create_ali
         _create_alias(cmd, install, alias, target, script_code=code)
 
 
-def cleanup_entrypoints(cmd, install_shortcut_pairs):
-    seen_names = set()
-    for install, shortcut in install_shortcut_pairs:
-        for alias, code in _scan(install["prefix"], shortcut.get("dirs")):
-            seen_names.add(alias["name"].casefold())
+def cleanup_alias(cmd, site_dirs_written, *, _unlink_many=atomic_unlink, _scan=_scan):
+    if not cmd.global_dir or not cmd.global_dir.is_dir():
+        return
 
-    # Scan existing aliases
-    scripts = cmd.global_dir.glob("*-script.py")
+    expected = set()
+    for i in cmd.get_installs():
+        expected.update(a.get("name", "").casefold() for a in i.get("alias", ()))
 
-    # Excluding any in seen_names, delete unused aliases
-    for script in scripts:
-        name = script.name.rpartition("-")[0]
-        if name.casefold() in seen_names:
+    for i, s in site_dirs_written or ():
+        for alias, code in _scan(i["prefix"], s.get("dirs")):
+            expected.add(alias.get("name", "").casefold())
+
+    for alias in cmd.global_dir.glob("*.exe"):
+        if alias.stem.casefold() in expected or alias.name.casefold() in expected:
             continue
-
-        alias = cmd.global_dir / (name + ".exe")
-        if not alias.is_file():
-            continue
-
+        target = alias.with_name(alias.name + ".__target__")
+        script = alias.with_name(alias.name + ".__script__.py")
+        LOGGER.debug("Unlink %s", alias)
         try:
-            unlink(alias)
-            LOGGER.debug("Deleted %s", alias)
-        except OSError:
-            LOGGER.warn("Failed to delete %s", alias)
-        try:
-            unlink(script)
-            LOGGER.debug("Deleted %s", script)
-        except OSError:
-            LOGGER.warn("Failed to delete %s", script)
+            _unlink_many([alias, target, script])
+        except (OSError, FilesInUseError):
+            LOGGER.warn("Failed to remove %s. Ensure it is not in use and run "
+                        "py install --refresh to try again.", alias.name)
+            LOGGER.debug("TRACEBACK", exc_info=True)

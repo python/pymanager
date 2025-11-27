@@ -254,8 +254,8 @@ def _create_entrypoints(cmd, install, shortcut):
 
 
 def _cleanup_entrypoints(cmd, install_shortcut_pairs):
-    from .aliasutils import cleanup_entrypoints
-    cleanup_entrypoints(cmd, install_shortcut_pairs)
+    # Entry point aliases are cleaned up with regular aliases
+    pass
 
 
 SHORTCUT_HANDLERS = {
@@ -271,6 +271,7 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
         from .aliasutils import create_alias as _create_alias
     if not _cleanup_alias:
         from .aliasutils import cleanup_alias as _cleanup_alias
+    from .aliasutils import get_site_dirs
 
     LOGGER.debug("Updating global shortcuts")
     shortcut_written = {}
@@ -309,7 +310,7 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
                 create(cmd, i, s)
                 shortcut_written.setdefault(s["kind"], []).append((i, s))
 
-        # Earlier releases may not have site_dirs. If not, assume
+        # Earlier releases may not have site_dirs. If not, assume defaults
         if ("site-dirs" in (cmd.enable_shortcut_kinds or ("site-dirs",)) and
             "site-dirs" not in (cmd.disable_shortcut_kinds or ()) and
             all(s["kind"] != "site-dirs" for s in i.get("shortcuts", ()))):
@@ -319,10 +320,10 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
             create(cmd, i, s)
             shortcut_written.setdefault("site-dirs", []).append((i, s))
 
-    _cleanup_alias(cmd)
-
     for k, (_, cleanup) in SHORTCUT_HANDLERS.items():
         cleanup(cmd, shortcut_written.get(k, []))
+
+    _cleanup_alias(cmd, shortcut_written.get("site-dirs", []))
 
 
 def print_cli_shortcuts(cmd):

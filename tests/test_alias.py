@@ -354,22 +354,41 @@ b_cmd = b:main
 
 
 def test_cleanup_aliases(fake_config):
+    fake_config.installs = [
+        dict(id="A", alias=[dict(name="A", target="a.exe")], prefix=fake_config.global_dir),
+    ]
+
+    def fake_scan(*a):
+        yield dict(name="B"), "CODE"
+
+    # install/shortcut pairs are irrelevant, since we fake the scan entirely.
+    # It just can't be empty or the scan is skipped.
+    pairs = [
+        (fake_config.installs[0], dict(kind="site-dirs", dirs=[])),
+    ]
+
     root = fake_config.global_dir
     root.mkdir(parents=True, exist_ok=True)
-    (root / "alias1.exe").write_bytes(b"")
-    (root / "alias1.exe.__target__").write_bytes(b"")
-    (root / "alias1.exe.__script__.py").write_bytes(b"")
-    (root / "alias2.exe").write_bytes(b"")
-    (root / "alias2.exe.__target__").write_bytes(b"")
-    (root / "alias2.exe.__script__.py").write_bytes(b"")
-    (root / "alias3.exe").write_bytes(b"")
-    (root / "alias3.exe.__target__").write_bytes(b"")
-    fake_config.scratch["aliasutils.create_alias.alias_written"] = set([
-        "alias1".casefold(),
-        "alias3".casefold(),
-    ])
-    AU.cleanup_alias(fake_config)
-    assert set(f.name for f in root.glob("*")) == set([
-        "alias1.exe", "alias1.exe.__target__", "alias1.exe.__script__.py",
-        "alias3.exe", "alias3.exe.__target__",
-    ])
+    files = ["A.exe", "A.exe.__target__",
+             "B.exe", "B.exe.__script__.py", "B.exe.__target__",
+             "C.exe", "C.exe.__script__.py", "C.exe.__target__"]
+    for f in files:
+        (root / f).write_bytes(b"")
+
+    # Ensure the expect files get requested to be unlinked
+    class Unlinker(list):
+        def __call__(self, names):
+            self.extend(names)
+
+    unlinked = Unlinker()
+    AU.cleanup_alias(fake_config, pairs, _unlink_many=unlinked, _scan=fake_scan)
+    assert set(f.name for f in unlinked) == set(["C.exe", "C.exe.__script__.py", "C.exe.__target__"])
+
+    # Ensure we don't break if unlinking fails
+    def unlink2(names):
+        raise PermissionError("Simulated error")
+    AU.cleanup_alias(fake_config, pairs, _unlink_many=unlink2, _scan=fake_scan)
+
+    # Ensure the actual unlink works
+    AU.cleanup_alias(fake_config, pairs, _scan=fake_scan)
+    assert set(f.name for f in root.glob("*")) == set(files[:-3])

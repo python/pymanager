@@ -192,7 +192,7 @@ insert_script(int *argc, wchar_t ***argv)
             return HRESULT_FROM_WIN32(error);
         }
     }
-    CloseHandle(fh);
+    FindClose(fh);
 
     // Create a new argv that will be used to launch the script.
     wchar_t **argv2 = (wchar_t **)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t *) * (*argc + 1));
@@ -209,6 +209,7 @@ insert_script(int *argc, wchar_t ***argv)
         argv2[i + 1] = (*argv)[i];
     }
     *argv = argv2;
+    *argc += 1;
     return 0;
 }
 

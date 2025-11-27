@@ -277,6 +277,10 @@ def cleanup_alias(cmd, site_dirs_written, *, _unlink_many=atomic_unlink, _scan=_
     for i in cmd.get_installs():
         expected.update(a.get("name", "").casefold() for a in i.get("alias", ()))
 
+    if expected:
+        expected.add("python".casefold())
+        expected.add("pythonw".casefold())
+
     for i, s in site_dirs_written or ():
         for alias, code in _scan(i["prefix"], s.get("dirs")):
             expected.add(alias.get("name", "").casefold())

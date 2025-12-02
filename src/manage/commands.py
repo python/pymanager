@@ -39,10 +39,6 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
-
-This is a beta release, send feedback to https://github.com/python/pymanager
-Changes include improvements to the first run experience, support for '!G!pythonw!W!'
-commands in shebangs, and reduced space taken by the per-version launchers.
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,

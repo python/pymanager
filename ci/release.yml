@@ -87,19 +87,19 @@ stages:
       displayName: 'Install Nuget'
 
     - powershell: |
-        nuget install python -Version 3.14.0 -x -noninteractive -o host_python
+        nuget install python -Version 3.14.1 -x -noninteractive -o host_python
         $py = Get-Item host_python\python\tools
         Write-Host "Adding $py to PATH"
         Write-Host "##vso[task.prependpath]$py"
-      displayName: Set up Python 3.14.0
+      displayName: Set up Python 3.14.1
       workingDirectory: $(Build.BinariesDirectory)
 
     - powershell: >
         python -c "import sys;
         print(sys.version);
         print(sys.executable);
-        sys.exit(0 if sys.version_info[:5] == (3, 14, 0, 'final', 0) else 1)"
-      displayName: Check Python version is 3.14.0
+        sys.exit(0 if sys.version_info[:5] == (3, 14, 1, 'final', 0) else 1)"
+      displayName: Check Python version is 3.14.1
 
     - powershell: |
         python -m pip install "pymsbuild>=1.2.0b1"

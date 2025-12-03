@@ -250,7 +250,8 @@ def _cleanup_arp_entries(cmd, install_shortcut_pairs):
 
 def _create_entrypoints(cmd, install, shortcut):
     from .aliasutils import scan_and_create_entrypoints
-    scan_and_create_entrypoints(cmd, install, shortcut)
+    aliases_written = cmd.scratch.setdefault("aliasutils.create_alias.aliases_written", set())
+    scan_and_create_entrypoints(cmd, install, shortcut, aliases_written)
 
 
 def _cleanup_entrypoints(cmd, install_shortcut_pairs):

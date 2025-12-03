@@ -103,6 +103,7 @@ def test_preserve_site(tmp_path):
     preserved = tmp_path / "_root"
     site = root / "site-packages"
     not_site = root / "site-not-packages"
+    not_site.mkdir(parents=True, exist_ok=True)
     A = site / "A"
     B = site / "B.txt"
     C = site / "C.txt"

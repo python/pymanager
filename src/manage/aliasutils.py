@@ -46,7 +46,7 @@ def _if_exists(launcher, plat):
     return launcher
 
 
-def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link):
+def create_alias(cmd, install, alias, target, aliases_written, *, script_code=None, _link=os.link):
     p = cmd.global_dir / alias["name"]
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")
@@ -56,12 +56,11 @@ def create_alias(cmd, install, alias, target, *, script_code=None, _link=os.link
     if alias.get("windowed"):
         launcher = cmd.launcherw_exe or launcher
 
-    alias_written = cmd.scratch.setdefault("aliasutils.create_alias.alias_written", set())
     n = p.stem.casefold()
-    if n in alias_written:
+    if n in aliases_written:
         # We've already written this alias in this session, so skip it.
         return
-    alias_written.add(n)
+    aliases_written.add(n)
 
     plat = install["tag"].rpartition("-")[-1]
     if plat:
@@ -231,12 +230,8 @@ def _scan(prefix, dirs):
         yield from _scan_one(root)
 
 
-def scan_and_create_entrypoints(cmd, install, shortcut, *, _create_alias=create_alias, _scan=_scan):
+def scan_and_create_entrypoints(cmd, install, shortcut, aliases_written, *, _create_alias=create_alias, _scan=_scan):
     prefix = install["prefix"]
-
-    # We will be called multiple times, so need to keep the list of names we've
-    # already used in this session.
-    known = cmd.scratch.setdefault("aliasutils.scan_and_create_entrypoints.known", set())
 
     aliases = list(install.get("alias", ()))
     alias_1 = [a for a in aliases if not a.get("windowed")]
@@ -254,19 +249,13 @@ def scan_and_create_entrypoints(cmd, install, shortcut, *, _create_alias=create_
         return
 
     for alias, code in _scan(prefix, shortcut.get("dirs")):
-        # Only create names once per install command
-        n = alias["name"].casefold()
-        if n in known:
-            continue
-        known.add(n)
-
         # Copy the launcher template and create a standard __target__ file
         target = targets[1 if alias.get("windowed", 0) else 0]
         if not target:
             LOGGER.debug("No suitable alias found for %s. Skipping this " +
                          "entrypoint", alias["name"])
             continue
-        _create_alias(cmd, install, alias, target, script_code=code)
+        _create_alias(cmd, install, alias, target, aliases_written, script_code=code)
 
 
 def cleanup_alias(cmd, site_dirs_written, *, _unlink_many=atomic_unlink, _scan=_scan):

@@ -49,11 +49,13 @@ class AliasChecker:
         pass
 
     def check(self, cmd, tag, name, expect, windowed=0, script_code=None):
+        created = set()
         AU.create_alias(
             cmd,
             {"tag": tag},
             {"name": name, "windowed": windowed},
             self._expect_target,
+            created,
             script_code=script_code,
         )
         print(*cmd.global_dir.glob("*"), sep="\n")
@@ -64,7 +66,7 @@ class AliasChecker:
         if script_code:
             assert (cmd.global_dir / f"{name}.exe.__script__.py").is_file()
             assert (cmd.global_dir / f"{name}.exe.__script__.py").read_text() == script_code
-        assert name.casefold() in cmd.scratch["aliasutils.create_alias.alias_written"]
+        assert name.casefold() in created
 
     def check_32(self, cmd, tag, name):
         self.check(cmd, tag, name, self._expect["-32"])
@@ -122,11 +124,13 @@ def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
     fake_config.launcher_exe = tmp_path / "non-existent.exe"
     fake_config.default_platform = '-32'
     fake_config.global_dir = tmp_path / "bin"
+    created = set()
     AU.create_alias(
         fake_config,
         {"tag": "test"},
         {"name": "test.exe"},
         tmp_path / "target.exe",
+        created,
     )
     assert_log(
         "Checking for launcher.*",
@@ -136,6 +140,7 @@ def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
         "Skipping %s alias because the launcher template was not found.",
         assert_log.end_of_log(),
     )
+    assert "test".casefold() in created
 
 
 def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
@@ -156,11 +161,13 @@ def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
     fake_config.launcher_exe = FakeLauncherPath
     fake_config.default_platform = '-32'
     fake_config.global_dir = tmp_path / "bin"
+    created = set()
     AU.create_alias(
         fake_config,
         {"tag": "test"},
         {"name": "test.exe"},
         tmp_path / "target.exe",
+        created,
     )
     assert_log(
         "Checking for launcher.*",
@@ -169,6 +176,7 @@ def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
         "Failed to read %s",
         assert_log.end_of_log(),
     )
+    assert "test".casefold() in created
 
 
 def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
@@ -180,11 +188,13 @@ def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
     fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
     fake_config.default_platform = '-32'
     fake_config.global_dir = tmp_path / "bin"
+    created = set()
     AU.create_alias(
         fake_config,
         {"tag": "test"},
         {"name": "test.exe"},
         tmp_path / "target.exe",
+        created,
         _link=fake_link
     )
     assert_log(
@@ -194,6 +204,7 @@ def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
         "Created %s as copy of %s",
         assert_log.end_of_log(),
     )
+    assert "test".casefold() in created
 
 
 def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path):
@@ -216,11 +227,13 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
     (tmp_path / "actual_launcher.txt").write_bytes(b'Arbitrary contents')
     fake_config.default_platform = '-32'
     fake_config.global_dir = tmp_path / "bin"
+    created = set()
     AU.create_alias(
         fake_config,
         {"tag": "test"},
         {"name": "test.exe"},
         tmp_path / "target.exe",
+        created,
         _link=fake_link
     )
     assert_log(
@@ -230,6 +243,7 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
         ("Created %s as hard link to %s", ("test.exe", "actual_launcher.txt")),
         assert_log.end_of_log(),
     )
+    assert "test".casefold() in created
 
 
 def test_parse_entrypoint_line():
@@ -266,6 +280,7 @@ aw = a:main
         fake_config,
         install,
         dict(dirs=["site-packages"]),
+        set(),
         _create_alias=lambda *a, **kw: created.append((a, kw)),
     )
     assert 2 == len(created)
@@ -312,6 +327,7 @@ def test_scan_create_entrypoints_with_alias(fake_config, tmp_path, alias_set):
         fake_config,
         dict(prefix=fake_config.root, id="test", alias=alias),
         {},
+        set(),
         _create_alias=lambda *a, **kw: created.append((a, kw)),
         _scan=fake_scan,
     )

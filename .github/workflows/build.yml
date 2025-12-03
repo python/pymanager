@@ -172,6 +172,25 @@ jobs:
         PYTHON_MANAGER_CONFIG: .\test-config.json
         PYMANAGER_DEBUG: true
 
+    - name: 'Validate entrypoint script'
+      run: |
+        $env:PYTHON_MANAGER_CONFIG = (gi $env:PYTHON_MANAGER_CONFIG).FullName
+        cd .\test_installs\_bin
+        del pip* -Verbose
+        pymanager install --refresh
+        dir pip*
+        Get-Item .\pip.exe
+        Get-Item .\pip.exe.__target__
+        Get-Content .\pip.exe.__target__
+        Get-Item .\pip.exe.__script__.py
+        Get-Content .\pip.exe.__script__.py
+        .\pip.exe --version
+      env:
+        PYTHON_MANAGER_INCLUDE_UNMANAGED: false
+        PYTHON_MANAGER_CONFIG: .\test-config.json
+        PYMANAGER_DEBUG: true
+      shell: powershell
+
     - name: 'Offline bundle download and install'
       run: |
         pymanager list --online 3 3-32 3-64 3-arm64

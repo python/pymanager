@@ -39,6 +39,10 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
+
+This update adds global shortcuts for installed scripts such as !G!pip.exe!W!.
+Use !G!py install --refresh!W! to update all shortcuts.
+!Y!This will be needed after installing new scripts, as it is not run automatically.!W!
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,

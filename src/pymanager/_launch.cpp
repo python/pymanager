@@ -34,28 +34,20 @@ dup_handle(HANDLE input, HANDLE *output)
 
 
 int
-launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWORD *exitCode)
-{
+launch(
+    const wchar_t *executable,
+    const wchar_t *origCmdLine,
+    const wchar_t *insert_args,
+    int skip_argc,
+    DWORD *exitCode
+) {
     HANDLE job;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION info;
     DWORD info_len;
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     int lastError = 0;
-    const wchar_t *arg_space = L" ";
-    LPCWSTR origCmdLine = GetCommandLineW();
     const wchar_t *cmdLine = NULL;
-
-    if (insert_args == NULL) {
-        insert_args = L"";
-    }
-
-    size_t n = wcslen(executable) + wcslen(origCmdLine) + wcslen(insert_args) + 5;
-    wchar_t *newCmdLine = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n * sizeof(wchar_t));
-    if (!newCmdLine) {
-        lastError = GetLastError();
-        goto exit;
-    }
 
     if (origCmdLine[0] == L'"') {
         cmdLine = wcschr(origCmdLine + 1, L'"');
@@ -63,20 +55,27 @@ launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWO
         cmdLine = wcschr(origCmdLine, L' ');
     }
 
+    size_t n = wcslen(executable) + wcslen(origCmdLine) + wcslen(insert_args) + 6;
+    wchar_t *newCmdLine = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n * sizeof(wchar_t));
+    if (!newCmdLine) {
+        lastError = GetLastError();
+        goto exit;
+    }
+
+    // Skip any requested args, deliberately leaving any trailing spaces
+    // (we'll skip one later one and add our own space, and preserve multiple)
     while (skip_argc-- > 0) {
         wchar_t c;
         while (*++cmdLine && *cmdLine == L' ') { }
         while (*++cmdLine && *cmdLine != L' ') { }
     }
 
-    if (!insert_args || !*insert_args) {
-        arg_space = L"";
-    }
-    if (cmdLine && *cmdLine) {
-        swprintf_s(newCmdLine, n + 1, L"\"%s\"%s%s %s", executable, arg_space, insert_args, cmdLine + 1);
-    } else {
-        swprintf_s(newCmdLine, n + 1, L"\"%s\"%s%s", executable, arg_space, insert_args);
-    }
+    swprintf_s(newCmdLine, n, L"\"%s\"%s%s%s%s",
+               executable,
+               (insert_args && *insert_args) ? L" ": L"",
+               (insert_args && *insert_args) ? insert_args : L"",
+               (cmdLine && *cmdLine) ? L" " : L"",
+               (cmdLine && *cmdLine) ? cmdLine + 1 : L"");
 
 #if defined(_WINDOWS)
     /*

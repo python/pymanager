@@ -44,11 +44,17 @@ class PurePath:
 
     @property
     def stem(self):
-        return self.name.rpartition(".")[0]
+        stem, dot, suffix = self.name.rpartition(".")
+        if not dot:
+            return suffix
+        return stem
 
     @property
     def suffix(self):
-        return self.name.rpartition(".")[2]
+        stem, dot, suffix = self.name.rpartition(".")
+        if not dot:
+            return ""
+        return dot + suffix
 
     @property
     def parent(self):

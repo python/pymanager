@@ -274,6 +274,7 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
         from .aliasutils import cleanup_alias as _cleanup_alias
 
     LOGGER.debug("Updating global shortcuts")
+    aliases_written = cmd.scratch["aliasutils.create_alias.aliases_written"] = set()
     shortcut_written = {}
     for i in cmd.get_installs():
         if cmd.global_dir:
@@ -294,7 +295,7 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
                 if not target.is_file():
                     LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
                     continue
-                _create_alias(cmd, i, a, target)
+                _create_alias(cmd, i, a, target, aliases_written)
 
         for s in i.get("shortcuts", ()):
             if cmd.enable_shortcut_kinds and s["kind"] not in cmd.enable_shortcut_kinds:

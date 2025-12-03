@@ -50,7 +50,8 @@ def create_alias(cmd, install, alias, target, aliases_written, *, script_code=No
     p = cmd.global_dir / alias["name"]
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")
-    target = Path(target)
+    if not isinstance(target, Path):
+        target = Path(target)
     ensure_tree(p)
     launcher = cmd.launcher_exe
     if alias.get("windowed"):

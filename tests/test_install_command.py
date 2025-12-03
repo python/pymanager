@@ -206,4 +206,5 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
         assert sorted(w[2]["name"] for w in written) == ["python3.exe", "pythonw3.exe"]
     # Ensure we still only have the two targets
     assert set(w[3].name for w in written) == {"p.exe", "pw.exe"}
-
+    # Ensure we got an empty set passed in each time
+    assert [w[4] for w in written] == [set()] * len(written)

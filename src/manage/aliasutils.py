@@ -66,6 +66,14 @@ class AliasInfo:
     @property
     def script_code(self):
         if self.mod and self.func:
+            if not self.mod.isidentifier():
+                LOGGER.warn("Alias %s has an entrypoint with invalid module "
+                            "%r.", self.name, self.mod)
+                return None
+            if not self.func.isidentifier():
+                LOGGER.warn("Alias %s has an entrypoint with invalid function "
+                            "%r.", self.name, self.func)
+                return None
             return SCRIPT_CODE.format(mod=self.mod, func=self.func)
 
 
@@ -183,7 +191,8 @@ def _create_alias(cmd, *, name, target, plat=None, windowed=0, script_code=None,
         except OSError:
             LOGGER.error("Failed to clean up existing alias. Re-run with -v "
                          "or check the install log for details.")
-            LOGGER.info("Failed to remove %s.", p_script, exc_info=True)
+            LOGGER.info("Failed to remove %s.", p_script)
+            LOGGER.debug("TRACEBACK", exc_info=True)
 
 
 def _parse_entrypoint_line(line):

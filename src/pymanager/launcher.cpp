@@ -172,7 +172,7 @@ get_script(wchar_t **result_path)
         }
     }
 
-    wcscpy_s(&path[len], path_len, SUFFIX);
+    wcscpy_s(&path[len], path_len - len, SUFFIX);
 
     // Check that we have a script file. FindFirstFile should be fastest.
     WIN32_FIND_DATAW fd;
@@ -267,7 +267,7 @@ wmain(int argc, wchar_t **argv)
 {
     int exit_code;
     wchar_t executable[MAXLEN];
-    wchar_t *script;
+    wchar_t *script = NULL;
 
     int err = get_executable(executable, MAXLEN);
     if (err) {

@@ -1,8 +1,5 @@
-import json
-import os
 import pytest
 import secrets
-from pathlib import Path, PurePath
 
 from manage import aliasutils as AU
 from manage.exceptions import NoLauncherTemplateError
@@ -297,10 +294,6 @@ def test_create_aliases(fake_config, tmp_path):
 def test_cleanup_aliases(fake_config, tmp_path):
     target = tmp_path / "target.exe"
     target.write_bytes(b"")
-
-    created = []
-    def _on_create(cmd, **kwargs):
-        created.append(kwargs)
 
     aliases = [
         AU.AliasInfo(install=dict(prefix=tmp_path), name="A", target=target),

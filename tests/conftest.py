@@ -107,7 +107,8 @@ class LogCaptureHandler(list):
                 else:
                     assert re.match(pat, x[0], flags=re.S)
                 if args is not None:
-                    assert tuple(x[1]) == tuple(args)
+                    values = tuple(type(v2)(v1) for v1, v2 in zip(x[1], args))
+                    assert values == tuple(args)
                 break
 
 

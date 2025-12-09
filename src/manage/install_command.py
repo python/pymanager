@@ -21,10 +21,6 @@ from .urlutils import (
 )
 
 
-# In-process cache to save repeat downloads
-DOWNLOAD_CACHE = {}
-
-
 def _multihash(file, hashes):
     import hashlib
     LOGGER.debug("Calculating hashes: %s", ", ".join(hashes))
@@ -379,7 +375,8 @@ def _find_one(cmd, source, tag, *, installed=None, by_id=False):
     else:
         LOGGER.verbose("Searching for default Python version")
 
-    downloader = IndexDownloader(source, Index, {}, DOWNLOAD_CACHE)
+    download_cache = cmd.scratch.setdefault("install_command.download_cache", {})
+    downloader = IndexDownloader(source, Index, {}, download_cache)
     install = select_package(downloader, tag, cmd.default_platform, by_id=by_id)
 
     if by_id:
@@ -423,8 +420,9 @@ def _download_one(cmd, source, install, download_dir, *, must_copy=False):
     if install["url"].casefold().endswith(".nupkg".casefold()):
         package = package.with_suffix(".nupkg")
 
+    download_cache = cmd.scratch.setdefault("install_command.download_cache", {})
     with ProgressPrinter("Downloading", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
-        package = download_package(cmd, install, package, DOWNLOAD_CACHE, on_progress=on_progress)
+        package = download_package(cmd, install, package, download_cache, on_progress=on_progress)
     validate_package(install, package)
     if must_copy and package.parent != download_dir:
         import shutil
@@ -757,7 +755,11 @@ def execute(cmd):
             # Have already checked that we are not using --by-id
             from .scriptutils import find_install_from_script
             try:
-                spec = find_install_from_script(cmd, cmd.from_script)
+                spec = find_install_from_script(cmd, cmd.from_script)["tag"]
+            except NoInstallFoundError as ex:
+                # Usually expect this exception, since we should be installing
+                # a runtime that wasn't found.
+                spec = ex.tag
             except LookupError:
                 spec = None
             if spec:

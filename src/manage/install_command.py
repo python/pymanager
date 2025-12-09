@@ -216,34 +216,62 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
 
 
 def _create_shortcut_pep514(cmd, install, shortcut):
-    from .pep514utils import update_registry
-    update_registry(cmd.pep514_root, install, shortcut, cmd.tags)
+    try:
+        from .pep514utils import update_registry
+        root = cmd.pep514_root
+    except (ImportError, AttributeError):
+        LOGGER.debug("Skipping PEP 514 creation.", exc_info=True)
+        return
+    update_registry(root, install, shortcut, cmd.tags)
 
 
 def _cleanup_shortcut_pep514(cmd, install_shortcut_pairs):
-    from .pep514utils import cleanup_registry
-    cleanup_registry(cmd.pep514_root, {s["Key"] for i, s in install_shortcut_pairs}, cmd.tags)
+    try:
+        from .pep514utils import cleanup_registry
+        root = cmd.pep514_root
+    except (ImportError, AttributeError):
+        LOGGER.debug("Skipping PEP 514 cleanup.", exc_info=True)
+        return
+    cleanup_registry(root, {s["Key"] for i, s in install_shortcut_pairs}, getattr(cmd, "tags", None))
 
 
 def _create_start_shortcut(cmd, install, shortcut):
-    from .startutils import create_one
-    create_one(cmd.start_folder, install, shortcut, cmd.tags)
+    try:
+        from .startutils import create_one
+        root = cmd.start_folder
+    except (ImportError, AttributeError):
+        LOGGER.debug("Skipping Start shortcut creation.", exc_info=True)
+        return
+    create_one(root, install, shortcut, cmd.tags)
 
 
 def _cleanup_start_shortcut(cmd, install_shortcut_pairs):
-    from .startutils import cleanup
-    cleanup(cmd.start_folder, [s for i, s in install_shortcut_pairs], cmd.tags)
+    try:
+        from .startutils import cleanup
+        root = cmd.start_folder
+    except (ImportError, AttributeError):
+        LOGGER.debug("Skipping Start shortcut cleanup.", exc_info=True)
+        return
+    cleanup(root, [s for i, s in install_shortcut_pairs], getattr(cmd, "tags", None))
 
 
 def _create_arp_entry(cmd, install, shortcut):
     # ARP = Add/Remove Programs
-    from .arputils import create_one
-    create_one(install, shortcut, cmd.tags)
+    try:
+        from .arputils import create_one
+    except ImportError:
+        LOGGER.debug("Skipping ARP entry creation.", exc_info=True)
+        return
+    create_one(install, shortcut, getattr(cmd, "tags", None))
 
 
 def _cleanup_arp_entries(cmd, install_shortcut_pairs):
-    from .arputils import cleanup
-    cleanup([i for i, s in install_shortcut_pairs], cmd.tags)
+    try:
+        from .arputils import cleanup
+    except ImportError:
+        LOGGER.debug("Skipping ARP entry cleanup.", exc_info=True)
+        return
+    cleanup([i for i, s in install_shortcut_pairs], getattr(cmd, "tags", None))
 
 
 def _create_entrypoints(cmd, install, shortcut):
@@ -279,7 +307,7 @@ def update_all_shortcuts(cmd, *, _aliasutils=None):
             try:
                 aliases.extend(_aliasutils.calculate_aliases(cmd, i))
             except LookupError:
-                LOGGER.warn("Failed to process aliases for %s.", i["display-name"])
+                LOGGER.warn("Failed to process aliases for %s.", i.get("display-name", i["id"]))
                 LOGGER.debug("TRACEBACK", exc_info=True)
         _aliasutils.create_aliases(cmd, aliases)
         _aliasutils.cleanup_aliases(cmd, preserve=aliases)
@@ -301,7 +329,8 @@ def update_all_shortcuts(cmd, *, _aliasutils=None):
                     shortcut_written.setdefault(s["kind"], []).append((i, s))
 
     for k, (_, cleanup) in SHORTCUT_HANDLERS.items():
-        cleanup(cmd, shortcut_written.get(k, []))
+        if cleanup:
+            cleanup(cmd, shortcut_written.get(k, []))
 
 
 def print_cli_shortcuts(cmd):

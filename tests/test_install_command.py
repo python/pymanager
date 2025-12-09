@@ -176,6 +176,7 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
         def get_installs(self):
             return [
                 {
+                    "id": "test",
                     "alias": [
                         {"name": "python3.exe", "target": "p.exe"},
                         {"name": "pythonw3.exe", "target": "pw.exe", "windowed": 1},
@@ -189,22 +190,27 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
     (prefix / "p.exe").write_bytes(b"")
     (prefix / "pw.exe").write_bytes(b"")
 
-    written = []
-    def create_alias(*a):
-        written.append(a)
 
-    monkeypatch.setattr(IC, "SHORTCUT_HANDLERS", {
-        "site-dirs": (lambda *a: None,) * 2,
-    })
+    created = []
 
-    IC.update_all_shortcuts(Cmd(), _create_alias=create_alias)
+    class AliasUtils:
+        import manage.aliasutils as AU
+        calculate_aliases = staticmethod(AU.calculate_aliases)
+
+        @staticmethod
+        def create_aliases(cmd, aliases):
+            created.extend(aliases)
+
+        @staticmethod
+        def cleanup_aliases(cmd, preserve):
+            pass
+
+    IC.update_all_shortcuts(Cmd(), _aliasutils=AliasUtils)
 
     if default:
         # Main test: python.exe and pythonw.exe are added in automatically
-        assert sorted(w[2]["name"] for w in written) == ["python.exe", "python3.exe", "pythonw.exe", "pythonw3.exe"]
+        assert sorted(a.name for a in created) == ["python", "python3.exe", "pythonw", "pythonw3.exe"]
     else:
-        assert sorted(w[2]["name"] for w in written) == ["python3.exe", "pythonw3.exe"]
+        assert sorted(a.name for a in created) == ["python3.exe", "pythonw3.exe"]
     # Ensure we still only have the two targets
-    assert set(w[3].name for w in written) == {"p.exe", "pw.exe"}
-    # Ensure we got an empty set passed in each time
-    assert [w[4] for w in written] == [set()] * len(written)
+    assert set(a.target for a in created) == {"p.exe", "pw.exe"}

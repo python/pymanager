@@ -142,6 +142,64 @@ get_executable(wchar_t *executable, unsigned int bufferSize)
 }
 
 
+int
+get_script(wchar_t **result_path)
+{
+    HANDLE ph = GetProcessHeap();
+    wchar_t *path = NULL;
+    DWORD path_len = 0;
+    DWORD len = 0;
+    int error = 0;
+    const wchar_t *SUFFIX = L".__script__.py";
+
+    // Get our path in a dynamic buffer with enough space to add SUFFIX
+    while (len >= path_len) {
+        if (path) {
+            HeapFree(ph, 0, path);
+        }
+        path_len += 260;
+
+        path = (wchar_t *)HeapAlloc(ph, HEAP_ZERO_MEMORY, sizeof(wchar_t) * path_len);
+        if (!path) {
+            return HRESULT_FROM_WIN32(GetLastError());
+        }
+
+        len = GetModuleFileNameW(NULL, path, path_len - wcslen(SUFFIX));
+        if (len == 0) {
+            error = GetLastError();
+            HeapFree(ph, 0, path);
+            return HRESULT_FROM_WIN32(error);
+        }
+    }
+
+    wcscpy_s(&path[len], path_len - len, SUFFIX);
+
+    // Check that we have a script file. FindFirstFile should be fastest.
+    WIN32_FIND_DATAW fd;
+    HANDLE fh = FindFirstFileW(path, &fd);
+    if (fh == INVALID_HANDLE_VALUE) {
+        error = GetLastError();
+        HeapFree(ph, 0, path);
+        switch (error) {
+        case ERROR_INVALID_FUNCTION:
+        case ERROR_FILE_NOT_FOUND:
+        case ERROR_PATH_NOT_FOUND:
+            // This is the typical exit for normal launches. We ought to be nice
+            // and fast up until this point, but can be slower through every
+            // other path.
+            return 0;
+        default:
+            return HRESULT_FROM_WIN32(error);
+        }
+    }
+    FindClose(fh);
+
+    // Deliberately letting our memory leak - it'll be cleaned up when the
+    // process ends, and this is not a loop.
+    *result_path = path;
+    return 0;
+}
+
 
 int
 try_load_python3_dll(const wchar_t *executable, unsigned int bufferSize, void **mainFunction)
@@ -209,16 +267,36 @@ wmain(int argc, wchar_t **argv)
 {
     int exit_code;
     wchar_t executable[MAXLEN];
+    wchar_t *script = NULL;
 
     int err = get_executable(executable, MAXLEN);
     if (err) {
         return print_error(err, L"Failed to get target path");
     }
 
+    err = get_script(&script);
+    if (err) {
+        return print_error(err, L"Failed to get script path");
+    }
+
     void *main_func = NULL;
     err = try_load_python3_dll(executable, MAXLEN, (void **)&main_func);
     switch (err) {
     case 0:
+        if (script) {
+            wchar_t **argv2 = (wchar_t **)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                (argc + 1) * sizeof(wchar_t *));
+            if (!argv2) {
+                return HRESULT_FROM_WIN32(GetLastError());
+            }
+            argv2[0] = argv[0];
+            argv2[1] = script;
+            for (int i = 1; i < argc; ++i) {
+                argv2[i + 1] = argv[i];
+            }
+            argv = argv2;
+            argc += 1;
+        }
         err = launch_by_dll(main_func, executable, argc, argv, &exit_code);
         if (!err) {
             return exit_code;
@@ -248,7 +326,8 @@ wmain(int argc, wchar_t **argv)
         break;
     }
 
-    err = launch(executable, NULL, 0, (DWORD *)&exit_code);
+    err = launch(executable, GetCommandLineW(), script, 0, (DWORD *)&exit_code);
+
     if (!err) {
         return exit_code;
     }

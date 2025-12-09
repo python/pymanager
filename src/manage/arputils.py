@@ -25,7 +25,7 @@ def _self_cmd():
     if not appdata:
         appdata = os.path.expanduser(r"~\AppData\Local")
     apps = Path(appdata) / r"Microsoft\WindowsApps"
-    LOGGER.debug("Searching %s for pymanager.exe", apps)
+    LOGGER.debug("Searching %s for pymanager.exe for ARP entries", apps)
     for d in apps.iterdir():
         if not d.match("PythonSoftwareFoundation.PythonManager_*"):
             continue

@@ -75,3 +75,8 @@ class AutomaticInstallDisabledError(Exception):
 class FilesInUseError(Exception):
     def __init__(self, files):
         self.files = files
+
+
+class NoLauncherTemplateError(Exception):
+    def __init__(self):
+        super().__init__("No suitable launcher template was found.")

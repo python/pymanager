@@ -155,6 +155,7 @@ class FakeConfig:
         self.installs = list(installs)
         self.shebang_can_run_anything = True
         self.shebang_can_run_anything_silently = False
+        self.scratch = {}
 
     def get_installs(self, *, include_unmanaged=True, set_default=True):
         return self.installs

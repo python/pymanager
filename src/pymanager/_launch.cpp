@@ -34,49 +34,48 @@ dup_handle(HANDLE input, HANDLE *output)
 
 
 int
-launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWORD *exitCode)
-{
+launch(
+    const wchar_t *executable,
+    const wchar_t *orig_cmd_line,
+    const wchar_t *insert_args,
+    int skip_argc,
+    DWORD *exit_code
+) {
     HANDLE job;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION info;
     DWORD info_len;
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     int lastError = 0;
-    const wchar_t *arg_space = L" ";
-    LPCWSTR origCmdLine = GetCommandLineW();
-    const wchar_t *cmdLine = NULL;
+    const wchar_t *cmd_line = NULL;
 
-    if (insert_args == NULL) {
-        insert_args = L"";
+    if (orig_cmd_line[0] == L'"') {
+        cmd_line = wcschr(orig_cmd_line + 1, L'"');
+    } else {
+        cmd_line = wcschr(orig_cmd_line, L' ');
     }
 
-    size_t n = wcslen(executable) + wcslen(origCmdLine) + wcslen(insert_args) + 5;
-    wchar_t *newCmdLine = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n * sizeof(wchar_t));
-    if (!newCmdLine) {
+    size_t n = wcslen(executable) + wcslen(orig_cmd_line) + (insert_args ? wcslen(insert_args) : 0) + 6;
+    wchar_t *new_cmd_line = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n * sizeof(wchar_t));
+    if (!new_cmd_line) {
         lastError = GetLastError();
         goto exit;
     }
 
-    if (origCmdLine[0] == L'"') {
-        cmdLine = wcschr(origCmdLine + 1, L'"');
-    } else {
-        cmdLine = wcschr(origCmdLine, L' ');
-    }
-
-    while (skip_argc-- > 0) {
+    // Skip any requested args, deliberately leaving any trailing spaces
+    // (we'll skip one later on and add our own space, and preserve multiple)
+    while (cmd_line && *cmd_line && skip_argc-- > 0) {
         wchar_t c;
-        while (*++cmdLine && *cmdLine == L' ') { }
-        while (*++cmdLine && *cmdLine != L' ') { }
+        while (*++cmd_line && *cmd_line == L' ') { }
+        while (*++cmd_line && *cmd_line != L' ') { }
     }
 
-    if (!insert_args || !*insert_args) {
-        arg_space = L"";
-    }
-    if (cmdLine && *cmdLine) {
-        swprintf_s(newCmdLine, n + 1, L"\"%s\"%s%s %s", executable, arg_space, insert_args, cmdLine + 1);
-    } else {
-        swprintf_s(newCmdLine, n + 1, L"\"%s\"%s%s", executable, arg_space, insert_args);
-    }
+    swprintf_s(new_cmd_line, n, L"\"%s\"%s%s%s%s",
+               executable,
+               (insert_args && *insert_args) ? L" ": L"",
+               (insert_args && *insert_args) ? insert_args : L"",
+               (cmd_line && *cmd_line) ? L" " : L"",
+               (cmd_line && *cmd_line) ? cmd_line + 1 : L"");
 
 #if defined(_WINDOWS)
     /*
@@ -123,7 +122,7 @@ launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWO
     }
 
     si.dwFlags |= STARTF_USESTDHANDLES;
-    if (!CreateProcessW(executable, newCmdLine, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessW(executable, new_cmd_line, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
         lastError = GetLastError();
         goto exit;
     }
@@ -131,12 +130,12 @@ launch(const wchar_t *executable, const wchar_t *insert_args, int skip_argc, DWO
     AssignProcessToJobObject(job, pi.hProcess);
     CloseHandle(pi.hThread);
     WaitForSingleObjectEx(pi.hProcess, INFINITE, FALSE);
-    if (!GetExitCodeProcess(pi.hProcess, exitCode)) {
+    if (!GetExitCodeProcess(pi.hProcess, exit_code)) {
         lastError = GetLastError();
     }
 exit:
-    if (newCmdLine) {
-        HeapFree(GetProcessHeap(), 0, newCmdLine);
+    if (new_cmd_line) {
+        HeapFree(GetProcessHeap(), 0, new_cmd_line);
     }
     return lastError ? HRESULT_FROM_WIN32(lastError) : 0;
 }

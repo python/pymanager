@@ -66,11 +66,11 @@ class AliasInfo:
     @property
     def script_code(self):
         if self.mod and self.func:
-            if not self.mod.isidentifier():
+            if not all(s.isidentifier() for s in self.mod.split(".")):
                 LOGGER.warn("Alias %s has an entrypoint with invalid module "
                             "%r.", self.name, self.mod)
                 return None
-            if not self.func.isidentifier():
+            if not all(s.isidentifier() for s in self.func.split(".")):
                 LOGGER.warn("Alias %s has an entrypoint with invalid function "
                             "%r.", self.name, self.func)
                 return None

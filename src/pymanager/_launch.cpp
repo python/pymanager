@@ -36,10 +36,10 @@ dup_handle(HANDLE input, HANDLE *output)
 int
 launch(
     const wchar_t *executable,
-    const wchar_t *origCmdLine,
+    const wchar_t *orig_cmd_line,
     const wchar_t *insert_args,
     int skip_argc,
-    DWORD *exitCode
+    DWORD *exit_code
 ) {
     HANDLE job;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION info;
@@ -49,13 +49,13 @@ launch(
     int lastError = 0;
     const wchar_t *cmdLine = NULL;
 
-    if (origCmdLine[0] == L'"') {
-        cmdLine = wcschr(origCmdLine + 1, L'"');
+    if (orig_cmd_line[0] == L'"') {
+        cmdLine = wcschr(orig_cmd_line + 1, L'"');
     } else {
-        cmdLine = wcschr(origCmdLine, L' ');
+        cmdLine = wcschr(orig_cmd_line, L' ');
     }
 
-    size_t n = wcslen(executable) + wcslen(origCmdLine) + wcslen(insert_args) + 6;
+    size_t n = wcslen(executable) + wcslen(orig_cmd_line) + wcslen(insert_args) + 6;
     wchar_t *newCmdLine = (wchar_t *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, n * sizeof(wchar_t));
     if (!newCmdLine) {
         lastError = GetLastError();
@@ -130,7 +130,7 @@ launch(
     AssignProcessToJobObject(job, pi.hProcess);
     CloseHandle(pi.hThread);
     WaitForSingleObjectEx(pi.hProcess, INFINITE, FALSE);
-    if (!GetExitCodeProcess(pi.hProcess, exitCode)) {
+    if (!GetExitCodeProcess(pi.hProcess, exit_code)) {
         lastError = GetLastError();
     }
 exit:

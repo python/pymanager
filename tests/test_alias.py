@@ -276,8 +276,9 @@ def test_create_aliases(fake_config, tmp_path):
     target.write_bytes(b"")
 
     created = []
-    def _on_create(cmd, **kwargs):
-        created.append(kwargs)
+    # Full arguments copied from source to ensure callers only pass valid args
+    def _on_create(cmd, *, name, target, plat=None, windowed=0, script_code=None):
+        created.append((name, windowed, script_code))
 
     aliases = [
         AU.AliasInfo(install=dict(prefix=tmp_path), name="a", target=target),
@@ -288,9 +289,9 @@ def test_create_aliases(fake_config, tmp_path):
     AU.create_aliases(fake_config, aliases, _create_alias=_on_create)
     print(created)
 
-    assert ["a", "aw"] == [a["name"] for a in created]
-    assert [0, 1] == [a["windowed"] for a in created]
-    assert [None, None] == [a["script_code"] for a in created]
+    assert ["a", "aw"] == [a[0] for a in created]
+    assert [0, 1] == [a[1] for a in created]
+    assert [None, None] == [a[2] for a in created]
 
 
 def test_cleanup_aliases(fake_config, tmp_path):

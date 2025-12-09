@@ -320,7 +320,6 @@ def create_aliases(cmd, aliases, *, _create_alias=_create_alias):
         try:
             _create_alias(
                 cmd,
-                install=alias.install,
                 name=alias.name,
                 plat=alias.install.get("tag", "").rpartition("-")[2],
                 target=target,

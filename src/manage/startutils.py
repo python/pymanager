@@ -160,7 +160,10 @@ def cleanup(root, preserve, warn_for=[]):
 
     LOGGER.debug("Cleaning up Start menu shortcuts")
     for item in keep:
-        LOGGER.debug("Except: %s", item)
+        try:
+            LOGGER.debug("Except: %s", item.relative_to(root))
+        except ValueError:
+            LOGGER.debug("Except: %s", item)
 
     for entry in root.iterdir():
         _cleanup(entry, keep)

@@ -25,8 +25,6 @@ from .urlutils import (
 DOWNLOAD_CACHE = {}
 
 
-DEFAULT_SITE_DIRS = ["Lib\\site-packages", "Scripts"]
-
 def _multihash(file, hashes):
     import hashlib
     LOGGER.debug("Calculating hashes: %s", ", ".join(hashes))
@@ -263,40 +261,30 @@ SHORTCUT_HANDLERS = {
     "pep514": (_create_shortcut_pep514, _cleanup_shortcut_pep514),
     "start": (_create_start_shortcut, _cleanup_start_shortcut),
     "uninstall": (_create_arp_entry, _cleanup_arp_entries),
-    "site-dirs": (_create_entrypoints, _cleanup_entrypoints),
+    # We want to catch these, but not handle them as regular shortcuts.
+    "site-dirs": (None, None),
 }
 
 
-def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
-    if not _create_alias:
-        from .aliasutils import create_alias as _create_alias
-    if not _cleanup_alias:
-        from .aliasutils import cleanup_alias as _cleanup_alias
-
+def update_all_shortcuts(cmd, *, _aliasutils=None):
     LOGGER.debug("Updating global shortcuts")
-    aliases_written = cmd.scratch["aliasutils.create_alias.aliases_written"] = set()
+    installs = cmd.get_installs()
     shortcut_written = {}
-    for i in cmd.get_installs():
-        if cmd.global_dir:
-            aliases = list(i.get("alias", ()))
 
-            # Generate a python.exe for the default runtime in case the user
-            # later disables/removes the global python.exe command.
-            if i.get("default"):
-                alias_1 = [a for a in aliases if not a.get("windowed")]
-                alias_2 = [a for a in aliases if a.get("windowed")]
-                if alias_1:
-                    aliases.append({**alias_1[0], "name": "python.exe"})
-                if alias_2:
-                    aliases.append({**alias_2[0], "name": "pythonw.exe"})
+    if cmd.global_dir:
+        if not _aliasutils:
+            from . import aliasutils as _aliasutils
+        aliases = []
+        for i in installs:
+            try:
+                aliases.extend(_aliasutils.calculate_aliases(cmd, i))
+            except LookupError:
+                LOGGER.warn("Failed to process aliases for %s.", i["display-name"])
+                LOGGER.debug("TRACEBACK", exc_info=True)
+        _aliasutils.create_aliases(cmd, aliases)
+        _aliasutils.cleanup_aliases(cmd, preserve=aliases)
 
-            for a in aliases:
-                target = i["prefix"] / a["target"]
-                if not target.is_file():
-                    LOGGER.warn("Skipping alias '%s' because target '%s' does not exist", a["name"], a["target"])
-                    continue
-                _create_alias(cmd, i, a, target, aliases_written)
-
+    for i in installs:
         for s in i.get("shortcuts", ()):
             if cmd.enable_shortcut_kinds and s["kind"] not in cmd.enable_shortcut_kinds:
                 continue
@@ -308,23 +296,12 @@ def update_all_shortcuts(cmd, *, _create_alias=None, _cleanup_alias=None):
                 LOGGER.warn("Skipping invalid shortcut for '%s'", i["id"])
                 LOGGER.debug("shortcut: %s", s)
             else:
-                create(cmd, i, s)
-                shortcut_written.setdefault(s["kind"], []).append((i, s))
-
-        # Earlier releases may not have site_dirs. If not, assume defaults
-        if ("site-dirs" in (cmd.enable_shortcut_kinds or ("site-dirs",)) and
-            "site-dirs" not in (cmd.disable_shortcut_kinds or ()) and
-            all(s["kind"] != "site-dirs" for s in i.get("shortcuts", ()))):
-
-            create, cleanup = SHORTCUT_HANDLERS["site-dirs"]
-            s = dict(kind="site-dirs", dirs=DEFAULT_SITE_DIRS)
-            create(cmd, i, s)
-            shortcut_written.setdefault("site-dirs", []).append((i, s))
+                if create:
+                    create(cmd, i, s)
+                    shortcut_written.setdefault(s["kind"], []).append((i, s))
 
     for k, (_, cleanup) in SHORTCUT_HANDLERS.items():
         cleanup(cmd, shortcut_written.get(k, []))
-
-    _cleanup_alias(cmd, shortcut_written.get("site-dirs", []))
 
 
 def print_cli_shortcuts(cmd):
@@ -455,9 +432,10 @@ def _preserve_site(cmd, root, install):
     state = []
     i = 0
 
+    from .aliasutils import DEFAULT_SITE_DIRS
     site_dirs = DEFAULT_SITE_DIRS
     for s in install.get("shortcuts", ()):
-        if s["kind"] == "site-dirs":
+        if s.get("kind") == "site-dirs":
             site_dirs = s.get("dirs", ())
             break
 

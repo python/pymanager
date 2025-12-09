@@ -274,17 +274,6 @@ def _cleanup_arp_entries(cmd, install_shortcut_pairs):
     cleanup([i for i, s in install_shortcut_pairs], getattr(cmd, "tags", None))
 
 
-def _create_entrypoints(cmd, install, shortcut):
-    from .aliasutils import scan_and_create_entrypoints
-    aliases_written = cmd.scratch.setdefault("aliasutils.create_alias.aliases_written", set())
-    scan_and_create_entrypoints(cmd, install, shortcut, aliases_written)
-
-
-def _cleanup_entrypoints(cmd, install_shortcut_pairs):
-    # Entry point aliases are cleaned up with regular aliases
-    pass
-
-
 SHORTCUT_HANDLERS = {
     "pep514": (_create_shortcut_pep514, _cleanup_shortcut_pep514),
     "start": (_create_start_shortcut, _cleanup_start_shortcut),

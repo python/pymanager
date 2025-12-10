@@ -1,11 +1,11 @@
 import json
 import os
 import pytest
-import secrets
 from pathlib import Path, PurePath
 
 from manage import install_command as IC
 from manage import installs
+from manage.exceptions import NoInstallFoundError
 
 
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
@@ -291,7 +291,7 @@ class InstallCommandTestCmd:
         for i in self.installs:
             if i["tag"] == tag or f"{i['company']}/{i['tag']}" == tag:
                 return i
-        raise LookupError
+        raise NoInstallFoundError(tag)
 
 
 def test_install_simple(tmp_path, assert_log):

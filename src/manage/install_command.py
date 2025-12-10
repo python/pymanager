@@ -736,7 +736,7 @@ def execute(cmd):
                         break
                     except LookupError:
                         LOGGER.error("Failed to find a suitable install for '%s'.", tag)
-                        raise NoInstallFoundError()
+                        raise NoInstallFoundError(tag)
                     except Exception as ex:
                         LOGGER.debug("Capturing error in case fallbacks fail", exc_info=True)
                         first_exc = first_exc or ex
@@ -798,7 +798,7 @@ def execute(cmd):
                                     break
                             except LookupError:
                                 LOGGER.error("Failed to find a suitable update for '%s'.", install['id'])
-                                raise NoInstallFoundError()
+                                raise NoInstallFoundError(install.get('tag'))
                             except Exception as ex:
                                 LOGGER.debug("Capturing error in case fallbacks fail", exc_info=True)
                                 first_exc = first_exc or ex
@@ -834,7 +834,7 @@ def execute(cmd):
                     break
                 except LookupError:
                     LOGGER.error("Failed to find a suitable install for '%s'.", tag)
-                    raise NoInstallFoundError()
+                    raise NoInstallFoundError(tag)
                 except (AssertionError, AttributeError, TypeError):
                     # These errors should never happen.
                     raise

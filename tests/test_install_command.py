@@ -1,11 +1,11 @@
 import json
 import os
 import pytest
-import secrets
 from pathlib import Path, PurePath
 
 from manage import install_command as IC
 from manage import installs
+from manage.exceptions import NoInstallFoundError
 
 
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
@@ -214,3 +214,116 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
         assert sorted(a.name for a in created) == ["python3.exe", "pythonw3.exe"]
     # Ensure we still only have the two targets
     assert set(a.target for a in created) == {"p.exe", "pw.exe"}
+
+
+class InstallCommandTestCmd:
+    def __init__(self, tmp_path, *args, **kwargs):
+        self.args = args
+        self.tags = None
+        self.download_cache = {}
+        self.scratch = {
+            "install_command.download_cache": self.download_cache,
+        }
+        self.automatic = kwargs.get("automatic", False)
+        self.by_id = kwargs.get("by_id", False)
+        self.default_install_tag = kwargs.get("default_install_tag", "1")
+        self.default_platform = kwargs.get("default_platform", "-32")
+        self.default_tag = kwargs.get("default_tag", "1")
+        self.download = kwargs.get("download")
+        if self.download:
+            self.download = tmp_path / self.download
+        self.dry_run = kwargs.get("dry_run", True)
+        self.fallback_source = kwargs.get("fallback_source")
+        self.force = kwargs.get("force", True)
+        self.from_script = kwargs.get("from_script")
+        self.log_file = kwargs.get("log_file")
+        self.refresh = kwargs.get("refresh", False)
+        self.repair = kwargs.get("repair", False)
+        self.shebang_can_run_anything = kwargs.get("shebang_can_run_anything", False)
+        self.shebang_can_run_anything_silently = kwargs.get("shebang_can_run_anything_silently", False)
+        self.source = kwargs.get("source", "http://example.com/index.json")
+        self.target = kwargs.get("target")
+        if self.target:
+            self.target = tmp_path / self.target
+        self.update = kwargs.get("update", False)
+        self.virtual_env = kwargs.get("virtual_env")
+
+        self.index_installs = [
+            {
+                "schema": 1,
+                "id": "test-1.1-32",
+                "sort-version": "1.1",
+                "company": "Test",
+                "tag": "1.1-32",
+                "install-for": ["1", "1.1", "1.1-32"],
+                "display-name": "Test 1.1 (32)",
+                "executable": "test.exe",
+                "url": "about:blank",
+            },
+            {
+                "schema": 1,
+                "id": "test-1.0-32",
+                "sort-version": "1.0",
+                "company": "Test",
+                "tag": "1.0-32",
+                "install-for": ["1", "1.0", "1.0-32"],
+                "display-name": "Test 1.0 (32)",
+                "executable": "test.exe",
+                "url": "about:blank",
+            },
+        ]
+        self.download_cache["http://example.com/index.json"] = json.dumps({
+            "versions": self.index_installs,
+        })
+        self.installs = [{
+            **self.index_installs[-1],
+            "source": self.source,
+            "prefix": tmp_path / "test-1.0-32",
+        }]
+
+    def get_log_file(self):
+        return self.log_file
+
+    def get_installs(self):
+        return self.installs
+
+    def get_install_to_run(self, tag):
+        for i in self.installs:
+            if i["tag"] == tag or f"{i['company']}/{i['tag']}" == tag:
+                return i
+        raise NoInstallFoundError(tag)
+
+
+def test_install_simple(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.1", force=False)
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching %s", ["1.1"]),
+        assert_log.skip_until("Installing %s", ["Test 1.1 (32)"]),
+        ("Tag: %s\\\\%s", ["Test", "1.1-32"]),
+    )
+
+
+def test_install_already_installed(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.0", force=False)
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching %s", ["1.0"]),
+        assert_log.skip_until("%s is already installed", ["Test 1.0 (32)"]),
+    )
+
+
+def test_install_from_script(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, from_script=tmp_path / "t.py")
+
+    cmd.from_script.parent.mkdir(parents=True, exist_ok=True)
+    cmd.from_script.write_text("#! python1.1.exe")
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching"),
+        assert_log.skip_until("Installing %s", ["Test 1.1 (32)"]),
+        ("Tag: %s\\\\%s", ["Test", "1.1-32"]),
+    )

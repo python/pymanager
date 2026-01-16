@@ -190,6 +190,16 @@ static bool winhttp_apply_proxy(HINTERNET hSession, HINTERNET hRequest, const wc
     // Now resolve the proxy required for the specified URL
     CHECK_WINHTTP(WinHttpGetProxyForUrl(hSession, url, &proxy_opt, &proxy_info));
 
+    // Enable proxy servers to automatically login with implicit credentials
+    // This is only used if the proxy sends a 407 response, otherwise, they are
+    // ignored.
+    CHECK_WINHTTP(WinHttpSetCredentials(
+        hRequest,
+        WINHTTP_AUTH_TARGET_PROXY,
+        WINHTTP_AUTH_SCHEME_NEGOTIATE,
+        NULL, NULL, NULL
+    ));
+
     // Apply the proxy settings to the request
     CHECK_WINHTTP(WinHttpSetOption(
         hRequest,
@@ -285,6 +295,17 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
             0
         );
     }
+
+    // Allow proxies to automatically log in (we'll set the default credentials
+    // in winhttp_apply_proxy(), but this setting has to go on the session).
+    opt = WINHTTP_AUTOLOGON_SECURITY_LEVEL_LOW;
+    CHECK_WINHTTP(WinHttpSetOption(
+        hSession,
+        WINHTTP_OPTION_AUTOLOGON_POLICY,
+        &opt,
+        sizeof(opt)
+    ));
+
     CHECK_WINHTTP(hSession);
 
     hConnection = WinHttpConnect(
@@ -456,7 +477,7 @@ exit:
 PyObject *winhttp_isconnected(PyObject *, PyObject *, PyObject *) {
     INetworkListManager *nlm = NULL;
     VARIANT_BOOL connected;
-    
+
     HRESULT hr = CoCreateInstance(
         CLSID_NetworkListManager,
         NULL,

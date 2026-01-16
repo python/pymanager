@@ -16,7 +16,8 @@ EXIT_ALIAS_INVALID = 3
 CLEANUP = []
 
 def run(*args, **kwargs):
-    print("##[command]", *args)
+    print("##[command]", end="")
+    print(*args)
     with subprocess.Popen(
         args,
         stdout=kwargs.pop("stdout", subprocess.PIPE),
@@ -36,7 +37,7 @@ def main():
         if not install.get("unmanaged"):
             break
     else:
-        print("[ERROR] No suitable (managed) runtime found.")
+        print("##[error]No suitable (managed) runtime found.")
         sys.exit(EXIT_SETUP_FAILED)
 
     print("Using", install["display-name"], "from", install["prefix"], "for test")
@@ -46,12 +47,12 @@ def main():
 
     site = Path(prefix) / "Lib/site-packages"
     if not site.is_dir():
-        print("[ERROR] Selected runtime has no site-packages folder.")
+        print("##[error]Selected runtime has no site-packages folder.")
         sys.exit(EXIT_SETUP_FAILED)
 
     eptest_src = Path(__file__).parent / "eptestpackage"
     if not eptest_src.is_dir():
-        print("[ERROR] eptestpackage is missing from test script location.")
+        print("##[error]eptestpackage is missing from test script location.")
         sys.exit(EXIT_SETUP_FAILED)
 
     dist_info = site / "eptestpackage-1.0.dist-info"
@@ -69,7 +70,7 @@ def main():
     out, _ = run(exe, "-c", "import eptestpackage; eptestpackage.main()")
     if out.strip() != "eptestpackage:main":
         print(out)
-        print("[ERROR] Failed to import eptestpackage")
+        print("##[error]Failed to import eptestpackage")
         sys.exit(EXIT_SETUP_FAILED)
     print("Confirmed eptestpackage is importable")
 
@@ -93,25 +94,25 @@ def main():
         if not (bin_dir / n).is_file():
             print("--refresh log follows")
             print(refresh_log)
-            print("[ERROR] Did not create", n)
+            print("##[error]Did not create", n)
             sys.exit(EXIT_ALIAS_NOT_CREATED)
 
     out, _ = run(bin_dir / "eptest.exe")
+    print(out)
     if out.strip() != "eptestpackage:main":
-        print(out)
-        print("[ERROR] eptest.exe alias failed")
+        print("##[error]eptest.exe alias failed")
         sys.exit(EXIT_ALIAS_INVALID)
 
     out, _ = run(bin_dir / "eptestw.exe")
+    print(out)
     if out.strip() != "eptestpackage:mainw":
-        print(out)
-        print("[ERROR] eptestw.exe alias failed")
+        print("##[error]eptestw.exe alias failed")
         sys.exit(EXIT_ALIAS_INVALID)
 
     out, _ = run(bin_dir / "eptest-refresh.exe")
+    print(out)
     if not out.strip().endswith("eptestpackage:do_refresh"):
-        print(out)
-        print("[ERROR] eptest-refresh.exe alias failed")
+        print("##[error]eptest-refresh.exe alias failed")
         sys.exit(EXIT_ALIAS_INVALID)
 
 

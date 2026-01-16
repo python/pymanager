@@ -172,19 +172,10 @@ jobs:
         PYTHON_MANAGER_CONFIG: .\test-config.json
         PYMANAGER_DEBUG: true
 
-    - name: 'Validate entrypoint script'
+    - name: 'Validate entrypoint scripts'
       run: |
         $env:PYTHON_MANAGER_CONFIG = (gi $env:PYTHON_MANAGER_CONFIG).FullName
-        cd .\test_installs\_bin
-        del pip* -Verbose
-        pymanager install --refresh
-        dir pip*
-        Get-Item .\pip.exe
-        Get-Item .\pip.exe.__target__
-        Get-Content .\pip.exe.__target__
-        Get-Item .\pip.exe.__script__.py
-        Get-Content .\pip.exe.__script__.py
-        .\pip.exe --version
+        pymanager exec tests\run-eptest.py
       env:
         PYTHON_MANAGER_INCLUDE_UNMANAGED: false
         PYTHON_MANAGER_CONFIG: .\test-config.json

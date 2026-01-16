@@ -7,7 +7,7 @@ def mainw():
 def do_refresh():
     import subprocess
     with subprocess.Popen(
-        ["pymanager", "install", "-q", "--refresh"],
+        ["pymanager", "install", "-v", "--refresh"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         encoding="ascii",

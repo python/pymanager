@@ -314,6 +314,16 @@ stages:
           PYMANAGER_DEBUG: true
 
       - powershell: |
+          $env:PYTHON_MANAGER_CONFIG = (gi $env:PYTHON_MANAGER_CONFIG).FullName
+          pymanager exec tests\run-eptest.py
+        displayName: 'Validate entrypoint scripts'
+        timeoutInMinutes: 5
+        env:
+          PYTHON_MANAGER_INCLUDE_UNMANAGED: false
+          PYTHON_MANAGER_CONFIG: .\test-config.json
+          PYMANAGER_DEBUG: true
+
+      - powershell: |
           pymanager list --online 3 3-32 3-64 3-arm64
           pymanager install --download .\bundle 3 3-32 3-64 3-arm64
           pymanager list --source .\bundle

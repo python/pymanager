@@ -222,6 +222,11 @@ def list_formats(cmd, installs):
         LOGGER.print(f"{k:<{max_key_width}} {doc}", always=True)
 
 
+def list_config(cmd, installs):
+    "List the current config"
+    LOGGER.print(json.dumps(cmd.config, default=str), always=True)
+
+
 def format_legacy(cmd, installs, paths=False):
     "List runtimes using the old format"
     seen_default = False
@@ -262,6 +267,7 @@ FORMATTERS = {
     "legacy": format_legacy,
     "legacy-paths": format_legacy_paths,
     "formats": list_formats,
+    "config": list_config,
 }
 
 

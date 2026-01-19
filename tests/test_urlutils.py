@@ -295,12 +295,15 @@ def test_bits_errors(localserver, tmp_path, inject_error):
 
     # Inject an error when adding credentials
     inject_error(0, 0, 0, 0xA0000001)
-    # No credentials specified, so does not raise
-    try:
+    # Implicit credentials are always specified
+    with pytest.raises(OSError) as ex:
         job = _native.bits_begin(conn, "PyManager Test", url, dest)
-    finally:
-        _native.bits_cancel(conn, job)
-    # Add credentials to cause injected error
+    # Original error is ours
+    assert ex.value.__context__.winerror & 0xFFFFFFFF == 0xA0000001
+    # The final error is the missing message
+    assert ex.value.winerror & 0xFFFFFFFF == ERROR_MR_MID_NOT_FOUND
+
+    # Add credentials also causes injected error
     with pytest.raises(OSError) as ex:
         job = _native.bits_begin(conn, "PyManager Test", url, dest, "x", "y")
     # Original error is ours

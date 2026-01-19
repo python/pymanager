@@ -229,12 +229,17 @@ static HRESULT _job_setproxy(IBackgroundCopyJob *job) {
 }
 
 
-static HRESULT _job_setcredentials(IBackgroundCopyJob *job, wchar_t *username, wchar_t *password) {
+static HRESULT _job_setcredentials(
+    IBackgroundCopyJob *job,
+    BG_AUTH_TARGET target,
+    wchar_t *username,
+    wchar_t *password
+) {
     IBackgroundCopyJob2 *job2 = NULL;
     HRESULT hr;
     BG_AUTH_CREDENTIALS creds = {
-        .Target = BG_AUTH_TARGET_SERVER,
-        .Scheme = BG_AUTH_SCHEME_BASIC,
+        .Target = target,
+        .Scheme = username ? BG_AUTH_SCHEME_BASIC : BG_AUTH_SCHEME_NEGOTIATE,
         .Credentials = {
             .Basic = {
                 .UserName = username,
@@ -242,10 +247,6 @@ static HRESULT _job_setcredentials(IBackgroundCopyJob *job, wchar_t *username, w
             }
         }
     };
-
-    if (!username && !password) {
-        return S_OK;
-    }
 
     if (FAILED(hr = _inject_hr[3])
         || FAILED(hr = job->QueryInterface(__uuidof(IBackgroundCopyJob2), (void **)&job2))) {
@@ -285,7 +286,14 @@ PyObject *bits_begin(PyObject *, PyObject *args, PyObject *kwargs) {
         error_from_bits_hr(bcm, hr, "Setting proxy");
         goto done;
     }
-    if ((username || password) && FAILED(hr = _job_setcredentials(job, username, password))) {
+    // Setting proxy credentials to NULL will automatically infer credentials
+    // if needed. It's a good default (provided users have not configured a
+    // malicious proxy server, which we can't do anything about here anyway).
+    if (FAILED(hr = _job_setcredentials(job, BG_AUTH_TARGET_PROXY, NULL, NULL))) {
+        error_from_bits_hr(bcm, hr, "Setting proxy credentials");
+        goto done;
+    }
+    if (FAILED(hr = _job_setcredentials(job, BG_AUTH_TARGET_SERVER, username, password))) {
         error_from_bits_hr(bcm, hr, "Adding basic credentials to download job");
         goto done;
     }
@@ -387,7 +395,7 @@ PyObject *bits_retry_with_auth(PyObject *, PyObject *args, PyObject *kwargs) {
     HRESULT hr;
     PyObject *r = NULL;
 
-    if (FAILED(hr = _job_setcredentials(job, username, password))) {
+    if (FAILED(hr = _job_setcredentials(job, BG_AUTH_TARGET_SERVER, username, password))) {
         error_from_bits_hr(bcm, hr, "Adding basic credentials to download job");
         goto done;
     }

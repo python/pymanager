@@ -12,7 +12,7 @@ class NoShebang(Exception):
     pass
 
 
-def _find_shebang_command(cmd, full_cmd):
+def _find_shebang_command(cmd, full_cmd, *, windowed=None):
     sh_cmd = PurePath(full_cmd)
     # HACK: Assuming alias/executable suffix is '.exe' here
     # (But correctly assuming we can't use with_suffix() or .stem)
@@ -22,9 +22,12 @@ def _find_shebang_command(cmd, full_cmd):
     is_wdefault = sh_cmd.match("pythonw.exe") or sh_cmd.match("pyw.exe")
     is_default = is_wdefault or sh_cmd.match("python.exe") or sh_cmd.match("py.exe")
 
+    # Internal logic error, but non-fatal, if it has no value
+    assert windowed is not None
+
     for i in cmd.get_installs():
         if is_default and i.get("default"):
-            if is_wdefault:
+            if is_wdefault or windowed:
                 target = [t for t in i.get("run-for", []) if t.get("windowed")]
                 if target:
                     return {**i, "executable": i["prefix"] / target[0]["target"]}
@@ -32,6 +35,11 @@ def _find_shebang_command(cmd, full_cmd):
         for a in i.get("alias", ()):
             if sh_cmd.match(a["name"]):
                 LOGGER.debug("Matched alias %s in %s", a["name"], i["id"])
+                if windowed and not a.get("windowed"):
+                    for a2 in i.get("alias", ()):
+                        if a2.get("windowed"):
+                            LOGGER.debug("Substituting alias %s for windowed=1", a2["name"])
+                            return {**i, "executable": i["prefix"] / a2["target"]}
                 return {**i, "executable": i["prefix"] / a["target"]}
         if sh_cmd.full_match(PurePath(i["executable"]).name):
             LOGGER.debug("Matched executable name %s in %s", i["executable"], i["id"])
@@ -69,7 +77,7 @@ def _find_on_path(cmd, full_cmd):
     }
 
 
-def _parse_shebang(cmd, line):
+def _parse_shebang(cmd, line, *, windowed=None):
     # For /usr[/local]/bin, we look for a matching alias name.
     shebang = re.match(r"#!\s*/usr/(?:local/)?bin/(?!env\b)([^\\/\s]+).*", line)
     if shebang:
@@ -77,7 +85,7 @@ def _parse_shebang(cmd, line):
         full_cmd = shebang.group(1)
         LOGGER.debug("Matching shebang: %s", full_cmd)
         try:
-            return _find_shebang_command(cmd, full_cmd)
+            return _find_shebang_command(cmd, full_cmd, windowed=windowed)
         except LookupError:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)
@@ -93,7 +101,7 @@ def _parse_shebang(cmd, line):
         # First do regular install lookup for /usr/bin/env shebangs
         full_cmd = shebang.group(1)
         try:
-            return _find_shebang_command(cmd, full_cmd)
+            return _find_shebang_command(cmd, full_cmd, windowed=windowed)
         except LookupError:
             pass
         # If not, warn and do regular PATH search
@@ -125,7 +133,7 @@ def _parse_shebang(cmd, line):
         # A regular lookup will handle the case where the entire shebang is
         # a valid alias.
         try:
-            return _find_shebang_command(cmd, full_cmd)
+            return _find_shebang_command(cmd, full_cmd, windowed=windowed)
         except LookupError:
             pass
         if cmd.shebang_can_run_anything or cmd.shebang_can_run_anything_silently:
@@ -149,7 +157,7 @@ def _parse_shebang(cmd, line):
     raise NoShebang
 
 
-def _read_script(cmd, script, encoding):
+def _read_script(cmd, script, encoding, *, windowed=None):
     try:
         f = open(script, "r", encoding=encoding, errors="replace")
     except OSError as ex:
@@ -158,7 +166,7 @@ def _read_script(cmd, script, encoding):
         first_line = next(f, "").rstrip()
         if first_line.startswith("#!"):
             try:
-                return _parse_shebang(cmd, first_line)
+                return _parse_shebang(cmd, first_line, windowed=windowed)
             except LookupError:
                 raise LookupError(script) from None
             except NoShebang:
@@ -176,12 +184,12 @@ def _read_script(cmd, script, encoding):
     raise LookupError(script)
 
 
-def find_install_from_script(cmd, script):
+def find_install_from_script(cmd, script, *, windowed=False):
     try:
-        return _read_script(cmd, script, "utf-8-sig")
+        return _read_script(cmd, script, "utf-8-sig", windowed=windowed)
     except NewEncoding as ex:
         encoding = ex.args[0]
-    return _read_script(cmd, script, encoding)
+    return _read_script(cmd, script, encoding, windowed=windowed)
 
 
 def _maybe_quote(a):

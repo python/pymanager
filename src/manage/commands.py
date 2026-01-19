@@ -425,6 +425,8 @@ class BaseCommand:
             LOGGER.warn("Failed to read configuration file from %s", self.config_file)
             raise
 
+        self.config = config
+
         # Top-level arguments get updated manually from the config
         # (per-command config gets loaded automatically below)
 

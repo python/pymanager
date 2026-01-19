@@ -1,0 +1,6 @@
+[console_scripts]
+eptest=eptestpackage:main
+eptest-refresh=eptestpackage:do_refresh
+
+[gui_scripts]
+eptestw=eptestpackage:mainw

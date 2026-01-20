@@ -1,3 +1,32 @@
+"""This module has functions for looking into scripts to decide how to launch.
+
+Currently, this is primarily shebang lines. This support is intended to allow
+scripts to be somewhat portable between POSIX (where they are natively handled)
+and Windows, when launching in Python. They are not intended to provide generic
+shebang support, although for historical/compatibility reasons it is possible.
+
+Shebang commands shaped like '/usr/bin/<command>' or '/usr/local/bin/<command>'
+will have the command matched to an alias or executable name for detected
+runtimes, with the first match being selected.
+A command of 'py', 'pyw', 'python' or 'pythonw' will match the default runtime.
+If the install manager has been launched in windowed mode, and the selected
+alias is not marked as windowed, then the first windowed 'run-for' target will
+be substituted (if present - otherwise, it will just not run windowed). Aliases
+that map to windowed targets are launched windowed.
+If no matching command is found, the default install will be used.
+
+Shebang commands shaped like '/usr/bin/env <command>' will do the same lookup as
+above. If no matching command is found, the current PATH environment variable
+will be searched for a matching command. It will be launched with a warning,
+configuration permitting.
+
+Other shebangs will be treated directly as the command, doing the same lookup
+and the same PATH search.
+
+It is not yet implemented, but this is also where a search for PEP 723 inline
+script metadata would go. Find the comment mentioning PEP 723 below.
+"""
+
 import re
 
 from .logging import LOGGER
@@ -25,22 +54,29 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
     # Internal logic error, but non-fatal, if it has no value
     assert windowed is not None
 
+    # Ensure we use the default install for a default name. Otherwise, a
+    # "higher" runtime may claim it via an alias, which is not the intent.
+    if is_default:
+        for i in cmd.get_installs():
+            if i.get("default"):
+                exe = i["executable"]
+                if is_wdefault or windowed:
+                    target = [t for t in i.get("run-for", []) if t.get("windowed")]
+                    if target:
+                        exe = target[0]["target"]
+                return {**i, "executable": i["prefix"] / exe}
+
     for i in cmd.get_installs():
-        if is_default and i.get("default"):
-            if is_wdefault or windowed:
-                target = [t for t in i.get("run-for", []) if t.get("windowed")]
-                if target:
-                    return {**i, "executable": i["prefix"] / target[0]["target"]}
-            return {**i, "executable": i["prefix"] / i["executable"]}
         for a in i.get("alias", ()):
             if sh_cmd.match(a["name"]):
+                exe = a["target"]
                 LOGGER.debug("Matched alias %s in %s", a["name"], i["id"])
                 if windowed and not a.get("windowed"):
-                    for a2 in i.get("alias", ()):
-                        if a2.get("windowed"):
-                            LOGGER.debug("Substituting alias %s for windowed=1", a2["name"])
-                            return {**i, "executable": i["prefix"] / a2["target"]}
-                return {**i, "executable": i["prefix"] / a["target"]}
+                    target = [t for t in i.get("run-for", []) if t.get("windowed")]
+                    if target:
+                        exe = target[0]["target"]
+                        LOGGER.debug("Substituting target %s for windowed=1", exe)
+                return {**i, "executable": i["prefix"] / exe}
         if sh_cmd.full_match(PurePath(i["executable"]).name):
             LOGGER.debug("Matched executable name %s in %s", i["executable"], i["id"])
             return i
@@ -115,7 +151,7 @@ def _parse_shebang(cmd, line, *, windowed=None):
                             "Python runtimes, set 'shebang_can_run_anything' to "
                             "'false' in your configuration file.")
             return i
-                
+
         else:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)
@@ -176,7 +212,7 @@ def _read_script(cmd, script, encoding, *, windowed=None):
         if coding and coding.group(1) != encoding:
             raise NewEncoding(coding.group(1))
 
-        # TODO: Parse inline script metadata
+        # TODO: Parse inline script metadata (PEP 723)
         # This involves finding '# /// script' followed by
         # a line with '# requires-python = <spec>'.
         # That spec needs to be processed as a version constraint, which

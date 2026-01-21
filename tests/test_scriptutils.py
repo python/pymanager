@@ -17,6 +17,10 @@ from manage.scriptutils import (
 )
 
 def _fake_install(v, **kwargs):
+    try:
+        kwargs["run-for"] = kwargs.pop("run_for")
+    except LookupError:
+        pass
     return {
         "company": kwargs.get("company", "Test"),
         "id": f"test-{v}",
@@ -28,8 +32,19 @@ def _fake_install(v, **kwargs):
     }
 
 INSTALLS = [
-    _fake_install("1.0", alias=[{"name": "test1.0.exe", "target": "./test-binary-1.0.exe"}]),
-    _fake_install("1.1", alias=[{"name": "test1.1.exe", "target": "./test-binary-1.1.exe"}]),
+    _fake_install("1.0",
+                  run_for=[dict(tag="1.0", target="./test-binary-1.0.exe"),
+                           dict(tag="1.0", target="./test-binary-1.0-win.exe", windowed=1)],
+                  alias=[dict(name="test1.0.exe", target="./test-binary-1.0.exe"),
+                         dict(name="testw1.0.exe", target="./test-binary-w-1.0.exe", windowed=1)],
+    ),
+    _fake_install("1.1",
+                  default=1,
+                  run_for=[dict(tag="1.1", target="./test-binary-1.1.exe"),
+                           dict(tag="1.1", target="./test-binary-1.1-win.exe", windowed=1)],
+                  alias=[dict(name="test1.1.exe", target="./test-binary-1.1.exe"),
+                         dict(name="testw1.1.exe", target="./test-binary-w-1.1.exe", windowed=1)],
+    ),
     _fake_install("1.3.1", company="PythonCore"),
     _fake_install("1.3.2", company="PythonOther"),
     _fake_install("2.0", alias=[{"name": "test2.0.exe", "target": "./test-binary-2.0.exe"}]),
@@ -64,8 +79,59 @@ def test_read_shebang(fake_config, tmp_path, script, expect):
         script = script.encode()
     script_py.write_bytes(script)
     try:
-        actual = find_install_from_script(fake_config, script_py)
+        actual = find_install_from_script(fake_config, script_py, windowed=False)
         assert expect == actual
+    except LookupError:
+        assert not expect
+
+
+@pytest.mark.parametrize("script, expect, windowed", [
+    # Non-windowed alias from non-windowed launcher uses default 'executable'
+    ("#! /usr/bin/test1.0\n", "test-binary-1.0.exe", False),
+    # Non-windowed alias from windowed launcher uses first windowed 'run-for'
+    ("#! /usr/bin/test1.0\n", "test-binary-1.0-win.exe", True),
+    # Windowed alias from either launcher uses the discovered alias
+    ("#! /usr/bin/testw1.0\n", "test-binary-w-1.0.exe", False),
+    ("#! /usr/bin/testw1.0\n", "test-binary-w-1.0.exe", True),
+
+    # No windowed option for 2.0, so picks the regular executable
+    ("#! /usr/bin/test2.0\n", "test-binary-2.0.exe", False),
+    ("#! /usr/bin/test2.0\n", "test-binary-2.0.exe", True),
+    ("#! /usr/bin/testw2.0\n", None, False),
+    ("#! /usr/bin/testw2.0\n", None, True),
+    ("#!test1.0.exe\n", "test-binary-1.0.exe", False),
+    ("#!test1.0.exe\n", "test-binary-1.0-win.exe", True),
+    ("#!testw1.0.exe\n", "test-binary-w-1.0.exe", False),
+    ("#!testw1.0.exe\n", "test-binary-w-1.0.exe", True),
+    ("#!test1.1.exe\n", "test-binary-1.1.exe", False),
+    ("#!test1.1.exe\n", "test-binary-1.1-win.exe", True),
+    ("#!testw1.1.exe\n", "test-binary-w-1.1.exe", False),
+    ("#!testw1.1.exe\n", "test-binary-w-1.1.exe", True),
+
+    # Matching executable name won't be overridden by windowed setting
+    ("#!test-binary-1.1.exe\n", "test-binary-1.1.exe", False),
+    ("#!test-binary-1.1.exe\n", "test-binary-1.1.exe", True),
+    ("#! /usr/bin/env test1.0\n", "test-binary-1.0.exe", False),
+    ("#! /usr/bin/env test1.0\n", "test-binary-1.0-win.exe", True),
+    ("#! /usr/bin/env testw1.0\n", "test-binary-w-1.0.exe", False),
+    ("#! /usr/bin/env testw1.0\n", "test-binary-w-1.0.exe", True),
+
+    # Default name will use default 'executable' or first windowed 'run-for'
+    ("#! /usr/bin/python\n", "test-binary-1.1.exe", False),
+    ("#! /usr/bin/python\n", "test-binary-1.1-win.exe", True),
+    ("#! /usr/bin/pythonw\n", "test-binary-1.1-win.exe", False),
+    ("#! /usr/bin/pythonw\n", "test-binary-1.1-win.exe", True),
+])
+def test_read_shebang_windowed(fake_config, tmp_path, script, expect, windowed):
+    fake_config.installs.extend(INSTALLS)
+
+    script_py = tmp_path / "test-script.py"
+    if isinstance(script, str):
+        script = script.encode()
+    script_py.write_bytes(script)
+    try:
+        actual = find_install_from_script(fake_config, script_py, windowed=windowed)
+        assert actual["executable"].match(expect)
     except LookupError:
         assert not expect
 
@@ -78,14 +144,17 @@ def test_default_py_shebang(fake_config, tmp_path):
     ]
     fake_config.installs[:] = [inst]
 
+    def t(n):
+        return _find_shebang_command(fake_config, n, windowed=False)
+
     # Finds the install's default executable
-    assert _find_shebang_command(fake_config, "python")["executable"].match("test-binary-1.0.exe")
-    assert _find_shebang_command(fake_config, "py")["executable"].match("test-binary-1.0.exe")
-    assert _find_shebang_command(fake_config, "python1.0")["executable"].match("test-binary-1.0.exe")
+    assert t("python")["executable"].match("test-binary-1.0.exe")
+    assert t("py")["executable"].match("test-binary-1.0.exe")
+    assert t("python1.0")["executable"].match("test-binary-1.0.exe")
     # Finds the install's run-for executable with windowed=1
-    assert _find_shebang_command(fake_config, "pythonw")["executable"].match("pythonw.exe")
-    assert _find_shebang_command(fake_config, "pyw")["executable"].match("pythonw.exe")
-    assert _find_shebang_command(fake_config, "pythonw1.0")["executable"].match("pythonw.exe")
+    assert t("pythonw")["executable"].match("pythonw.exe")
+    assert t("pyw")["executable"].match("pythonw.exe")
+    assert t("pythonw1.0")["executable"].match("pythonw.exe")
 
 
 
@@ -104,7 +173,7 @@ def test_read_coding_comment(fake_config, tmp_path, script, expect):
         script = script.encode()
     script_py.write_bytes(script)
     try:
-        _read_script(fake_config, script_py, "utf-8-sig")
+        _read_script(fake_config, script_py, "utf-8-sig", windowed=False)
     except NewEncoding as enc:
         assert enc.args[0] == expect
     except LookupError:

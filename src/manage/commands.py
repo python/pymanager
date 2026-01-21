@@ -659,7 +659,7 @@ class BaseCommand:
         if script and not tag:
             from .scriptutils import find_install_from_script
             try:
-                return find_install_from_script(self, script)
+                return find_install_from_script(self, script, windowed=windowed)
             except LookupError:
                 pass
         from .installs import get_install_to_run

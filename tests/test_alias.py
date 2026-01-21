@@ -240,6 +240,7 @@ def test_parse_entrypoint_line():
 
 
 def test_scan_entrypoints(fake_config, tmp_path):
+    fake_config.enable_entrypoints = True
     root = tmp_path / "test_install"
     site = root / "site-packages"
     A = site / "A.dist-info"

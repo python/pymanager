@@ -173,6 +173,7 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
         launcher_exe = None
         scratch = {}
         enable_shortcut_kinds = disable_shortcut_kinds = None
+        enable_entrypoints = True
         def get_installs(self):
             return [
                 {

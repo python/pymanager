@@ -240,6 +240,7 @@ def test_parse_entrypoint_line():
 
 
 def test_scan_entrypoints(fake_config, tmp_path):
+    fake_config.enable_entrypoints = True
     root = tmp_path / "test_install"
     site = root / "site-packages"
     A = site / "A.dist-info"
@@ -266,6 +267,36 @@ aw = a:main
     assert [0, 0, 1, 0, 1] == [a.windowed for a in actual]
     assert [None, None, None, "a", "a"] == [a.mod for a in actual]
     assert [None, None, None, "main", "main"] == [a.func for a in actual]
+
+
+def test_scan_entrypoints_disabled(fake_config, tmp_path):
+    fake_config.enable_entrypoints = False
+    root = tmp_path / "test_install"
+    site = root / "site-packages"
+    A = site / "A.dist-info"
+    A.mkdir(parents=True, exist_ok=True)
+    (root / "target.exe").write_bytes(b"")
+    (A / "entry_points.txt").write_text("""[console_scripts]
+a = a:main
+
+[gui_scripts]
+aw = a:main
+""")
+
+    install = dict(
+        prefix=root,
+        id="test",
+        default=1,
+        alias=[dict(name="target", target="target.exe")],
+        shortcuts=[dict(kind="site-dirs", dirs=["site-packages"])],
+    )
+
+    actual = list(AU.calculate_aliases(fake_config, install))
+
+    assert ["target", "python", "pythonw"] == [a.name for a in actual]
+    assert [0, 0, 1] == [a.windowed for a in actual]
+    assert [None, None, None] == [a.mod for a in actual]
+    assert [None, None, None] == [a.func for a in actual]
 
 
 def test_create_aliases(fake_config, tmp_path):

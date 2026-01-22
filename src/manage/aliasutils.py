@@ -289,6 +289,9 @@ def calculate_aliases(cmd, install, *, _scan=_scan):
         if default_alias_w:
             yield default_alias_w.replace(name="pythonw", windowed=1)
 
+    if not cmd.enable_entrypoints:
+        return
+
     site_dirs = DEFAULT_SITE_DIRS
     for s in install.get("shortcuts", ()):
         if s.get("kind") == "site-dirs":

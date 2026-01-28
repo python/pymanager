@@ -609,8 +609,9 @@ def _install_one(cmd, source, install, *, target=None):
             install["shortcuts"] = shortcuts
 
         install["url"] = sanitise_url(install["url"])
-        if source != cmd.fallback_source:
-            install["source"] = sanitise_url(source)
+        # If there's a non-empty and non-default source, sanitise it
+        if install.get("source") and install["source"] != cmd.fallback_source:
+            install["source"] = sanitise_url(install["source"])
 
         LOGGER.debug("Write __install__.json to %s", dest)
         with open(dest / "__install__.json", "w", encoding="utf-8") as f:

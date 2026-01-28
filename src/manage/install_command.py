@@ -851,10 +851,12 @@ def execute(cmd):
                 if cmd.download:
                     LOGGER.info("Downloading %s", install["display-name"])
                     package = _download_one(cmd, source, install, cmd.download, must_copy=True)
-                    download_index["versions"].append({
+                    install_idx = {
                         **install,
                         "url": package.name,
-                    })
+                    }
+                    install_idx.pop("source", None)
+                    download_index["versions"].append(install_idx)
                 else:
                     _install_one(cmd, source, install)
         except ArgumentError:

@@ -528,6 +528,36 @@ def _restore_site(cmd, state):
             LOGGER.verbose("TRACEBACK", exc_info=True)
 
 
+def _sanitise_install(cmd, install):
+    """Prepares install metadata for storing locally.
+    
+    This includes:
+    * filtering out disabled shortcuts
+    * preserving original shortcuts
+    * sanitising URLs
+    """
+
+    if "shortcuts" in install:
+        # This saves our original set of shortcuts, so a later repair operation
+        # can enable those that were originally disabled.
+        shortcuts = install.setdefault("__original-shortcuts", install["shortcuts"])
+        if cmd.enable_shortcut_kinds or cmd.disable_shortcut_kinds:
+            orig_shortcuts = shortcuts
+            shortcuts = []
+            for s in orig_shortcuts:
+                if cmd.enable_shortcut_kinds and s["kind"] not in cmd.enable_shortcut_kinds:
+                    continue
+                if cmd.disable_shortcut_kinds and s["kind"] in cmd.disable_shortcut_kinds:
+                    continue
+                shortcuts.append(s)
+        install["shortcuts"] = shortcuts
+
+    install["url"] = sanitise_url(install["url"])
+    # If there's a non-empty and non-default source, sanitise it
+    if install.get("source") and install["source"] != cmd.fallback_source:
+        install["source"] = sanitise_url(install["source"])
+
+
 def _install_one(cmd, source, install, *, target=None):
     if cmd.repair:
         LOGGER.info("Repairing %s.", install['display-name'])
@@ -596,22 +626,7 @@ def _install_one(cmd, source, install, *, target=None):
             )
             raise
 
-        if "shortcuts" in install:
-            # This saves our original set of shortcuts, so a later repair operation
-            # can enable those that were originally disabled.
-            shortcuts = install.setdefault("__original-shortcuts", install["shortcuts"])
-            if cmd.enable_shortcut_kinds:
-                shortcuts = [s for s in shortcuts
-                             if s["kind"] in cmd.enable_shortcut_kinds]
-            if cmd.disable_shortcut_kinds:
-                shortcuts = [s for s in shortcuts
-                             if s["kind"] not in cmd.disable_shortcut_kinds]
-            install["shortcuts"] = shortcuts
-
-        install["url"] = sanitise_url(install["url"])
-        # If there's a non-empty and non-default source, sanitise it
-        if install.get("source") and install["source"] != cmd.fallback_source:
-            install["source"] = sanitise_url(install["source"])
+        _sanitise_install(cmd, install)
 
         LOGGER.debug("Write __install__.json to %s", dest)
         with open(dest / "__install__.json", "w", encoding="utf-8") as f:

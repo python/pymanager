@@ -117,7 +117,22 @@ def get_installs(
         except LookupError:
             LOGGER.debug("No virtual environment found")
 
+    # Check for a saved default install marker
+    try:
+        default_file = Path(install_dir) / ".default"
+        if default_file.exists():
+            default_id = default_file.read_text(encoding="utf-8").strip()
+            LOGGER.debug("Found saved default install ID: %s", default_id)
+            for install in installs:
+                if install["id"] == default_id:
+                    install["default"] = True
+                    LOGGER.debug("Marked %s as default", default_id)
+                    break
+    except Exception as ex:
+        LOGGER.debug("Could not load default install marker: %s", ex)
+
     return installs
+
 
 
 def _make_alias_key(alias):

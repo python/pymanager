@@ -85,6 +85,9 @@ PYMANAGER_USAGE_DOCS = [
      r"Equivalent to -V:PythonCore\3!B!<VERSION>!W!. The version must begin " +
      "with a '3', platform overrides are permitted, and regular Python " +
      "options may follow. The runtime will be installed if needed."),
+     (f"{EXE_NAME} default !B!<TAG>!W!\n",
+     "Set the default Python version to use when no specific version is " +
+     "requested. Use without !B!<TAG>!W! to show the current default."),
 ]
 
 
@@ -216,6 +219,10 @@ CLI_SCHEMA = {
         "help": ("show_help", True), # nested to avoid conflict with command
     },
 
+    "default": {
+        "help": ("show_help", True), # nested to avoid conflict with command
+    },
+
     "**first_run": {
         "explicit": ("explicit", True),
     },
@@ -258,6 +265,9 @@ CONFIG_SCHEMA = {
         "default_install_tag": (str, None),
         "preserve_site_on_upgrade": (config_bool, None),
         "enable_entrypoints": (config_bool, None),
+    },
+
+    "default": {
     },
 
     "first_run": {
@@ -1020,6 +1030,34 @@ class FirstRun(BaseCommand):
             if self.confirm and not self.ask_ny("View online help?"):
                 import os
                 os.startfile(HELP_URL)
+
+
+class DefaultCommand(BaseCommand):
+    CMD = "default"
+    HELP_LINE = ("Show or change the default Python runtime version.")
+    USAGE_LINE = "default !B![<TAG>]!W!"
+    HELP_TEXT = r"""!G!Default command!W!
+Show or change the default Python version used by the system.
+
+> py default !B![options] [<TAG>]!W!
+
+With no arguments, shows the currently configured default Python version.
+With a !B!<TAG>!W!, sets the default Python version.
+
+!G!Examples:!W!
+> py default
+!W!Shows the current default Python version
+
+> py default 3.13
+!W!Sets Python 3.13 as the default version
+
+> py default 3
+!W!Sets the latest Python 3 as the default version
+"""
+
+    def execute(self):
+        from .default_command import execute
+        execute(self)
 
 
 def load_default_config(root):

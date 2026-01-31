@@ -5,6 +5,7 @@
 /env*/
 /python-manager/
 /pythons/
+/.venv/
 
 # Can't seem to stop WiX from creating this directory...
 /src/pymanager/obj

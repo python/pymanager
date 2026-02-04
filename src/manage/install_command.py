@@ -294,7 +294,7 @@ def update_all_shortcuts(cmd, *, _aliasutils=None):
             except LookupError:
                 LOGGER.warn("Failed to process aliases for %s.", i.get("display-name", i["id"]))
                 LOGGER.debug("TRACEBACK", exc_info=True)
-        _aliasutils.create_aliases(cmd, aliases)
+        _aliasutils.create_aliases(cmd, aliases, allow_link=getattr(cmd, "hard_link_entrypoints", True))
         _aliasutils.cleanup_aliases(cmd, preserve=aliases)
 
     for i in installs:

@@ -85,7 +85,16 @@ def _if_exists(launcher, plat):
     return launcher
 
 
-def _create_alias(cmd, *, name, target, plat=None, windowed=0, script_code=None, _link=os.link):
+def _create_alias(
+    cmd,
+    *,
+    name,
+    target,
+    plat=None,
+    windowed=0,
+    script_code=None,
+    allow_link=True,
+    _link=os.link):
     p = cmd.global_dir / name
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")
@@ -129,12 +138,27 @@ def _create_alias(cmd, *, name, target, plat=None, windowed=0, script_code=None,
         LOGGER.debug("Failed to read existing alias launcher.")
 
     launcher_remap = cmd.scratch.setdefault("aliasutils.create_alias.launcher_remap", {})
-    if existing_bytes == launcher_bytes:
+    if not allow_link or not _link:
+        # If links are disallowed, always replace the target with a copy.
+        unlink(p)
+        try:
+            p.write_bytes(launcher_bytes)
+            LOGGER.debug("Created %s as copy of %s", p.name, launcher.name)
+            launcher_remap[launcher.name] = p
+        except OSError:
+            LOGGER.error("Failed to create global command %s.", name)
+            LOGGER.debug("TRACEBACK", exc_info=True)
+    elif existing_bytes == launcher_bytes:
         # Valid existing launcher, so save its path in case we need it later
         # for a hard link.
         launcher_remap.setdefault(launcher.name, p)
     else:
-        # First try and create a hard link
+        # Links are allowed and we need to create one, so try to make a link,
+        # falling back to a link to another existing alias (that we've checked
+        # already during this run), and then falling back to a copy.
+        # This handles the case where our links are on a different volume to the
+        # install (so hard links don't work), but limits us to only a single
+        # copy (each) of the redirector(s), thus saving space.
         unlink(p)
         try:
             _link(launcher, p)
@@ -305,7 +329,7 @@ def calculate_aliases(cmd, install, *, _scan=_scan):
             yield ai.replace(target=default_alias.target)
 
 
-def create_aliases(cmd, aliases, *, _create_alias=_create_alias):
+def create_aliases(cmd, aliases, *, allow_link=True, _create_alias=_create_alias):
     if not cmd.global_dir:
         return
 
@@ -337,6 +361,7 @@ def create_aliases(cmd, aliases, *, _create_alias=_create_alias):
                 target=target,
                 script_code=alias.script_code,
                 windowed=alias.windowed,
+                allow_link=allow_link,
             )
         except NoLauncherTemplateError:
             if install_matches_any(alias.install, getattr(cmd, "tags", None)):

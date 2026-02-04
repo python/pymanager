@@ -305,7 +305,7 @@ def test_create_aliases(fake_config, tmp_path):
 
     created = []
     # Full arguments copied from source to ensure callers only pass valid args
-    def _on_create(cmd, *, name, target, plat=None, windowed=0, script_code=None):
+    def _on_create(cmd, *, name, target, plat=None, windowed=0, script_code=None, allow_link=True):
         created.append((name, windowed, script_code))
 
     aliases = [

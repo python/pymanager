@@ -224,6 +224,28 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
     )
 
 
+def test_write_alias_launcher_no_linking(fake_config, assert_log, tmp_path):
+    fake_config.scratch = {
+        "aliasutils.create_alias.launcher_remap": {"launcher.txt": tmp_path / "actual_launcher.txt"},
+    }
+    fake_config.launcher_exe = tmp_path / "launcher.txt"
+    fake_config.launcher_exe.write_bytes(b'Arbitrary contents')
+    (tmp_path / "actual_launcher.txt").write_bytes(b'Arbitrary contents')
+    fake_config.default_platform = '-32'
+    fake_config.global_dir = tmp_path / "bin"
+    AU._create_alias(
+        fake_config,
+        name="test.exe",
+        target=tmp_path / "target.exe",
+        _link=None
+    )
+    assert_log(
+        "Create %s linking to %s",
+        ("Created %s as copy of %s", ("test.exe", "launcher.txt")),
+        assert_log.end_of_log(),
+    )
+
+
 def test_parse_entrypoint_line():
     for line, expect in [
         ("", (None, None, None)),
@@ -305,7 +327,7 @@ def test_create_aliases(fake_config, tmp_path):
 
     created = []
     # Full arguments copied from source to ensure callers only pass valid args
-    def _on_create(cmd, *, name, target, plat=None, windowed=0, script_code=None):
+    def _on_create(cmd, *, name, target, plat=None, windowed=0, script_code=None, allow_link=True):
         created.append((name, windowed, script_code))
 
     aliases = [

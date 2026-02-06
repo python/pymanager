@@ -258,6 +258,7 @@ CONFIG_SCHEMA = {
         "default_install_tag": (str, None),
         "preserve_site_on_upgrade": (config_bool, None),
         "enable_entrypoints": (config_bool, None),
+        "hard_link_entrypoints": (config_bool, None),
     },
 
     "first_run": {
@@ -823,6 +824,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
     default_install_tag = None
     preserve_site_on_upgrade = True
     enable_entrypoints = True
+    hard_link_entrypoints = True
 
     def __init__(self, args, root=None):
         super().__init__(args, root)

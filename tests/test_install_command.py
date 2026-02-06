@@ -199,7 +199,7 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
         calculate_aliases = staticmethod(AU.calculate_aliases)
 
         @staticmethod
-        def create_aliases(cmd, aliases):
+        def create_aliases(cmd, aliases, *, allow_link=True):
             created.extend(aliases)
 
         @staticmethod

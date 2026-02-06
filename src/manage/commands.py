@@ -625,7 +625,7 @@ class BaseCommand:
             resp = input().casefold()
         except Exception:
             return False
-        return not resp or resp.startswith(expect_char.casefold())
+        return not resp or resp == expect_char.casefold()
 
     def ask_yn(self, fmt, *args):
         "Returns True if the user selects 'yes' or confirmations are skipped."

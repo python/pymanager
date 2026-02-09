@@ -159,7 +159,7 @@ def download_zip_into(url, path):
         urlretrieve(url, zip_file)
     print("Extracting", zip_file)
     with zipfile.ZipFile(zip_file) as zf:
-        prefix = os.path.commonprefix(zf.namelist())
+        prefix = os.path.commonpath(zf.namelist())
         for m in zf.infolist():
             fn = m.filename.removeprefix(prefix).lstrip("/\\")
             if not fn or fn.endswith(("/", "\\")):

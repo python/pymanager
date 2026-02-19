@@ -3,7 +3,7 @@ import os
 from .exceptions import FilesInUseError, NoLauncherTemplateError
 from .fsutils import atomic_unlink, ensure_tree, unlink
 from .logging import LOGGER
-from .pathutils import Path
+from .pathutils import Path, relative_to
 from .tagutils import install_matches_any
 
 _EXE = ".exe".casefold()
@@ -105,16 +105,18 @@ def _create_alias(
     if windowed:
         launcher = cmd.launcherw_exe or launcher
 
+    chosen_by = "default"
     if plat:
-        LOGGER.debug("Checking for launcher for platform -%s", plat)
         launcher = _if_exists(launcher, f"-{plat}")
+        chosen_by = "platform tag"
     if not launcher.is_file():
-        LOGGER.debug("Checking for launcher for default platform %s", cmd.default_platform)
         launcher = _if_exists(launcher, cmd.default_platform)
+        chosen_by = "default platform"
     if not launcher.is_file():
-        LOGGER.debug("Checking for launcher for -64")
         launcher = _if_exists(launcher, "-64")
-    LOGGER.debug("Create %s linking to %s using %s", name, target, launcher)
+        chosen_by = "fallback default"
+    LOGGER.debug("Create %s for %s using %s, chosen by %s", name,
+                 relative_to(target, cmd.install_dir), launcher, chosen_by)
     if not launcher or not launcher.is_file():
         raise NoLauncherTemplateError()
 
@@ -128,8 +130,9 @@ def _create_alias(
         LOGGER.debug("Failed to read %s", launcher, exc_info=True)
         return
 
+    force = getattr(cmd, "force", False)
     existing_bytes = b''
-    if getattr(cmd, "force", False):
+    if force:
         # Only expect InstallCommand to have .force
         unlink(p)
     else:
@@ -146,8 +149,10 @@ def _create_alias(
     if existing_bytes != launcher_bytes and allow_link and _link:
         # Try to find an existing launcher we can hard-link
         launcher2 = launcher_remap.get(launcher.name)
-        if not launcher2:
-            # None known, so search existing files
+        if (not launcher2 or not launcher2.is_file()) and not force:
+            # None known, so search existing files. Or, user is forcing us, so
+            # we only want to use an existing launcher if we've cached it this
+            # session.
             try:
                 LOGGER.debug("Searching %s for suitable launcher to link", cmd.global_dir)
                 for p2 in cmd.global_dir.glob("*.exe"):
@@ -165,10 +170,11 @@ def _create_alias(
             except Exception:
                 LOGGER.debug("Failed to find existing launcher", exc_info=True)
 
-        if launcher2:
+        if launcher2 and launcher2.is_file():
             # We know that the target either doesn't exist or needs replacing
             unlink(p)
             try:
+                LOGGER.debug("Creating %s as hard link to %s", p, launcher2)
                 _link(launcher2, p)
                 existing_bytes = launcher_bytes
                 launcher_remap[launcher.name] = launcher2
@@ -256,13 +262,13 @@ def _readlines(path):
             return
 
 
-def _scan_one(install, root):
+def _scan_one(cmd, install, root):
     # Scan d for dist-info directories with entry_points.txt
     dist_info = [d for d in root.glob("*.dist-info") if d.is_dir()]
     entrypoints = [f for f in [d / "entry_points.txt" for d in dist_info] if f.is_file()]
     if len(entrypoints):
         LOGGER.debug("Found %i entry_points.txt files in %i dist-info in %s",
-                     len(entrypoints), len(dist_info), root)
+                     len(entrypoints), len(dist_info), relative_to(root, cmd.install_dir))
 
     # Filter down to [console_scripts] and [gui_scripts]
     for ep in entrypoints:
@@ -281,10 +287,10 @@ def _scan_one(install, root):
                                     mod=mod, func=func, **alias)
 
 
-def _scan(install, prefix, dirs):
+def _scan(cmd, install, prefix, dirs):
     for dirname in dirs or ():
         root = prefix / dirname
-        yield from _scan_one(install, root)
+        yield from _scan_one(cmd, install, root)
 
 
 def calculate_aliases(cmd, install, *, _scan=_scan):
@@ -326,7 +332,7 @@ def calculate_aliases(cmd, install, *, _scan=_scan):
             site_dirs = s.get("dirs", ())
             break
 
-    for ai in _scan(install, prefix, site_dirs):
+    for ai in _scan(cmd, install, prefix, site_dirs):
         if ai.windowed and default_alias_w:
             yield ai.replace(target=default_alias_w.target)
         elif not ai.windowed and default_alias:

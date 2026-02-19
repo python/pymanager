@@ -7,6 +7,10 @@ every Python launch through PyManager
 import os
 
 
+def _eq(x, y):
+    return x == y or x.casefold() == y.casefold()
+
+
 class PurePath:
     def __init__(self, *parts):
         total = ""
@@ -14,7 +18,7 @@ class PurePath:
             try:
                 p = p.__fspath__().replace("/", "\\")
             except AttributeError:
-                p = str(p).replace("/", "\\")
+                p = os.fsdecode(p).replace("/", "\\")
             p = p.replace("\\\\", "\\")
             if p == ".":
                 continue
@@ -24,8 +28,11 @@ class PurePath:
                 total += "\\" + p
             else:
                 total += p
-        self._parent, _, self.name = total.rpartition("\\")
-        self._p = total.rstrip("\\")
+        drive, root, tail = os.path.splitroot(total)
+        parent, _, name = tail.rpartition("\\")
+        self._parent = drive + root + parent
+        self.name = name
+        self._p = drive + root + tail.rstrip("\\")
 
     def __fspath__(self):
         return self._p
@@ -35,6 +42,9 @@ class PurePath:
 
     def __str__(self):
         return self._p
+
+    def __bytes__(self):
+        return os.fsencode(self)
 
     def __hash__(self):
         return hash(self._p.casefold())
@@ -86,13 +96,13 @@ class PurePath:
 
     def __eq__(self, other):
         if isinstance(other, PurePath):
-            return self._p.casefold() == other._p.casefold()
-        return self._p.casefold() == str(other).casefold()
+            return _eq(self._p, other._p)
+        return _eq(self._p == str(other))
 
     def __ne__(self, other):
         if isinstance(other, PurePath):
-            return self._p.casefold() != other._p.casefold()
-        return self._p.casefold() != str(other).casefold()
+            return not _eq(self._p, other._p)
+        return not _eq(self._p, str(other))
 
     def with_name(self, name):
         return type(self)(os.path.join(self._parent, name))
@@ -105,7 +115,7 @@ class PurePath:
     def relative_to(self, base):
         base = PurePath(base).parts
         parts = self.parts
-        if not all(x.casefold() == y.casefold() for x, y in zip(base, parts)):
+        if not all(_eq(x, y) for x, y in zip(base, parts)):
             raise ValueError("path not relative to base")
         return type(self)("\\".join(parts[len(base):]))
 
@@ -128,7 +138,7 @@ class PurePath:
         m = m.casefold()
 
         if "*" not in p:
-            return m.casefold() == p
+            return m == p or m.casefold() == p
 
         must_start_with = True
         for bit in p.split("*"):
@@ -219,3 +229,18 @@ class Path(PurePath):
     def write_text(self, text, encoding="utf-8", errors="strict"):
         with open(self._p, "w", encoding=encoding, errors=errors) as f:
             f.write(text)
+
+
+def relative_to(path, root):
+    if not root:
+        return path
+    parts_1 = list(PurePath(path).parts)
+    parts_2 = list(PurePath(root).parts)
+    while parts_1 and parts_2 and _eq(parts_1[0], parts_2[0]):
+        parts_1.pop(0)
+        parts_2.pop(0)
+    if parts_1 and not parts_2:
+        if isinstance(path, PurePath):
+            return type(path)(*parts_1)
+        return type(path)(PurePath(*parts_1))
+    return path

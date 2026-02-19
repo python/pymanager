@@ -2,7 +2,7 @@ import _native
 
 from .fsutils import rmtree, unlink
 from .logging import LOGGER
-from .pathutils import Path
+from .pathutils import Path, relative_to
 from .tagutils import install_matches_any
 
 
@@ -36,7 +36,7 @@ def _make(root, prefix, item, allow_warn=True):
 
     lnk = root / (n + ".lnk")
     target = _unprefix(item["Target"], prefix)
-    LOGGER.debug("Creating shortcut %s to %s", lnk, target)
+    LOGGER.debug("Creating shortcut %s to %s", relative_to(lnk, root), target)
     try:
         lnk.relative_to(root)
     except ValueError:

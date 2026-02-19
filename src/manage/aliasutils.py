@@ -116,7 +116,8 @@ def _create_alias(
         launcher = _if_exists(launcher, "-64")
         chosen_by = "fallback default"
     LOGGER.debug("Create %s for %s using %s, chosen by %s", name,
-                 relative_to(target, cmd.install_dir), launcher, chosen_by)
+                 relative_to(target, getattr(cmd, "install_dir", None)),
+                 launcher, chosen_by)
     if not launcher or not launcher.is_file():
         raise NoLauncherTemplateError()
 
@@ -268,7 +269,8 @@ def _scan_one(cmd, install, root):
     entrypoints = [f for f in [d / "entry_points.txt" for d in dist_info] if f.is_file()]
     if len(entrypoints):
         LOGGER.debug("Found %i entry_points.txt files in %i dist-info in %s",
-                     len(entrypoints), len(dist_info), relative_to(root, cmd.install_dir))
+                     len(entrypoints), len(dist_info),
+                     relative_to(root, getattr(cmd, "install_dir", None)))
 
     # Filter down to [console_scripts] and [gui_scripts]
     for ep in entrypoints:

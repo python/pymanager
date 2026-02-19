@@ -17,6 +17,7 @@ class AliasChecker:
         launcher_exe = "launcher.txt"
         launcherw_exe = "launcherw.txt"
         default_platform = "-64"
+        force = False
 
         def __init__(self, platform=None):
             self.scratch = {}
@@ -184,7 +185,8 @@ def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
     )
     assert_log(
         "Create %s linking to %s",
-        "Failed to create hard link.+",
+        "Searching %s for suitable launcher to link",
+        "No existing launcher available",
         "Created %s as copy of %s",
         assert_log.end_of_log(),
     )
@@ -218,7 +220,6 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
     )
     assert_log(
         "Create %s linking to %s",
-        "Failed to create hard link.+",
         ("Created %s as hard link to %s", ("test.exe", "actual_launcher.txt")),
         assert_log.end_of_log(),
     )

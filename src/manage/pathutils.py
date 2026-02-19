@@ -97,7 +97,7 @@ class PurePath:
     def __eq__(self, other):
         if isinstance(other, PurePath):
             return _eq(self._p, other._p)
-        return _eq(self._p == str(other))
+        return _eq(self._p, str(other))
 
     def __ne__(self, other):
         if isinstance(other, PurePath):

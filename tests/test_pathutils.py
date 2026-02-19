@@ -1,6 +1,6 @@
 import pytest
 
-from manage.pathutils import Path, PurePath
+from manage.pathutils import Path, PurePath, relative_to
 
 def test_path_match():
     p = Path("python3.12.exe")
@@ -30,3 +30,22 @@ def test_path_stem():
     p = Path(".exe")
     assert p.stem == ""
     assert p.suffix == ".exe"
+
+
+def test_path_relative_to():
+    p = Path(r"C:\A\B\C\python.exe")
+    actual = relative_to(p, r"C:\A\B\C")
+    assert isinstance(actual, Path)
+    assert str(actual) == "python.exe"
+    actual = relative_to(p, "C:\\")
+    assert isinstance(actual, Path)
+    assert str(actual) == r"A\B\C\python.exe"
+    actual = relative_to(str(p), r"C:\A\B")
+    assert isinstance(actual, str)
+    assert actual == r"C\python.exe"
+    actual = relative_to(bytes(p), r"C:\A\B")
+    assert isinstance(actual, bytes)
+    assert actual == rb"C\python.exe"
+
+    assert relative_to(p, r"C:\A\B\C\D") is p
+    assert relative_to(p, None) is p

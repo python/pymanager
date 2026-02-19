@@ -129,10 +129,7 @@ def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
             target=tmp_path / "target.exe",
         )
     assert_log(
-        "Checking for launcher.*",
-        "Checking for launcher.*",
-        "Checking for launcher.*",
-        "Create %s linking to %s",
+        "Create %s for %s using %s, chosen by %s",
         assert_log.end_of_log(),
     )
 
@@ -161,7 +158,7 @@ def test_write_alias_launcher_unreadable(fake_config, assert_log, tmp_path):
         target=tmp_path / "target.exe",
     )
     assert_log(
-        "Create %s linking to %s",
+        "Create %s for %s",
         "Failed to read launcher template at %s\\.",
         "Failed to read %s",
         assert_log.end_of_log(),
@@ -184,7 +181,7 @@ def test_write_alias_launcher_unlinkable(fake_config, assert_log, tmp_path):
         _link=fake_link
     )
     assert_log(
-        "Create %s linking to %s",
+        "Create %s for %s",
         "Searching %s for suitable launcher to link",
         "No existing launcher available",
         "Created %s as copy of %s",
@@ -219,7 +216,7 @@ def test_write_alias_launcher_unlinkable_remap(fake_config, assert_log, tmp_path
         _link=fake_link
     )
     assert_log(
-        "Create %s linking to %s",
+        "Create %s for %s",
         ("Created %s as hard link to %s", ("test.exe", "actual_launcher.txt")),
         assert_log.end_of_log(),
     )
@@ -241,7 +238,7 @@ def test_write_alias_launcher_no_linking(fake_config, assert_log, tmp_path):
         _link=None
     )
     assert_log(
-        "Create %s linking to %s",
+        "Create %s for %s",
         ("Created %s as copy of %s", ("test.exe", "launcher.txt")),
         assert_log.end_of_log(),
     )

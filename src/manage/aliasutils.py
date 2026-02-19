@@ -175,7 +175,6 @@ def _create_alias(
             # We know that the target either doesn't exist or needs replacing
             unlink(p)
             try:
-                LOGGER.debug("Creating %s as hard link to %s", p, launcher2)
                 _link(launcher2, p)
                 existing_bytes = launcher_bytes
                 launcher_remap[launcher.name] = launcher2

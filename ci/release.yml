@@ -102,7 +102,7 @@ stages:
       displayName: Check Python version is 3.14.3
 
     - powershell: |
-        python -m pip install "pymsbuild>=1.2.0b1"
+        python -m pip install "pymsbuild>=1.2.2b1" "pymsbuild-msix>=0.1.0a1"
       displayName: 'Install build dependencies'
 
     - ${{ if eq(parameters.PreTest, 'true') }}:

@@ -153,7 +153,10 @@ def rmtree(path, after_5s_warning=None, remove_ext_first=()):
             _rmdir(d, on_fail=to_warn.append, on_isfile=to_unlink)
 
     if to_warn:
-        f = os.path.commonprefix(to_warn)
+        try:
+            f = os.path.commonpath(to_warn)
+        except ValueError:
+            f = None
         if f:
             LOGGER.warn("Failed to remove %s", f)
         else:

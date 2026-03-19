@@ -90,7 +90,7 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
         return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=True)
     if sh_cmd.match("python*.exe"):
         tag = sh_cmd.name[6:-4]
-        return cmd.get_install_to_run(f"PythonCore/{tag}")
+        return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=windowed)
 
     raise LookupError
 

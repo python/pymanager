@@ -288,7 +288,7 @@ class InstallCommandTestCmd:
     def get_installs(self):
         return self.installs
 
-    def get_install_to_run(self, tag):
+    def get_install_to_run(self, tag=None, script=None, *, windowed=False):
         for i in self.installs:
             if i["tag"] == tag or f"{i['company']}/{i['tag']}" == tag:
                 return i

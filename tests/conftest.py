@@ -158,8 +158,10 @@ class FakeConfig:
         self.shebang_can_run_anything_silently = False
         self.scratch = {}
 
-    def get_installs(self, *, include_unmanaged=True, set_default=True):
-        return self.installs
+    def get_installs(self, *, include_unmanaged=False, set_default=True):
+        if include_unmanaged:
+            return self.installs
+        return [i for i in self.installs if not i.get("unmanaged", 0)]
 
     def get_install_to_run(self, tag, *, windowed=False):
         if windowed:
@@ -171,7 +173,7 @@ class FakeConfig:
 
         company, _, tag = tag.replace("/", "\\").rpartition("\\")
         return [i for i in self.installs
-                if i["tag"] == tag and (not company or i["company"] == company)][0]
+                if (not tag or i["tag"] == tag) and (not company or i["company"] == company)][0]
 
 
 @pytest.fixture

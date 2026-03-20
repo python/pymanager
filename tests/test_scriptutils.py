@@ -157,6 +157,25 @@ def test_default_py_shebang(fake_config, tmp_path):
     assert t("pythonw1.0")["executable"].match("pythonw.exe")
 
 
+def test_unmanaged_py_shebang(fake_config, tmp_path):
+    inst = _fake_install("1.0", company="PythonCore", prefix=PurePath("C:\\TestRoot"))
+    inst["unmanaged"] = 1
+    inst["run-for"] = [
+        dict(name="python.exe", target=".\\python.exe"),
+        dict(name="pythonw.exe", target=".\\pythonw.exe", windowed=1),
+    ]
+    fake_config.installs[:] = [inst]
+
+    def t(n):
+        return _find_shebang_command(fake_config, n, windowed=False)
+
+    # Finds the install's default executable
+    assert t("python")["executable"].match("test-binary-1.0.exe")
+    assert t("python1.0")["executable"].match("test-binary-1.0.exe")
+    # Finds the install's run-for executable with windowed=1
+    assert t("pythonw")["executable"].match("pythonw.exe")
+    assert t("pythonw1.0")["executable"].match("pythonw.exe")
+
 
 @pytest.mark.parametrize("script, expect", [
     ("# not a coding comment", None),

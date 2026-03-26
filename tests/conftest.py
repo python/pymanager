@@ -148,10 +148,16 @@ def localserver():
                 p.wait(5)
 
 
+REG_TEST_ROOT = r"Software\Python\PyManagerTesting"
+
+
 class FakeConfig:
     def __init__(self, global_dir, installs=[]):
-        self.root = global_dir.parent if global_dir else None
         self.global_dir = global_dir
+        self.root = global_dir.parent if global_dir else None
+        self.download_dir = self.root / "_cache" if self.root else None
+        self.start_folder = self.root / "_start" if self.root else None
+        self.pep514_root = REG_TEST_ROOT
         self.confirm = False
         self.installs = list(installs)
         self.shebang_can_run_anything = True
@@ -175,13 +181,12 @@ class FakeConfig:
         return [i for i in self.installs
                 if (not tag or i["tag"] == tag) and (not company or i["company"] == company)][0]
 
+    def ask_yn(self, question):
+        return False if self.confirm else True
 
 @pytest.fixture
 def fake_config(tmp_path):
     return FakeConfig(tmp_path / "bin")
-
-
-REG_TEST_ROOT = r"Software\Python\PyManagerTesting"
 
 
 class RegistryFixture:

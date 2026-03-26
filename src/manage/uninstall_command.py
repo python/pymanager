@@ -106,7 +106,8 @@ def execute(cmd):
         _do_purge_global_dir(cmd.global_dir, warn_msg.format("global commands"))
         LOGGER.info("Purging all shortcuts")
         for _, cleanup in SHORTCUT_HANDLERS.values():
-            cleanup(cmd, [])
+            if cleanup:
+                cleanup(cmd, [])
         LOGGER.debug("END uninstall_command.execute")
         return
 

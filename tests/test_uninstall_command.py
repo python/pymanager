@@ -17,3 +17,11 @@ def test_purge_global_dir(monkeypatch, registry, tmp_path):
     assert registry.getvalueandkind("", "Path") == (
         rf"C:\A;{tmp_path}\X;C:\B;%PTH%;C:\%D%\E", winreg.REG_SZ)
     assert not list(tmp_path.iterdir())
+
+
+def test_null_purge(fake_config):
+    cmd = fake_config
+    cmd.args = ["--purge"]
+    cmd.confirm = False
+    cmd.purge = True
+    UC.execute(cmd)

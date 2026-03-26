@@ -224,18 +224,20 @@ def _is_tag_managed(company_key, tag_name, *, creating=False, allow_warn=True):
 def _split_root(root_name):
     if not root_name:
         LOGGER.verbose("Skipping registry shortcuts as PEP 514 registry root is not set.")
-        return
+        return None, None
     hive_name, _, name = root_name.partition("\\")
     try:
         hive = getattr(winreg, hive_name.upper())
     except AttributeError:
-        LOGGER.verbose("Skipping registry shortcuts as %s\\%s is not a valid key", root_name)
-        return
+        LOGGER.verbose("Skipping registry shortcuts as %s\\%s is not a valid key", root_name, hive_name)
+        return None, None
     return hive, name
 
 
 def update_registry(root_name, install, data, warn_for=[]):
     hive, name = _split_root(root_name)
+    if not hive or not name:
+        return
     with winreg.CreateKey(hive, name) as root:
         allow_warn = install_matches_any(install, warn_for)
         if _is_tag_managed(root, data["Key"], creating=True, allow_warn=allow_warn):
@@ -258,6 +260,8 @@ def update_registry(root_name, install, data, warn_for=[]):
 def cleanup_registry(root_name, keep, warn_for=[]):
     LOGGER.debug("Cleaning up registry entries")
     hive, name = _split_root(root_name)
+    if not hive or not name:
+        return
     with _reg_open(hive, name, writable=True) as root:
         for company_name in list(_iter_keys(root)):
             any_left = False

@@ -277,6 +277,7 @@ def _powershell_urlopen(request):
 
 def _powershell_urlretrieve(request):
     from base64 import b64encode
+    import json
     import subprocess
 
     headers = request.headers
@@ -287,23 +288,27 @@ def _powershell_urlretrieve(request):
         if auth:
             headers = {**headers, "Authorization": _basic_auth_header(*auth)}
 
-    def _f(v):
-        if isinstance(v, str):
-            return "'" + v.replace("'", "''") + "'"
-        return str(v)
-
-    ps_headers = " ".join(f"{k!r}={_f(v)};" for k, v in headers.items())
-
     powershell = Path(os.getenv("SystemRoot")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
-    script = fr"""$ProgressPreference = "SilentlyContinue"
-$headers = @{{ {ps_headers} }}
-$r = Invoke-WebRequest '{request.url}' -UseBasicParsing `
+    # Security hardening: avoid PowerShell command injection by using env vars instead of interpolation
+    script = r"""$ProgressPreference = "SilentlyContinue"
+$url = $env:PYMANAGER_URL
+$outfile = $env:PYMANAGER_OUTFILE
+$method = $env:PYMANAGER_METHOD
+$headers = ConvertFrom-Json $env:PYMANAGER_HEADERS
+$r = Invoke-WebRequest -Uri $url -UseBasicParsing `
     -Headers $headers `
     -UseDefaultCredentials `
-    -Method "{request.method}" `
-    -OutFile "{request.outfile}"
+    -Method $method `
+    -OutFile $outfile
 """
-    LOGGER.debug("PowerShell script: %s", script)
+    LOGGER.debug("PowerShell download invoked (env-based)")
+    env = os.environ.copy()
+    env.update({
+        "PYMANAGER_URL": request.url,
+        "PYMANAGER_OUTFILE": str(request.outfile),
+        "PYMANAGER_METHOD": request.method,
+        "PYMANAGER_HEADERS": json.dumps(headers),
+    })
     with subprocess.Popen(
         [powershell,
             "-ExecutionPolicy", "Bypass",
@@ -312,6 +317,7 @@ $r = Invoke-WebRequest '{request.url}' -UseBasicParsing `
             "-EncodedCommand", b64encode(script.encode("utf-16-le"))
         ],
         cwd=request.outfile.parent,
+        env=env,
         creationflags=subprocess.CREATE_NO_WINDOW,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

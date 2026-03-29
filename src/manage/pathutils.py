@@ -11,6 +11,17 @@ def _eq(x, y):
     return x == y or x.casefold() == y.casefold()
 
 
+def _splitroot(path):
+    try:
+        return os.path.splitroot(path)
+    except AttributeError:
+        import ntpath
+        drive, rest = ntpath.splitdrive(path)
+        if rest.startswith('\\') or rest.startswith('/'):
+            return drive, rest[0], rest[1:]
+        return drive, '', rest
+
+
 class PurePath:
     def __init__(self, *parts):
         total = ""
@@ -28,7 +39,7 @@ class PurePath:
                 total += "\\" + p
             else:
                 total += p
-        drive, root, tail = os.path.splitroot(total)
+        drive, root, tail = _splitroot(total)
         parent, _, name = tail.rpartition("\\")
         self._parent = drive + root + parent
         self.name = name
@@ -72,7 +83,7 @@ class PurePath:
 
     @property
     def parts(self):
-        drive, root, tail = os.path.splitroot(self._p)
+        drive, root, tail = _splitroot(self._p)
         bits = []
         if drive or root:
             bits.append(drive + root)
@@ -120,7 +131,7 @@ class PurePath:
         return type(self)("\\".join(parts[len(base):]))
 
     def as_uri(self):
-        drive, root, tail = os.path.splitroot(self._p)
+        drive, root, tail = _splitroot(self._p)
         if drive[1:2] == ":" and root:
             return "file:///" + self._p.replace("\\", "/")
         if drive[:2] == "\\\\":

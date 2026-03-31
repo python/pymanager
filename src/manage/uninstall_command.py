@@ -66,9 +66,7 @@ def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment
     if not global_dir.is_dir():
         return
     LOGGER.info("Purging global commands from %s", global_dir)
-    for f in _iterdir(global_dir):
-        LOGGER.debug("Purging %s", f)
-        rmtree(f, after_5s_warning=warn_msg)
+    rmtree(global_dir, after_5s_warning=warn_msg)
 
 
 def execute(cmd):

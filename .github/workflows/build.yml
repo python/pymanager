@@ -182,6 +182,20 @@ jobs:
         PYMANAGER_DEBUG: true
       shell: powershell
 
+    - name: 'Test purge'
+      run: |
+        $env:PYTHON_MANAGER_CONFIG = (gi $env:PYTHON_MANAGER_CONFIG).FullName
+        pymanager uninstall --purge -y
+        if (Test-Path test_installs) {
+          dir -r test_installs
+        } else {
+          Write-Host "test_installs directory has been deleted"
+        }
+      env:
+        PYTHON_MANAGER_INCLUDE_UNMANAGED: false
+        PYTHON_MANAGER_CONFIG: .\test-config.json
+        PYMANAGER_DEBUG: true
+
     - name: 'Offline bundle download and install'
       run: |
         pymanager list --online 3 3-32 3-64 3-arm64

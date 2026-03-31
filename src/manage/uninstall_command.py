@@ -66,9 +66,7 @@ def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment
     if not global_dir.is_dir():
         return
     LOGGER.info("Purging global commands from %s", global_dir)
-    for f in _iterdir(global_dir):
-        LOGGER.debug("Purging %s", f)
-        rmtree(f, after_5s_warning=warn_msg)
+    rmtree(global_dir, after_5s_warning=warn_msg)
 
 
 def execute(cmd):
@@ -110,11 +108,11 @@ def execute(cmd):
                 cleanup(cmd, [])
         # Clean up other lingering directories
         LOGGER.info("Purging remaining files")
-        for d in cmd.install_dir.iterdir():
+        for d in _iterdir(cmd.install_dir):
             if d.is_dir():
                 LOGGER.verbose("Removing %s", d)
                 rmtree(d, after_5s_warning=warn_msg.format("remaining files"))
-        if any(cmd.install_dir.iterdir()):
+        if any(_iterdir(cmd.install_dir)):
             LOGGER.warn("Unable to fully remove %s.", cmd.install_dir)
         LOGGER.debug("END uninstall_command.execute")
         return

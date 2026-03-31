@@ -348,6 +348,8 @@ def first_run(cmd):
                          "execution aliases!W!' settings page and enabling each "
                          "item labelled '!B!Python (default)!W!' and '!B!Python "
                          "install manager!W!'.\n", wrap=True)
+            LOGGER.print("If the items are already enabled, you may need to disable "
+                         "and re-enable them.\n", wrap=True)
             if (
                 cmd.confirm and
                 not cmd.ask_ny("Open Settings now, so you can modify !B!App "

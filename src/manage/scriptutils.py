@@ -48,8 +48,16 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
     if not sh_cmd.match("*.exe"):
         sh_cmd = sh_cmd.with_name(sh_cmd.name + ".exe")
 
-    is_wdefault = sh_cmd.match("pythonw.exe") or sh_cmd.match("pyw.exe")
-    is_default = is_wdefault or sh_cmd.match("python.exe") or sh_cmd.match("py.exe")
+    is_wdefault = (
+        sh_cmd.match("pythonw.exe")
+        or sh_cmd.match("pyw.exe")
+        or sh_cmd.match("pythonw3.exe")
+    )
+    is_default = is_wdefault or (
+        sh_cmd.match("python.exe")
+        or sh_cmd.match("py.exe")
+        or sh_cmd.match("python3.exe")
+    )
 
     # Internal logic error, but non-fatal, if it has no value
     assert windowed is not None

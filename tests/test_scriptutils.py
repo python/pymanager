@@ -139,8 +139,8 @@ def test_read_shebang_windowed(fake_config, tmp_path, script, expect, windowed):
 def test_default_py_shebang(fake_config, tmp_path):
     inst = _fake_install("1.0", company="PythonCore", prefix=PurePath("C:\\TestRoot"), default=True)
     inst["run-for"] = [
-        dict(name="python.exe", target=".\\python.exe"),
-        dict(name="pythonw.exe", target=".\\pythonw.exe", windowed=1),
+        dict(name="othername.exe", target=".\\test-binary-1.0.exe"),
+        dict(name="othernamew.exe", target=".\\test-binary-1.0-w.exe", windowed=1),
     ]
     fake_config.installs[:] = [inst]
 
@@ -150,11 +150,13 @@ def test_default_py_shebang(fake_config, tmp_path):
     # Finds the install's default executable
     assert t("python")["executable"].match("test-binary-1.0.exe")
     assert t("py")["executable"].match("test-binary-1.0.exe")
+    assert t("python3")["executable"].match("test-binary-1.0.exe")
     assert t("python1.0")["executable"].match("test-binary-1.0.exe")
     # Finds the install's run-for executable with windowed=1
-    assert t("pythonw")["executable"].match("pythonw.exe")
-    assert t("pyw")["executable"].match("pythonw.exe")
-    assert t("pythonw1.0")["executable"].match("pythonw.exe")
+    assert t("pythonw")["executable"].match("test-binary-1.0-w.exe")
+    assert t("pyw")["executable"].match("test-binary-1.0-w.exe")
+    assert t("pythonw3")["executable"].match("test-binary-1.0-w.exe")
+    assert t("pythonw1.0")["executable"].match("test-binary-1.0-w.exe")
 
 
 def test_unmanaged_py_shebang(fake_config, tmp_path):

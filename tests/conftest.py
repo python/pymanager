@@ -178,8 +178,15 @@ class FakeConfig:
             return i
 
         company, _, tag = tag.replace("/", "\\").rpartition("\\")
-        return [i for i in self.installs
-                if (not tag or i["tag"] == tag) and (not company or i["company"] == company)][0]
+        try:
+            found = [i for i in self.installs
+                     if (not tag or i["tag"] == tag) and (not company or i["company"] == company)]
+        except LookupError as ex:
+            # LookupError is expected from this function, so make sure we don't raise it here
+            raise RuntimeError from ex
+        if found:
+            return found[0]
+        raise LookupError(tag)
 
     def ask_yn(self, question):
         return False if self.confirm else True

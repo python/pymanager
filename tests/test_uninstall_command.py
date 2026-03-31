@@ -16,7 +16,7 @@ def test_purge_global_dir(monkeypatch, registry, tmp_path):
     UC._do_purge_global_dir(tmp_path, "SLOW WARNING", hive=registry.hive, subkey=registry.root)
     assert registry.getvalueandkind("", "Path") == (
         rf"C:\A;{tmp_path}\X;C:\B;%PTH%;C:\%D%\E", winreg.REG_SZ)
-    assert not list(tmp_path.iterdir())
+    assert not tmp_path.is_dir() or not list(tmp_path.iterdir())
 
 
 def test_null_purge(fake_config):

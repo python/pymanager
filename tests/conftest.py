@@ -152,11 +152,11 @@ REG_TEST_ROOT = r"Software\Python\PyManagerTesting"
 
 
 class FakeConfig:
-    def __init__(self, global_dir, installs=[]):
-        self.global_dir = global_dir
-        self.root = global_dir.parent if global_dir else None
-        self.download_dir = self.root / "_cache" if self.root else None
-        self.start_folder = self.root / "_start" if self.root else None
+    def __init__(self, root, installs=[]):
+        self.root = self.install_dir = root
+        self.global_dir = root / "bin" if root else None
+        self.download_dir = root / "_cache" if root else None
+        self.start_folder = root / "_start" if root else None
         self.pep514_root = REG_TEST_ROOT
         self.confirm = False
         self.installs = list(installs)
@@ -186,7 +186,7 @@ class FakeConfig:
 
 @pytest.fixture
 def fake_config(tmp_path):
-    return FakeConfig(tmp_path / "bin")
+    return FakeConfig(tmp_path)
 
 
 class RegistryFixture:

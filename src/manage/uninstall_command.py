@@ -108,6 +108,14 @@ def execute(cmd):
         for _, cleanup in SHORTCUT_HANDLERS.values():
             if cleanup:
                 cleanup(cmd, [])
+        # Clean up other lingering directories
+        LOGGER.info("Purging remaining files")
+        for d in cmd.install_dir.listdir():
+            if d.is_dir():
+                LOGGER.verbose("Removing %s", d)
+                rmtree(d, after_5s_warning=warn_msg.format("remaining files"))
+        if any(cmd.install_dir.listdir()):
+            LOGGER.warn("Unable to fully remove %s.", cmd.install_dir)
         LOGGER.debug("END uninstall_command.execute")
         return
 

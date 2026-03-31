@@ -23,6 +23,14 @@ def _get_installs(install_dir):
         try:
             with p.open() as f:
                 j = json.load(f)
+        except ValueError:
+            LOGGER.warn(
+                "Failed to read install at %s. You may have a broken "
+                "install, which can be cleaned up by deleting the directory.",
+                d
+            )
+            LOGGER.debug("ERROR", exc_info=True)
+            continue
         except FileNotFoundError:
             continue
 

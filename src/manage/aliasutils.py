@@ -10,19 +10,20 @@ _EXE = ".exe".casefold()
 
 DEFAULT_SITE_DIRS = ["Lib\\site-packages", "Scripts"]
 
+# Our script removes sys.path[0] if empty to avoid trivial search path hijacks.
+# In virtually all cases it should be the directory where our scripts are
+# generated, which has no importable packages (unless there are unauthorised
+# modifications, which are out of scope for our security threat model).
+# We don't try to be any more clever, since we don't know what kind of
+# interpreter we are running inside - this script may be generated for any
+# arbitrary executable installed by PyManager, and so it's possible that
+# sys.path[0] is already sanitised or entirely unrelated.
+
 SCRIPT_CODE = """import sys
 
-# Clear sys.path[0] if it contains this script.
-# Be careful to use the most compatible Python code possible.
 try:
-    if sys.path[0]:
-        if sys.argv[0].startswith(sys.path[0]):
-            sys.path[0] = ""
-        else:
-            open(sys.path[0] + "/" + sys.argv[0], "rb").close()
-            sys.path[0] = ""
-except OSError:
-    pass
+    if not sys.path[0]:
+        del sys.path[0]
 except AttributeError:
     pass
 except IndexError:

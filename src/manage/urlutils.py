@@ -294,7 +294,15 @@ def _powershell_urlretrieve(request):
 $url = $env:PYMANAGER_URL
 $outfile = $env:PYMANAGER_OUTFILE
 $method = $env:PYMANAGER_METHOD
-$headers = ConvertFrom-Json $env:PYMANAGER_HEADERS
+$headersObj = ConvertFrom-Json $env:PYMANAGER_HEADERS
+$headers = @{}
+if ($headersObj -ne $null) {
+    $headersObj.PSObject.Properties | ForEach-Object {
+        $name = $_.Name
+        $value = $_.Value
+        $headers[$name] = if ($value -eq $null) { "" } else { $value.ToString() }
+    }
+}
 $r = Invoke-WebRequest -Uri $url -UseBasicParsing `
     -Headers $headers `
     -UseDefaultCredentials `

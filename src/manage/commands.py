@@ -259,6 +259,18 @@ CONFIG_SCHEMA = {
         "preserve_site_on_upgrade": (config_bool, None),
         "enable_entrypoints": (config_bool, None),
         "hard_link_entrypoints": (config_bool, None),
+
+        # Should be a mapping from 'source' to additional settings
+        # Currently, we support these settings for each source:
+        # requires_signature": bool
+        # - If true, download and validate "{source_url}.p7s" before using the feed.
+        # required_root_subject: str
+        # - The root CA of the .p7s must have exactly this subject
+        # required_publisher_subject: str
+        # - The leaf certificate of the .p7s must have exactly this subject
+        # required_publisher_eku": str
+        # - The leaf certificate of the .p7s must contain this EKU as a verified attribute
+        "source_settings": (dict, None),
     },
 
     "first_run": {

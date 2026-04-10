@@ -77,7 +77,7 @@ launch(
                (cmd_line && *cmd_line) ? L" " : L"",
                (cmd_line && *cmd_line) ? cmd_line + 1 : L"");
 
-#if defined(_WINDOWS)
+#if PY_WINDOWED
     /*
     When explorer launches a Windows (GUI) application, it displays
     the "app starting" (the "pointer + hourglass") cursor for a number

@@ -260,17 +260,6 @@ CONFIG_SCHEMA = {
         "enable_entrypoints": (config_bool, None),
         "hard_link_entrypoints": (config_bool, None),
 
-        # Should be a mapping from 'source' to additional settings
-        # Currently, we support these settings for each source:
-        # requires_signature": bool
-        # - If true, download and validate "{source_url}.p7s" before using the feed.
-        # required_root_subject: str
-        # - The root CA of the .p7s must have exactly this subject
-        # required_publisher_subject: str
-        # - The leaf certificate of the .p7s must have exactly this subject
-        # required_publisher_eku": str
-        # - The leaf certificate of the .p7s must contain this EKU as a verified attribute
-        "source_settings": (dict, None),
     },
 
     "first_run": {
@@ -326,6 +315,18 @@ CONFIG_SCHEMA = {
     "launcher_exe": (str, None, "path"),
     "launcherw_exe": (str, None, "path"),
 
+    # Should be a mapping from 'source' to additional settings
+    # Currently, we support these settings for each source:
+    # requires_signature: bool
+    # - If true, download and validate "{source_url}.cat" before using the feed.
+    # required_root_subject: str
+    # - The root CA of the .cat must have exactly this subject
+    # required_publisher_subject: str
+    # - The leaf certificate of the .cat must have exactly this subject
+    # required_publisher_eku: str
+    # - The leaf certificate of the .cat must contain this EKU as a verified attribute
+    "source_settings": (dict, dict.update),
+
     # Show new update welcome messages (always hidden with '-q')
     # Default: False
     "welcome_on_update": (config_bool, None),
@@ -365,6 +366,8 @@ class BaseCommand:
     start_folder = None
     launcher_exe = None
     launcherw_exe = None
+
+    source_settings = None
 
     show_help = False
 
@@ -460,8 +463,6 @@ class BaseCommand:
         arg_names = frozenset(k for k, v in CONFIG_SCHEMA.items()
             if hasattr(type(self), k) and not isinstance(v, dict))
         for k, v in config.items():
-            if isinstance(v, dict):
-                continue
             if k in arg_names and k not in _set_args:
                 setattr(self, k, v)
                 _set_args.add(k)

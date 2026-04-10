@@ -14,6 +14,7 @@ try:
 except KeyError:
     TOOLS = Path("_sign_tools").absolute()
 
+
 def download_tool(url, name):
     dest = TOOLS / name
     dest.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,10 @@ def download_tool(url, name):
             with open(dest / f, "wb") as f2:
                 f2.write(zf.read(f))
 
-def find_tool(pattern, url):
+
+def find_tool(env, pattern, url):
+    if os.getenv(env):
+        return Path(os.environ[env])
     tools = list(TOOLS.glob(pattern))
     if tools:
         return tools[-1]
@@ -46,15 +50,19 @@ def find_tool(pattern, url):
     print("Failed to install tool for", pattern.replace("/", "\\").rpartition("\\")[-1])
     sys.exit(1)
 
+
 SIGNTOOL = find_tool(
+    "SIGNTOOL",
     "sign/bin/*/x64/signtool.exe",
     "https://www.nuget.org/api/v2/package/Microsoft.Windows.SDK.BuildTools/10.0.28000.1721",
 )
 MAKECAT = find_tool(
+    "MAKECAT",
     "sign/bin/*/x64/makecat.exe",
     None,
 )
 DLIB = find_tool(
+    "DLIB",
     "dlib/bin/x64/Azure.CodeSigning.Dlib.dll",
     "https://www.nuget.org/api/v2/package/Microsoft.ArtifactSigning.Client/1.0.128",
 )
@@ -63,6 +71,7 @@ DLIB = find_tool(
 print("signtool:", SIGNTOOL)
 print("makecat:", MAKECAT)
 print("dlib:", DLIB)
+
 
 AAS_DATA = {
     "Endpoint": os.environ["TRUSTED_SIGNING_URI"],
@@ -74,17 +83,19 @@ AAS_DATA = {
         "SharedTokenCacheCredential",
         "VisualStudioCredential",
         "VisualStudioCodeCredential",
-        "AzureCliCredential",
         "AzurePowerShellCredential",
         "AzureDeveloperCliCredential",
         "InteractiveBrowserCredential"
     ]
 }
 
+
 with open(TOOLS / "metadata.json", "w", encoding="utf-8") as f:
     json.dump(AAS_DATA, f, indent=2)
 
+
 CAT = Path.cwd() / (Path(sys.argv[1]).stem + ".cat")
+
 
 with open(TOOLS / "files.cdf", "w", encoding="ansi") as f:
     print("[CatalogHeader]", file=f)
@@ -99,17 +110,21 @@ with open(TOOLS / "files.cdf", "w", encoding="ansi") as f:
     for a in map(Path, sys.argv[1:]):
         print("<HASH>", a.name, "=", a.absolute(), sep="", file=f)
 
+
 if CAT.is_file():
     CAT.unlink()
+
 
 args = [MAKECAT, "-v", TOOLS / "files.cdf"]
 print("##[command]", end="")
 print(*args)
 run(args)
 
+
 if not CAT.is_file():
     print("Failed to create catalog.")
     sys.exit(2)
+
 
 args = [
     SIGNTOOL, "sign",
@@ -121,6 +136,7 @@ args = [
     "/dmdf", TOOLS / "metadata.json",
     CAT
 ]
+
 
 print("##[command]", end="")
 print(*args)

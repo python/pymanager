@@ -322,7 +322,7 @@ def execute(cmd):
 
     if cmd.source:
         from .indexutils import Index
-        from .urlutils import IndexDownloader
+        from .urlutils import IndexDownloader, sanitise_url
         installs = []
         first_exc = None
         for source in [
@@ -330,7 +330,7 @@ def execute(cmd):
             cmd.fallback_source,
         ]:
             if source:
-                downloader = IndexDownloader(source, Index)
+                downloader = IndexDownloader(cmd, source, Index)
                 if cmd.fallback_source_only:
                     downloader.quiet = True
                 try:

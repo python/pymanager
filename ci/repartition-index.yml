@@ -13,7 +13,7 @@ parameters:
   type: boolean
   default: false
 - name: TestPublish
-  displayName: "Run all steps without publishing"
+  displayName: "Run all steps (including signing) without publishing"
   type: boolean
   default: false
 
@@ -29,6 +29,8 @@ stages:
 
     variables:
     - group: PythonOrgPublish
+    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
+      - group: CPythonSign
 
     steps:
     - checkout: self
@@ -50,6 +52,45 @@ stages:
       displayName: 'Repartition index'
       workingDirectory: $(Build.BinariesDirectory)
 
+    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
+      - powershell: |
+          git clone https://github.com/python/cpython-bin-deps --revision fb06137dccc43ed5b030cdd9e3560990b37f39da --depth 1 --progress -v "signtool"
+          "##vso[task.setvariable variable=MAKECAT]$(gi signtool\x64\makecat.exe)"
+          "##vso[task.setvariable variable=SIGNTOOL]$(gi signtool\x64\signtool.exe)"
+          "##vso[task.setvariable variable=DLIB]$(gi signtool\azure_trusted_signing\x64\Azure.CodeSigning.Dlib.dll)"
+        workingDirectory: $(Pipeline.Workspace)
+        displayName: 'Download signtool binaries'
+
+      - task: AzureCLI@2
+        displayName: 'Azure Login (1/2)'
+        inputs:
+          azureSubscription: 'Python Signing'
+          scriptType: 'ps'
+          scriptLocation: 'inlineScript'
+          inlineScript: |
+            "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]${env:servicePrincipalId}" 
+            "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]${env:idToken}"
+            "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]${env:tenantId}"
+          addSpnToEnvironment: true
+
+      - powershell: >
+          az login --service-principal
+          -u $(AZURE_CLIENT_ID)
+          --tenant $(AZURE_TENANT_ID)
+          --allow-no-subscriptions
+          --federated-token $(AZURE_ID_TOKEN)
+        displayName: 'Azure Login (2/2)'
+
+      - powershell: |
+          python "$(Build.SourcesDirectory)\ci\sign-json.py" (dir *.json)
+        displayName: 'Sign index files'
+        workingDirectory: $(Build.BinariesDirectory)
+        env:
+          SIGN_TOOLS: $(Pipeline.Workspace)\sign_tools
+          TRUSTED_SIGNING_URI: $(TrustedSigningUri)
+          TRUSTED_SIGNING_ACCOUNT: $(TrustedSigningAccount)
+          TRUSTED_SIGNING_CERTIFICATE_NAME: $(TrustedSigningCertificateName)
+
     - publish: $(Build.BinariesDirectory)\index
       artifact: index
       displayName: Publish index artifact
@@ -63,7 +104,7 @@ stages:
           displayName: 'Download PuTTY key'
 
       - powershell: |
-          git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
+          git clone https://github.com/python/cpython-bin-deps --revision 9f9e6fc31a55406ee5ff0198ea47bbb445eeb942 --depth 1 --progress -v "putty"
           "##vso[task.prependpath]$(gi putty)"
         workingDirectory: $(Pipeline.Workspace)
         displayName: 'Download PuTTY binaries'

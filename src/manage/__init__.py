@@ -1,6 +1,7 @@
 from .exceptions import (
     ArgumentError,
     AutomaticInstallDisabledError,
+    InvalidFeedError,
     NoInstallFoundError,
     NoInstallsError,
 )
@@ -50,7 +51,7 @@ def main(args, root=None):
         cmd.execute()
         if not cmd.keep_log:
             delete_log = log_file
-    except AutomaticInstallDisabledError as ex:
+    except (AutomaticInstallDisabledError, InvalidFeedError) as ex:
         LOGGER.error("%s", ex)
         return ex.exitcode
     except ArgumentError as ex:
@@ -107,6 +108,9 @@ def find_one(root, tag, script, windowed, allow_autoinstall, show_not_found_erro
         if show_not_found_error:
             LOGGER.error("%s", ex)
             LOGGER.debug("TRACEBACK:", exc_info=True)
+        raise
+    except InvalidFeedError as ex:
+        LOGGER.error("%s", ex)
         raise
     except Exception as ex:
         LOGGER.error("INTERNAL ERROR: %s: %s", type(ex).__name__, ex)

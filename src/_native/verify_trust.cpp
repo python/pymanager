@@ -14,33 +14,144 @@ extern "C" {
 }
 
 
-static bool cert_subject_matches(PCCERT_CONTEXT pCert, const wchar_t *expected)
+static std::vector<BYTE> nameinfo_from_blob(CERT_NAME_BLOB *name)
 {
-    if (!pCert || !expected || !*expected) {
-        return true;
+    DWORD cb = 0;
+    if (!CryptDecodeObjectEx(
+            X509_ASN_ENCODING,
+            X509_NAME,
+            name->pbData,
+            name->cbData,
+            0,
+            nullptr,
+            nullptr,
+            &cb
+    ) || cb == 0) {
+        return {};
     }
 
+    std::vector<BYTE> buf(cb);
+    if (!CryptDecodeObjectEx(
+            X509_ASN_ENCODING,
+            X509_NAME,
+            name->pbData,
+            name->cbData,
+            0,
+            nullptr,
+            buf.data(),
+            &cb
+    )) {
+        return {};
+    }
+    buf.resize(cb);
+    return buf;
+}
+
+
+static std::vector<BYTE> nameinfo_from_name(const wchar_t *name)
+{
     DWORD encoded_size = 0;
 
-    if (!CertStrToNameW(X509_ASN_ENCODING, expected, CERT_X500_NAME_STR,
+    if (!CertStrToNameW(X509_ASN_ENCODING, name, CERT_X500_NAME_STR,
                         nullptr, nullptr, &encoded_size, nullptr)) {
-        return false;
+        return {};
     }
 
     std::vector<BYTE> encoded(encoded_size);
 
-    if (!CertStrToNameW(X509_ASN_ENCODING, expected, CERT_X500_NAME_STR,
+    if (!CertStrToNameW(X509_ASN_ENCODING, name, CERT_X500_NAME_STR,
                         nullptr, encoded.data(), &encoded_size, nullptr)) {
-        return false;
+        return {};
     }
 
     CERT_NAME_BLOB expected_name = {};
     expected_name.cbData = encoded_size;
     expected_name.pbData = encoded.data();
 
-    return CertCompareCertificateName(X509_ASN_ENCODING, &pCert->pCertInfo->Subject, &expected_name);
+    return nameinfo_from_blob(&expected_name);
 }
 
+
+static std::wstring read_rdn_attr(CERT_RDN_ATTR &attr) {
+    DWORD cb = CertRDNValueToStrW(attr.dwValueType, &attr.Value, nullptr, 0);
+    if (cb > 1024) {
+        return {};
+    }
+    std::wstring v(cb, L'\0');
+    v.resize(CertRDNValueToStrW(attr.dwValueType, &attr.Value, v.data(), cb));
+    return v;
+}
+
+
+static bool cert_subject_matches(PCCERT_CONTEXT pCert, const wchar_t *expected)
+{
+    if (!pCert || !expected || !*expected) {
+        return true;
+    }
+
+    auto expected_info_buf = nameinfo_from_name(expected);
+    auto actual_info_buf = nameinfo_from_blob(&pCert->pCertInfo->Subject);
+
+    if (expected_info_buf.empty() || actual_info_buf.empty()) {
+        return false;
+    }
+
+    const CERT_NAME_INFO *expected_info =
+        reinterpret_cast<const CERT_NAME_INFO *>(expected_info_buf.data());
+    const CERT_NAME_INFO *actual_info =
+        reinterpret_cast<const CERT_NAME_INFO *>(actual_info_buf.data());
+
+    // Turn constraints into a vector of (oid, value) pairs.
+    // Each pair must be present in the actual name.
+    std::vector<std::pair<std::string, std::wstring>> expected_pairs;
+    expected_pairs.reserve(8);
+
+    for (DWORD i = 0; i < expected_info->cRDN; ++i) {
+        CERT_RDN &rdn = expected_info->rgRDN[i];
+        for (DWORD j = 0; j < rdn.cRDNAttr; ++j) {
+            CERT_RDN_ATTR &attr = rdn.rgRDNAttr[j];
+            if (!attr.pszObjId) {
+                return false;
+            }
+
+            auto v = read_rdn_attr(attr);
+            if (!v.empty()) {
+                expected_pairs.emplace_back(std::string(attr.pszObjId), std::move(v));
+            }
+        }
+    }
+
+    // For each expected (OID, value), find an identical (OID, value) in the actual name.
+    for (const auto &need : expected_pairs) {
+        const std::string &oid = need.first;
+        const std::wstring &expect = need.second;
+
+        bool found = false;
+
+        for (DWORD i = 0; i < actual_info->cRDN && !found; ++i) {
+            CERT_RDN &rdn = actual_info->rgRDN[i];
+            for (DWORD j = 0; j < rdn.cRDNAttr; ++j) {
+                CERT_RDN_ATTR &attr = rdn.rgRDNAttr[j];
+                if (!attr.pszObjId || oid != attr.pszObjId) {
+                    continue;
+                }
+
+                auto v = read_rdn_attr(attr);
+
+                if (CompareStringOrdinal(v.c_str(), -1, expect.c_str(), -1, TRUE) == CSTR_EQUAL) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 static bool resolve_eku_to_oid_utf8(const wchar_t *eku_in, std::string &oid_out) {
     oid_out.clear();

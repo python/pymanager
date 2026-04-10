@@ -77,22 +77,6 @@ launch(
                (cmd_line && *cmd_line) ? L" " : L"",
                (cmd_line && *cmd_line) ? cmd_line + 1 : L"");
 
-#if PY_WINDOWED
-    /*
-    When explorer launches a Windows (GUI) application, it displays
-    the "app starting" (the "pointer + hourglass") cursor for a number
-    of seconds, or until the app does something UI-ish (eg, creating a
-    window, or fetching a message).  As this launcher doesn't do this
-    directly, that cursor remains even after the child process does these
-    things.  We avoid that by doing a simple post+get message.
-    See http://bugs.python.org/issue17290
-    */
-    MSG msg;
-
-    PostMessage(0, 0, 0, 0);
-    GetMessage(&msg, 0, 0, 0);
-#endif
-
     job = CreateJobObject(NULL, NULL);
     if (!job
         || !QueryInformationJobObject(job, JobObjectExtendedLimitInformation, &info, sizeof(info), &info_len)
@@ -129,6 +113,23 @@ launch(
 
     AssignProcessToJobObject(job, pi.hProcess);
     CloseHandle(pi.hThread);
+
+#if PY_WINDOWED
+    /*
+    When explorer launches a Windows (GUI) application, it displays
+    the "app starting" (the "pointer + hourglass") cursor for a number
+    of seconds, or until the app does something UI-ish (eg, creating a
+    window, or fetching a message).  As this launcher doesn't do this
+    directly, that cursor remains even after the child process does these
+    things.  We avoid that by doing a simple post+get message.
+    See http://bugs.python.org/issue17290
+    */
+    MSG msg;
+
+    PostMessage(0, 0, 0, 0);
+    GetMessage(&msg, 0, 0, 0);
+#endif
+
     WaitForSingleObjectEx(pi.hProcess, INFINITE, FALSE);
     if (!GetExitCodeProcess(pi.hProcess, exit_code)) {
         lastError = GetLastError();

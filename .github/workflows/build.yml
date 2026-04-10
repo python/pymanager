@@ -18,7 +18,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
     - name: 'Remove existing PyManager install'
       run: |
@@ -38,7 +38,7 @@ jobs:
     # We move faster than GitHub's Python runtimes, so use NuGet instead
     # One day we can use ourselves to download Python, but not yet...
     - name: Set up NuGet
-      uses: nuget/setup-nuget@v2.0.1
+      uses: nuget/setup-nuget@323ab0502cd38fdc493335025a96c8fdb0edc71f # v2.0.1
 
     - name: Set up Python 3.14.3
       run: |
@@ -74,7 +74,7 @@ jobs:
           --cov-report xml
 
     - name: 'Upload coverage'
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5.5.4
       with:
         token: ${{ secrets.CODECOV_ORG_TOKEN }}
 

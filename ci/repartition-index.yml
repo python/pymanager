@@ -92,19 +92,18 @@ stages:
       artifact: index
       displayName: Publish index artifact
 
-    - ${{ if eq(parameters.Publish, 'true') }}:
-      - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
-        - task: DownloadSecureFile@1
-          name: sshkey
-          inputs:
-            secureFile: pydotorg-ssh.ppk
-          displayName: 'Download PuTTY key'
+    - powershell: |
+        git clone https://github.com/python/cpython-bin-deps --revision 9f9e6fc31a55406ee5ff0198ea47bbb445eeb942 --depth 1 --progress -v "putty"
+        "##vso[task.prependpath]$(gi putty)"
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: 'Download PuTTY binaries'
 
-      - powershell: |
-          git clone https://github.com/python/cpython-bin-deps --revision 9f9e6fc31a55406ee5ff0198ea47bbb445eeb942 --depth 1 --progress -v "putty"
-          "##vso[task.prependpath]$(gi putty)"
-        workingDirectory: $(Pipeline.Workspace)
-        displayName: 'Download PuTTY binaries'
+    - ${{ if and(eq(parameters.Publish, 'true'), eq(parameters.SigningCertificate, 'PythonSoftwareFoundation'), eq(variables['Build.SourceBranchName'], 'main')) }}:
+      - task: DownloadSecureFile@1
+        name: sshkey
+        inputs:
+          secureFile: pydotorg-ssh.ppk
+        displayName: 'Download PuTTY key'
 
       - powershell: |
           python ci\upload.py
@@ -118,7 +117,16 @@ stages:
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
           UPLOADING_INDEX: true
-          ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
-            UPLOAD_KEYFILE: $(sshkey.secureFilePath)
-          ${{ else }}:
-            NO_UPLOAD: 1
+          UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+
+    - ${{ else }}:
+      - powershell: |
+          python ci\upload.py
+        displayName: 'Pretend to publish packages'
+        env:
+          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/
+          UPLOAD_DIR: $(Build.BinariesDirectory)\index
+          UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
+          UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
+          UPLOADING_INDEX: true
+          NO_UPLOAD: 1

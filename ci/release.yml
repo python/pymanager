@@ -132,7 +132,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+        ${{ if variables['TrustedSigningCertificateSubject'] }}:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - template: sign-files.yml
@@ -149,7 +149,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+        ${{ if variables['TrustedSigningCertificateSubject'] }}:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
         PYMANAGER_APPX_STORE_PUBLISHER: 'CN=4975D53F-AA7E-49A5-8B49-EA4FDC1BB66B'
 
@@ -159,7 +159,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
+        ${{ if variables['TrustedSigningCertificateSubject'] }}:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - template: sign-files.yml
@@ -226,7 +226,7 @@ stages:
         env:
           TEST_MSIX: $(TEST_MSIX_DIR)
 
-      - ${{ if eq(parameters.PostTest, 'true') }}:
+    - ${{ if eq(parameters.PostTest, 'true') }}:
       - powershell: |
           $p = Get-AppxPackage PythonSoftwareFoundation.PythonManager
           $p

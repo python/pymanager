@@ -203,6 +203,9 @@ if UPLOADING_INDEX:
     for f in UPLOAD_DIR.glob("*.json"):
         u = UPLOAD_URL + f.name
         UPLOADS.append((f, u, url2path(u)))
+    for f in UPLOAD_DIR.glob("*.json.cat"):
+        u = UPLOAD_URL + f.name
+        UPLOADS.append((f, u, url2path(u)))
 else:
     for pat in ("python-manager-*.msix", "python-manager-*.msi"):
         for f in UPLOAD_DIR.glob(pat):

@@ -322,7 +322,7 @@ def execute(cmd):
 
     if cmd.source:
         from .indexutils import Index
-        from .urlutils import IndexDownloader, sanitise_url
+        from .urlutils import IndexDownloader
         installs = []
         first_exc = None
         for source in [

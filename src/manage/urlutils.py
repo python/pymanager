@@ -688,21 +688,27 @@ class IndexDownloader:
             return previous_verified
 
         try:
-            cat = self._urlopen(
-                url + ".cat",
-                "GET",
-                {"Accepts": "application/octet-stream"},
-                on_auth_request=self.on_auth,
-            )
-        except OSError:
-            LOGGER.error(
-                "The signature for %s could not be loaded.",
-                sanitise_url(url),
-            )
-            LOGGER.debug("TRACEBACK", exc_info=True)
-            if self.cmd and not self.cmd.ask_ny("Continue to install?"):
-                return False
-            raise InvalidFeedError(feed_url=url)
+            cat = self._cache[url + ".cat"]
+        except KeyError:
+            cat = None
+        if not cat:
+            try:
+                cat = self._urlopen(
+                    url + ".cat",
+                    "GET",
+                    {"Accepts": "application/octet-stream"},
+                    on_auth_request=self.on_auth,
+                )
+                self._cache[url + ".cat"] = cat
+            except OSError as ex:
+                LOGGER.error(
+                    "The signature for %s could not be loaded.",
+                    sanitise_url(url),
+                )
+                LOGGER.debug("TRACEBACK", exc_info=True)
+                if self.cmd and not self.cmd.ask_ny("Continue to install?"):
+                    return False
+                raise InvalidFeedError(feed_url=url) from ex
 
         from tempfile import mkdtemp
         from _native import verify_trust
@@ -771,9 +777,9 @@ class IndexDownloader:
             if verified is True:
                 LOGGER.info("!G!The signature for %s was successfully verified.!W!", s_url)
             elif verified is False:
-                LOGGER.warn("Signature verification failure ignored for %s.", s_url)
+                LOGGER.warn("Signature verification failure ignored for %s", s_url)
             else:
-                LOGGER.info("Signature verification is not requested for %s.", s_url)
+                LOGGER.info("No signature to verify for %s", s_url)
 
             self._cache[url] = data
 

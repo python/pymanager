@@ -153,16 +153,6 @@ static bool cert_subject_matches(PCCERT_CONTEXT pCert, const wchar_t *expected)
     return true;
 }
 
-static bool resolve_eku_to_oid_utf8(const wchar_t *eku_in, std::string &oid_out) {
-    oid_out.clear();
-    if (!eku_in || !*eku_in) {
-        return false;
-    }
-
-    return true;
-
-    return true;
-}
 
 static bool cert_has_explicit_eku(PCCERT_CONTEXT pCert, const wchar_t *eku_in) {
     // No cert or no EKU passes this check
@@ -199,6 +189,7 @@ static bool cert_has_explicit_eku(PCCERT_CONTEXT pCert, const wchar_t *eku_in) {
     }
     return false;
 }
+
 
 static void bytes_to_member_tag_hex(const BYTE *pb, DWORD cb, std::wstring &out) {
     out.clear();
@@ -467,6 +458,7 @@ cleanup:
 
     return err;
 }
+
 
 PyObject *verify_trust(PyObject *, PyObject *args, PyObject *kwargs) {
     static const char * keywords[] = {"path", "cat_path", "root_subject", "leaf_subject", "leaf_eku", NULL};

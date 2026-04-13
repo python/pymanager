@@ -167,12 +167,12 @@ def _bits_urlretrieve(request):
 def _winhttp_urlopen(request):
     from _native import winhttp_urlopen, winhttp_isconnected
     headers = {k.lower(): v for k, v in request.headers.items()}
-    accepts = headers.pop("accepts", "application/*;text/*")
+    accept = headers.pop("accept", "application/*;text/*")
     header_str = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
     method = request.method.upper()
     LOGGER.debug("winhttp_urlopen: %s", request)
     try:
-        data = winhttp_urlopen(request.url, method, header_str, accepts,
+        data = winhttp_urlopen(request.url, method, header_str, accept,
             request.chunksize, request.on_progress, request.on_auth_request)
     except OSError as ex:
         if ex.winerror == 0x00002EE7:
@@ -666,7 +666,7 @@ class IndexDownloader:
             return self._urlopen(
                 url,
                 "GET",
-                {"Accepts": "application/json"},
+                {"Accept": "application/json"},
                 on_auth_request=self.on_auth,
             )
         except FileNotFoundError: # includes 404
@@ -696,7 +696,7 @@ class IndexDownloader:
                 cat = self._urlopen(
                     url + ".cat",
                     "GET",
-                    {"Accepts": "application/octet-stream"},
+                    {"Accept": "application/octet-stream"},
                     on_auth_request=self.on_auth,
                 )
                 self._cache[url + ".cat"] = cat
@@ -721,12 +721,12 @@ class IndexDownloader:
             verify_trust(
                 tmp_data,
                 tmp_cat,
-                params.get("expected_root_subject"),
-                params.get("expected_publisher_subject"),
-                params.get("expected_publisher_eku"),
+                params.get("required_root_subject"),
+                params.get("required_publisher_subject"),
+                params.get("required_publisher_eku"),
             )
             return True
-        except OSError:
+        except OSError as ex:
             LOGGER.error(
                 "The signature for %s could not be verified.",
                 sanitise_url(url),
@@ -734,7 +734,7 @@ class IndexDownloader:
             LOGGER.debug("TRACEBACK", exc_info=True)
             if self.cmd and not self.cmd.ask_ny("Continue to install?"):
                 return False
-            raise InvalidFeedError(feed_url=url)
+            raise InvalidFeedError(feed_url=url) from ex
         finally:
             rmtree(tmp_dir)
 

@@ -6,6 +6,7 @@ from .config import (
     load_config,
     config_append,
     config_bool,
+    config_dict_merge,
     config_split,
     config_split_append,
 )
@@ -325,7 +326,7 @@ CONFIG_SCHEMA = {
     # - The leaf certificate of the .cat must have exactly this subject
     # required_publisher_eku: str
     # - The leaf certificate of the .cat must contain this EKU as a verified attribute
-    "source_settings": (dict, dict.update),
+    "source_settings": (dict, config_dict_merge),
 
     # Show new update welcome messages (always hidden with '-q')
     # Default: False

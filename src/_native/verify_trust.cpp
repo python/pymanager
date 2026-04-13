@@ -211,7 +211,7 @@ static void bytes_to_member_tag_hex(const BYTE *pb, DWORD cb, std::wstring &out)
     }
 }
 
-static bool file_hash_in_catalog(const wchar_t *file_path, const wchar_t *cat_path) {
+static DWORD file_hash_in_catalog(const wchar_t *file_path, const wchar_t *cat_path) {
     DWORD err = ERROR_NOT_FOUND;
 
     HANDLE hFile = INVALID_HANDLE_VALUE;
@@ -517,7 +517,7 @@ PyObject *verify_trust(PyObject *, PyObject *args, PyObject *kwargs) {
         (void)WinVerifyTrust(NULL, &policy, &wd);
 
         if (st != ERROR_SUCCESS) {
-            PyErr_Format(PyExc_OSError, "WinVerifyTrust failed for catalog: 0x%08lX", (unsigned long)st);
+            err_SetFromWindowsErrWithMessage(st, "WinVerifyTrust failed for catalog: 0x%08lX", NULL);
             Py_CLEAR(r);
             goto done;
         }
@@ -526,13 +526,15 @@ PyObject *verify_trust(PyObject *, PyObject *args, PyObject *kwargs) {
     // 2) Extract signer leaf and chain root certs from the signed catalog
     err = extract_certs(cat_path, pLeafCert, pRootCert);
     if (err) {
-        PyErr_SetString(PyExc_OSError, "Failed to extract certificates from catalog signature");
+        err_SetFromWindowsErrWithMessage(err, "Failed to extract certificates from catalog signature", NULL);
         Py_CLEAR(r);
         goto done;
     }
 
     // 3) Optional subject checks
     if (!cert_subject_matches(pRootCert, root_subject)) {
+        // Strictly speaking ValueError makes more sense here, but we're already
+        // going to be catching OSError so may as well be consistent.
         PyErr_SetString(PyExc_OSError, "Catalog root certificate subject mismatch");
         Py_CLEAR(r);
         goto done;
@@ -553,7 +555,7 @@ PyObject *verify_trust(PyObject *, PyObject *args, PyObject *kwargs) {
     // 5) Ensure the target file’s catalog hash is present in the provided catalog file.
     err = file_hash_in_catalog(path, cat_path);
     if (err) {
-        PyErr_SetString(PyExc_OSError, "File hash not present in the specified catalog");
+        err_SetFromWindowsErrWithMessage(err, "File hash not present in the specified catalog", NULL);
         Py_CLEAR(r);
         goto done;
     }

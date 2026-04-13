@@ -51,11 +51,21 @@ void err_SetFromWindowsErrWithMessage(int error, const char *message, const wcha
         cause = PyErr_GetRaisedException();
     }
 
-    if ((error & 0xFFFF0000) == 0x80070000) {
+    switch (HRESULT_FACILITY(error)) {
+    case FACILITY_WIN32:
         // Error code is an HRESULT containing a regular Windows error
         error &= 0xFFFF;
+        break;
+    case FACILITY_CERT:
+    case FACILITY_SECURITY:
+        // crypt32-related errors
+        if (!hModule) {
+            hModule = GetModuleHandleW(L"crypt32");
+        }
+        break;
     }
-    if (!hModule && error >= 12000 && error <= 12184) {
+
+    if (!hModule && error >= WINHTTP_ERROR_BASE && error <= WINHTTP_ERROR_LAST) {
         // Error codes are from WinHTTP, which means we need a module
         hModule = GetModuleHandleW(L"winhttp");
     }

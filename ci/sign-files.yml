@@ -115,12 +115,12 @@ steps:
   - ${{ if parameters.Include }}:
     - powershell: |
         if ($env:EXCLUDE) {
-          $files = (dir $env:INCLUDE -Exclude $env:EXCLUDE -File)
+          $files = (dir ($env:INCLUDE -split ';').Trim() -Exclude ($env:EXCLUDE -split ';').Trim() -File)
         } else {
-          $files = (dir $env:INCLUDE -File)
+          $files = (dir ($env:INCLUDE -split ';').Trim() -File)
         }
         if ($env:FILTER) {
-          ($env:FILTER -split ';') -join "`n" | Out-File __filelist.txt -Encoding utf8
+          ($env:FILTER -split ';').Trim() -join "`n" | Out-File __filelist.txt -Encoding utf8
         } else {
           "*" | Out-File __filelist.txt -Encoding utf8
         }
@@ -147,9 +147,9 @@ steps:
   - ${{ if parameters.ExtractDir }}:
     - powershell: |
         if ($env:EXCLUDE) {
-          $files = (dir $env:INCLUDE -Exclude $env:EXCLUDE -File)
+          $files = (dir ($env:INCLUDE -split ',').Trim() -Exclude ($env:EXCLUDE -split ',').Trim() -File)
         } else {
-          $files = (dir $env:INCLUDE -File)
+          $files = (dir ($env:INCLUDE -split ',').Trim() -File)
         }
         $c = $files | %{ (Get-AuthenticodeSignature $_).SignerCertificate } | ?{ $_ -ne $null } | select -First 1
         if (-not $c) {

@@ -6,13 +6,13 @@ from .verutils import Version
 SCHEMA = {
     "next": str,
 
-    # If true, download and validate "{source_url}.p7s" before using the feed.
+    # If true, download and validate "{source_url}.cat" before using the feed.
     "requires_signature": bool,
-    # The root CA of the .p7s must have exactly this subject
+    # The root CA of the .cat must have exactly this subject
     "required_root_subject": str,
-    # The leaf certificate of the .p7s must have exactly this subject
+    # The leaf certificate of the .cat must have exactly this subject
     "required_publisher_subject": str,
-    # The signature of the .p7s must contain this EKU as a verified attribute
+    # The signature of the .cat must contain this EKU as a verified attribute
     "required_publisher_eku": str,
 
     "versions": [

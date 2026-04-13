@@ -26,7 +26,8 @@ steps:
         }
         $signargs = 'code artifact-signing -v Information ' + `
           '-fd sha256 -t http://timestamp.acs.microsoft.com -td sha256 ' + `
-          "-tse ""${env:TSE}"" -tsa ""${env:TSA}"" -tscp ""${env:TSCP}"" -d ""${env:DESCRIPTION}"""
+          "-ase ""${env:ASE}"" -asa ""${env:ASA}"" -ascp ""${env:ASCP}"" " + `
+          "-act azure-cli -d ""${env:DESCRIPTION}"""
 
         Write-Host "##vso[task.setvariable variable=__TrustedSigningCmd]$signtool"
         Write-Host "##vso[task.setvariable variable=__TrustedSigningArgs]$signargs"
@@ -37,9 +38,9 @@ steps:
       workingDirectory: $(Build.BinariesDirectory)
       displayName: 'Install Azure Artifact Signing tools'
       env:
-        TSE: $(TrustedSigningUri)
-        TSA: $(TrustedSigningAccount)
-        TSCP: $(TrustedSigningCertificateName)
+        ASE: $(TrustedSigningUri)
+        ASA: $(TrustedSigningAccount)
+        ASCP: $(TrustedSigningCertificateName)
         DESCRIPTION: $(SigningDescription)
         EXPORT_COMMAND: ${{ parameters.ExportCommand }}
 
@@ -55,11 +56,12 @@ steps:
             Endpoint=$env:TSE;
             CodeSigningAccountName=$env:TSA;
             CertificateProfileName=$env:TSCP;
-            # Only allow Azure CLI credentials and environment credentials
+            # Only allow Azure CLI credentials
             ExcludeCredentials=@(
                 "ManagedIdentityCredential",
                 "WorkloadIdentityCredential",
                 "SharedTokenCacheCredential",
+                "EnvironmentCredential",
                 "VisualStudioCredential",
                 "VisualStudioCodeCredential",
                 "AzurePowerShellCredential",

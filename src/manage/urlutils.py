@@ -761,7 +761,8 @@ class IndexDownloader:
                 )
                 raise
 
-            verified = self.verify(verified, url, data, (self.cmd.source_settings or {}).get(s_url))
+            source_settings = (self.cmd.source_settings if self.cmd else None) or {}
+            verified = self.verify(verified, url, data, source_settings.get(s_url))
             parsed = json.loads(data)
 
             # The parsed index may also have its own verification parameters

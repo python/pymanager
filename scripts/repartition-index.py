@@ -52,7 +52,7 @@ class ReadFile:
         raise ValueError("Unknown argument: " + arg)
 
     def execute(self, versions, context):
-        for _, data in IndexDownloader(self.source, lambda *a: a):
+        for _, data in IndexDownloader(None, self.source, lambda *a: a):
             versions.extend(data["versions"])
             if not self.recurse:
                 break

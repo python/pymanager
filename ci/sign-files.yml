@@ -53,9 +53,9 @@ steps:
         Write-Host "##vso[task.setvariable variable=MAKECAT]$(gi signtool\x64\makecat.exe)"
 
         ConvertTo-Json @{
-            Endpoint=$env:TSE;
-            CodeSigningAccountName=$env:TSA;
-            CertificateProfileName=$env:TSCP;
+            Endpoint=$env:ASE;
+            CodeSigningAccountName=$env:ASA;
+            CertificateProfileName=$env:ASCP;
             # Only allow Azure CLI credentials
             ExcludeCredentials=@(
                 "ManagedIdentityCredential",
@@ -72,7 +72,8 @@ steps:
         Write-Host "##vso[task.setvariable variable=SIGNTOOL_METADATA]$(gi signtool\metadata.json)"
 
         $signargs = 'sign /v /fd sha256 /tr http://timestamp.acs.microsoft.com /td sha256 ' + `
-                    "/dlib ""$dlib"" /dmdf ""$(gi signtool\metadata.json)"""
+                    "/dlib ""$dlib"" /dmdf ""$(gi signtool\metadata.json)"" " + `
+                    "/d ""${env:DESCRIPTION}"""
         Write-Host "##vso[task.setvariable variable=__TrustedSigningCmd]$signtool"
         Write-Host "##vso[task.setvariable variable=__TrustedSigningArgs]$signargs"
 
@@ -83,9 +84,10 @@ steps:
       workingDirectory: $(Pipeline.Workspace)
       displayName: 'Download signtool binaries'
       env:
-        TSE: $(TrustedSigningUri)
-        TSA: $(TrustedSigningAccount)
-        TSCP: $(TrustedSigningCertificateName)
+        ASE: $(TrustedSigningUri)
+        ASA: $(TrustedSigningAccount)
+        ASCP: $(TrustedSigningCertificateName)
+        DESCRIPTION: $(SigningDescription)
         EXPORT_COMMAND: ${{ parameters.ExportLegacyCommand }}
 
   - ${{ if parameters.AzureServiceConnectionName }}:

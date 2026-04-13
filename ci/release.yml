@@ -132,8 +132,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if variables['TrustedSigningCertificateSubject'] }}:
-          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - template: sign-files.yml
       parameters:
@@ -149,8 +148,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if variables['TrustedSigningCertificateSubject'] }}:
-          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
         PYMANAGER_APPX_STORE_PUBLISHER: 'CN=4975D53F-AA7E-49A5-8B49-EA4FDC1BB66B'
 
     - powershell: |
@@ -159,8 +157,7 @@ stages:
       env:
         PYMSBUILD_LAYOUT_DIR: $(LAYOUT_DIR)
         PYMSBUILD_DIST_DIR: $(DIST_DIR)
-        ${{ if variables['TrustedSigningCertificateSubject'] }}:
-          PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
+        PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
     - template: sign-files.yml
       parameters:

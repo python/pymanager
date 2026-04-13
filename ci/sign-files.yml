@@ -115,9 +115,9 @@ steps:
   - ${{ if parameters.Include }}:
     - powershell: |
         if ($env:EXCLUDE) {
-          $files = (dir ($env:INCLUDE -split ';').Trim() -Exclude ($env:EXCLUDE -split ';').Trim() -File)
+          $files = (dir ($env:INCLUDE -split ',').Trim() -Exclude ($env:EXCLUDE -split ',').Trim() -File)
         } else {
-          $files = (dir ($env:INCLUDE -split ';').Trim() -File)
+          $files = (dir ($env:INCLUDE -split ',').Trim() -File)
         }
         if ($env:FILTER) {
           ($env:FILTER -split ';').Trim() -join "`n" | Out-File __filelist.txt -Encoding utf8

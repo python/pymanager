@@ -200,7 +200,7 @@ stages:
       DIST_DIR: $(Pipeline.Workspace)\dist
 
     steps:
-    - checkout: none
+    - checkout: self
     - download: current
       artifact: dist
 

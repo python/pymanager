@@ -74,19 +74,19 @@ stages:
     - powershell: |
         New-FileCatalog _index.cat -CatalogVersion 2 *.json
       displayName: 'Create index catalog file'
-      workingDirectory: $(Build.BinariesDirectory)
+      workingDirectory: $(Build.BinariesDirectory)\index
 
     - template: sign-files.yml
       parameters:
         Include: "_index.cat"
-        WorkingDir: $(Build.BinariesDirectory)
+        WorkingDir: $(Build.BinariesDirectory)\index
         SigningCertificate: ${{ parameters.SigningCertificate }}
 
     - powershell: |
         dir *.json | %{ cp _index.cat "$($_.BaseName).cat" }
         del _index.cat
       displayName: 'Replicate index catalog file'
-      workingDirectory: $(Build.BinariesDirectory)
+      workingDirectory: $(Build.BinariesDirectory)\index
 
     - publish: $(Build.BinariesDirectory)\index
       artifact: index

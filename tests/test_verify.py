@@ -147,6 +147,7 @@ def test_verify_index_ok(verify_with, tmp_path, assert_log):
 def test_verify_index_wrong(verify_with, tmp_path, assert_log):
     # Certs exist and verify, but don't match required settings
     from manage.urlutils import IndexDownloader
+    from manage.exceptions import InvalidFeedError
     cmd = MockConfig()
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
         shutil.copy2(src, dest)
@@ -154,8 +155,12 @@ def test_verify_index_wrong(verify_with, tmp_path, assert_log):
         cmd.source_settings[dest.as_uri()] = verify_with
 
     idx = IndexDownloader(cmd, (tmp_path / INDEX_NAMES[0]).as_uri(), MockIndex)
-    indexes = list(idx)
-    assert [Path(i.url).name for i in indexes] == INDEX_NAMES
+    with pytest.raises(InvalidFeedError):
+        indexes = list(idx)
+    assert_log(
+        "Fetching.+",
+        "The signature for %s could not be verified.",
+    )
 
 
 @pytest.mark.parametrize("verify_with, expect_fail", [

@@ -1,5 +1,6 @@
 #include <Python.h>
 #include <windows.h>
+#include <winhttp.h>
 
 #include "helpers.h"
 

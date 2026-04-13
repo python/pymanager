@@ -69,7 +69,7 @@ steps:
         } | Out-File signtool\metadata.json -Encoding ascii
         Write-Host "##vso[task.setvariable variable=SIGNTOOL_METADATA]$(gi signtool\metadata.json)"
 
-        $signargs = 'sign /v /fd sha256 /tr http://timestamp.acs.microsoft.com /td SHA256' + `
+        $signargs = 'sign /v /fd sha256 /tr http://timestamp.acs.microsoft.com /td sha256 ' + `
                     "/dlib ""$dlib"" /dmdf ""$(gi signtool\metadata.json)"""
         Write-Host "##vso[task.setvariable variable=__TrustedSigningCmd]$signtool"
         Write-Host "##vso[task.setvariable variable=__TrustedSigningArgs]$signargs"

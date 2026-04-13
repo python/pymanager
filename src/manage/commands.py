@@ -260,7 +260,6 @@ CONFIG_SCHEMA = {
         "preserve_site_on_upgrade": (config_bool, None),
         "enable_entrypoints": (config_bool, None),
         "hard_link_entrypoints": (config_bool, None),
-
     },
 
     "first_run": {

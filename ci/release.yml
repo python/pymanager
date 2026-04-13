@@ -190,6 +190,7 @@ stages:
       displayName: Publish distribution artifacts
 
   - job: PostTest
+    displayName: "Post-build Test"
     dependsOn: Build
 
     pool:
@@ -200,7 +201,8 @@ stages:
 
     steps:
     - checkout: none
-    - download: dist
+    - download: current
+      artifact: dist
 
     - powershell: |
         # Ensure we aren't currently installed
@@ -210,21 +212,19 @@ stages:
         }
       displayName: 'Remove existing PyManager install'
 
-    - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
-      - powershell: |
-          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+    - powershell: |
+        $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+        if ((Get-AuthenticodeSignature $msix).Status -eq "Valid") {
           Add-AppxPackage $msix
-        displayName: 'Install signed MSIX'
-
-    - ${{ else }}:
-      - powershell: |
-          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+        } else {
           cp $msix "${msix}.zip"
           Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
           Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
-        displayName: 'Register unsigned MSIX'
-        env:
-          TEST_MSIX: $(TEST_MSIX_DIR)
+        }
+      displayName: 'Install MSIX'
+      env:
+        TEST_MSIX: $(TEST_MSIX_DIR)
+
 
     - ${{ if eq(parameters.PostTest, 'true') }}:
       - powershell: |
@@ -346,11 +346,14 @@ stages:
         vmImage: 'windows-latest'
 
       variables:
-      - ${{ if eq(parameters.Publish, 'true') }}:
-        - group: PythonOrgPublish
+      - group: PythonOrgPublish
+      - name: DIST_DIR
+        value: $(Pipeline.Workspace)\dist
 
       steps:
       - checkout: self
+      - download: current
+        artifact: dist
 
       - task: NugetToolInstaller@0
         displayName: 'Install Nuget'

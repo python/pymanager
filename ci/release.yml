@@ -346,7 +346,8 @@ stages:
         vmImage: 'windows-latest'
 
       variables:
-      - group: PythonOrgPublish
+      - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
+        - group: PythonOrgPublish
       - name: DIST_DIR
         value: $(Pipeline.Workspace)\dist
 
@@ -416,13 +417,10 @@ stages:
           UPLOAD_HOST: $(PyDotOrgServer)
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
-          UPLOAD_KEYFILE: $(sshkey.secureFilePath)
           ${{ if ne(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
+            UPLOAD_KEYFILE: $(sshkey.secureFilePath)
             NO_UPLOAD: 1
 
       - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
         - powershell: Write-Host "##vso[build.addbuildtag]published"
           displayName: 'Add published tag'
-      - ${{ else }}:
-        - powershell: Write-Host "##vso[build.addbuildtag]test-published"
-          displayName: 'Add test-published tag'

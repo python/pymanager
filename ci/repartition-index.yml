@@ -8,14 +8,30 @@ trigger: none
 
 
 parameters:
+- name: SigningCertificate
+  displayName: "Code signing certificate"
+  type: string
+  default: 'PythonSoftwareFoundation'
+  values:
+  - 'PythonSoftwareFoundation'
+  - 'TestSign'
+  - 'Unsigned'
 - name: Publish
   displayName: "Publish"
   type: boolean
   default: false
-- name: TestPublish
-  displayName: "Run all steps (including signing) without publishing"
-  type: boolean
-  default: false
+- name: SigningDescription
+  displayName: "Signature description"
+  type: string
+  default: '(default)'
+
+
+variables:
+  ${{ if eq(parameters.SigningDescription, '(default)') }}:
+    SigningDescription: "PyManager $(Build.BuildNumber)"
+  ${{ else }}:
+    SigningDescription: ${{ parameters.SigningDescription }}
+
 
 stages:
 - stage: PyManagerIndexPartition
@@ -28,8 +44,11 @@ stages:
       vmImage: 'windows-latest'
 
     variables:
-    - group: PythonOrgPublish
-    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
+    - ${{ if eq(parameters.Publish, 'true') }}:
+      - group: PythonOrgPublish
+    - ${{ if eq(parameters.SigningCertificate, 'TestSign') }}:
+      - group: CPythonTestSign
+    - ${{ elseif eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
       - group: CPythonSign
 
     steps:
@@ -39,7 +58,7 @@ stages:
       displayName: 'Install Nuget'
 
     - powershell: |
-        nuget install -o host_python -x -noninteractive -prerelease python
+        nuget install -o host_python -x -noninteractive python
         Write-Host "##vso[task.prependpath]$(gi host_python\python\tools)"
       displayName: 'Install host Python'
       workingDirectory: $(Build.BinariesDirectory)
@@ -52,51 +71,29 @@ stages:
       displayName: 'Repartition index'
       workingDirectory: $(Build.BinariesDirectory)
 
-    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
-      - powershell: |
-          git clone https://github.com/python/cpython-bin-deps --revision fb06137dccc43ed5b030cdd9e3560990b37f39da --depth 1 --progress -v "signtool"
-          "##vso[task.setvariable variable=MAKECAT]$(gi signtool\x64\makecat.exe)"
-          "##vso[task.setvariable variable=SIGNTOOL]$(gi signtool\x64\signtool.exe)"
-          "##vso[task.setvariable variable=DLIB]$(gi signtool\azure_trusted_signing\x64\Azure.CodeSigning.Dlib.dll)"
-        workingDirectory: $(Pipeline.Workspace)
-        displayName: 'Download signtool binaries'
+    - powershell: |
+        New-FileCatalog _index.cat -CatalogVersion 2 *.json
+      displayName: 'Create index catalog file'
+      workingDirectory: $(Build.BinariesDirectory)
 
-      - task: AzureCLI@2
-        displayName: 'Azure Login (1/2)'
-        inputs:
-          azureSubscription: 'Python Signing'
-          scriptType: 'ps'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]${env:servicePrincipalId}" 
-            "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]${env:idToken}"
-            "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]${env:tenantId}"
-          addSpnToEnvironment: true
+    - template: sign-files.yml
+      parameters:
+        Include: "_index.cat"
+        WorkingDir: $(Build.BinariesDirectory)
+        SigningCertificate: ${{ parameters.SigningCertificate }}
 
-      - powershell: >
-          az login --service-principal
-          -u $(AZURE_CLIENT_ID)
-          --tenant $(AZURE_TENANT_ID)
-          --allow-no-subscriptions
-          --federated-token $(AZURE_ID_TOKEN)
-        displayName: 'Azure Login (2/2)'
-
-      - powershell: |
-          python "$(Build.SourcesDirectory)\ci\sign-json.py" (dir *.json)
-        displayName: 'Sign index files'
-        workingDirectory: $(Build.BinariesDirectory)
-        env:
-          SIGN_TOOLS: $(Pipeline.Workspace)\sign_tools
-          TRUSTED_SIGNING_URI: $(TrustedSigningUri)
-          TRUSTED_SIGNING_ACCOUNT: $(TrustedSigningAccount)
-          TRUSTED_SIGNING_CERTIFICATE_NAME: $(TrustedSigningCertificateName)
+    - powershell: |
+        dir *.json | %{ cp _index.cat "$($_.BaseName).cat" }
+        del _index.cat
+      displayName: 'Replicate index catalog file'
+      workingDirectory: $(Build.BinariesDirectory)
 
     - publish: $(Build.BinariesDirectory)\index
       artifact: index
       displayName: Publish index artifact
 
-    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
-      - ${{ if ne(parameters.TestPublish, 'true') }}:
+    - ${{ if eq(parameters.Publish, 'true') }}:
+      - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
         - task: DownloadSecureFile@1
           name: sshkey
           inputs:
@@ -121,7 +118,7 @@ stages:
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
           UPLOADING_INDEX: true
-          ${{ if eq(parameters.TestPublish, 'true') }}:
-            NO_UPLOAD: 1
-          ${{ else }}:
+          ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
             UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+          ${{ else }}:
+            NO_UPLOAD: 1

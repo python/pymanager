@@ -7,10 +7,14 @@
 name: $(Build.SourceBranchName)-$(Date:yyyyMMdd).$(Rev:r)
 
 parameters:
-- name: Sign
-  displayName: "Signed"
-  type: boolean
-  default: false
+- name: SigningCertificate
+  displayName: "Code signing certificate"
+  type: string
+  default: 'Unsigned'
+  values:
+  - 'PythonSoftwareFoundation'
+  - 'TestSign'
+  - 'Unsigned'
 - name: Publish
   displayName: "Publish"
   type: boolean
@@ -31,10 +35,10 @@ parameters:
   displayName: "Force version (else uses tag)"
   type: string
   default: (tag)
-- name: TestSign
-  displayName: "Test Signed"
-  type: boolean
-  default: false
+- name: SigningDescription
+  displayName: "Signature description"
+  type: string
+  default: '(default)'
 
 
 variables:
@@ -45,12 +49,12 @@ variables:
   PIP_REQUIRE_VIRTUALENV: false
   PIP_VERBOSE: true
   PYMSBUILD_VERBOSE: true
-  PYMSBUILD_TEMP_DIR: $(Build.BinariesDirectory)
-  DIST_DIR: $(Build.ArtifactStagingDirectory)
-  LAYOUT_DIR: $(Build.BinariesDirectory)\layout
-  TEST_MSIX_DIR: $(Build.BinariesDirectory)\test_msix
   ${{ if ne(parameters.OverrideRef, '(tag)') }}:
     OVERRIDE_REF: refs/tags/${{ parameters.OverrideRef }}
+  ${{ if eq(parameters.SigningDescription, '(default)') }}:
+    SigningDescription: "PyManager $(Build.BuildNumber)"
+  ${{ else }}:
+    SigningDescription: ${{ parameters.SigningDescription }}
 
 
 stages:
@@ -64,12 +68,16 @@ stages:
       vmImage: 'windows-latest'
 
     variables:
-    - ${{ if eq(parameters.TestSign, 'true') }}:
+    - name: DIST_DIR
+      value: $(Build.ArtifactStagingDirectory)
+    - name: PYMSBUILD_TEMP_DIR
+      value: $(Build.BinariesDirectory)
+    - name: LAYOUT_DIR
+      value: $(Build.BinariesDirectory)\layout
+    - ${{ if eq(parameters.SigningCertificate, 'TestSign') }}:
       - group: CPythonTestSign
-    - ${{ elseif eq(parameters.Sign, 'true') }}:
+    - ${{ elseif eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
       - group: CPythonSign
-    - ${{ if eq(parameters.Publish, 'true') }}:
-      - group: PythonOrgPublish
 
 
     steps:
@@ -118,39 +126,6 @@ stages:
           python -m pytest -vv
         displayName: 'Run pre-test'
 
-    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-      - powershell: |
-          dotnet tool install --global --prerelease sign
-          cd (mkdir -Force signing)
-          "*.exe", "*.pyd" | Out-File -Encoding UTF8 "signlist1.txt"
-          Write-Host "##vso[task.setvariable variable=SIGNLIST1]$(gi signlist1.txt)"
-          "*.msix" | Out-File -Encoding UTF8 "signlist2.txt"
-          Write-Host "##vso[task.setvariable variable=SIGNLIST2]$(gi signlist2.txt)"
-          "*.msi" | Out-File -Encoding UTF8 "signlist3.txt"
-          Write-Host "##vso[task.setvariable variable=SIGNLIST3]$(gi signlist3.txt)"
-        displayName: 'Install signing tool and generate files'
-        workingDirectory: $(Build.BinariesDirectory)
-
-      - task: AzureCLI@2
-        displayName: 'Azure Login (1/2)'
-        inputs:
-          azureSubscription: 'Python Signing'
-          scriptType: 'ps'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            "##vso[task.setvariable variable=AZURE_CLIENT_ID;issecret=true]${env:servicePrincipalId}" 
-            "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]${env:idToken}"
-            "##vso[task.setvariable variable=AZURE_TENANT_ID;issecret=true]${env:tenantId}"
-          addSpnToEnvironment: true
-
-      - powershell: >
-          az login --service-principal
-          -u $(AZURE_CLIENT_ID)
-          --tenant $(AZURE_TENANT_ID)
-          --allow-no-subscriptions
-          --federated-token $(AZURE_ID_TOKEN)
-        displayName: 'Azure Login (2/2)'
-
     - powershell: |
         python make.py
       displayName: 'Build package'
@@ -160,17 +135,13 @@ stages:
         ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
-    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-      - powershell: >
-          dir -r *.exe, *.pyd | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST1
-          }
-        displayName: 'Sign binaries'
-        workingDirectory: $(LAYOUT_DIR)
+    - template: sign-files.yml
+      parameters:
+        Include: "*.exe, *.pyd"
+        Filter: "*.exe;*.pyd"
+        # Only install the first time
+        InstallTool: true
+        SigningCertificate: ${{ parameters.SigningCertificate }}
 
     - powershell: |
         python make-msix.py
@@ -191,33 +162,26 @@ stages:
         ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
           PYMANAGER_APPX_PUBLISHER: $(TrustedSigningCertificateSubject)
 
-    - ${{ if or(eq(parameters.Sign, 'true'), eq(parameters.TestSign, 'true')) }}:
-      - powershell: >
-          dir *.msix | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST2
-          }
-        displayName: 'Sign MSIX package'
-        workingDirectory: $(DIST_DIR)
+    - template: sign-files.yml
+      parameters:
+        Include: "*.msix"
+        Filter: "*.msix"
+        InstallTool: false
+        SigningCertificate: ${{ parameters.SigningCertificate }}
+        WorkingDir: $(DIST_DIR)
 
-      - powershell: >
-          dir *.msi | %{
-          sign code trusted-signing "$_"
-          -fd sha256 -t http://timestamp.acs.microsoft.com -td sha256
-          -tse "$(TrustedSigningUri)" -tsa "$(TrustedSigningAccount)" -tscp "$(TrustedSigningCertificateName)"
-          -d "PyManager $(Build.BuildNumber)"
-          -fl $env:SIGNLIST3
-          }
-        displayName: 'Sign MSI package'
-        workingDirectory: $(DIST_DIR)
+    - template: sign-files.yml
+      parameters:
+        Include: "*.msi"
+        Filter: "*.msi"
+        InstallTool: false
+        SigningCertificate: ${{ parameters.SigningCertificate }}
+        WorkingDir: $(DIST_DIR)
 
-    - ${{ if eq(parameters.TestSign, 'true') }}:
+    - ${{ if eq(parameters.SigningCertificate, 'TestSign') }}:
       - powershell: Write-Host "##vso[build.addbuildtag]test-signed"
         displayName: 'Add test-signed build tag'
-    - ${{ elseif eq(parameters.Sign, 'true') }}:
+    - ${{ elseif eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
       - powershell: Write-Host "##vso[build.addbuildtag]signed"
         displayName: 'Add signed build tag'
 
@@ -225,23 +189,44 @@ stages:
       artifact: dist
       displayName: Publish distribution artifacts
 
-    - ${{ if eq(parameters.PostTest, 'true') }}:
-      - ${{ if and(ne(parameters.TestSign, 'true'), eq(parameters.Sign, 'true')) }}:
-        - powershell: |
-            $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
-            Add-AppxPackage $msix
-          displayName: 'Install signed MSIX'
+  - job: PostTest
+    dependsOn: Build
 
-      - ${{ else }}:
-        - powershell: |
-            $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
-            cp $msix "${msix}.zip"
-            Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
-            Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
-          displayName: 'Register unsigned MSIX'
-          env:
-            TEST_MSIX: $(TEST_MSIX_DIR)
+    pool:
+      vmImage: 'windows-latest'
 
+    variables:
+      DIST_DIR: $(Pipeline.Workspace)\dist
+
+    steps:
+    - checkout: none
+    - download: dist
+
+    - powershell: |
+        # Ensure we aren't currently installed
+        $msix = Get-AppxPackage PythonSoftwareFoundation.PythonManager -EA SilentlyContinue
+        if ($msix) {
+          Remove-AppxPackage $msix
+        }
+      displayName: 'Remove existing PyManager install'
+
+    - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
+      - powershell: |
+          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+          Add-AppxPackage $msix
+        displayName: 'Install signed MSIX'
+
+    - ${{ else }}:
+      - powershell: |
+          $msix = dir "$(DIST_DIR)\*.msix" | ?{ -not ($_.BaseName -match '.+-store') } | select -first 1
+          cp $msix "${msix}.zip"
+          Expand-Archive "${msix}.zip" (mkdir -Force $env:TEST_MSIX)
+          Add-AppxPackage -Register "${env:TEST_MSIX}\appxmanifest.xml"
+        displayName: 'Register unsigned MSIX'
+        env:
+          TEST_MSIX: $(TEST_MSIX_DIR)
+
+      - ${{ if eq(parameters.PostTest, 'true') }}:
       - powershell: |
           $p = Get-AppxPackage PythonSoftwareFoundation.PythonManager
           $p
@@ -352,21 +337,46 @@ stages:
           Get-AppxPackage PythonSoftwareFoundation.PythonManager | Remove-AppxPackage
         displayName: 'Remove MSIX'
 
-    - powershell: |
-        $files = gci -File * -EA SilentlyContinue
-        $hashes = $files  | `
-            Sort-Object Name | `
-            Format-Table Name, @{
-              Label="SHA256";
-              Expression={(Get-FileHash $_ -Algorithm SHA256).Hash}
-            }, Length -AutoSize | `
-            Out-String -Width 4096
-        $hashes
-      workingDirectory: $(DIST_DIR)
-      displayName: 'Generate hashes (SHA256)'
 
-    - ${{ if eq(parameters.Publish, 'true') }}:
-      - ${{ if eq(parameters.Sign, 'true') }}:
+  - ${{ if eq(parameters.Publish, 'true') }}:
+    - job: Publish
+      dependsOn: PostTest
+
+      pool:
+        vmImage: 'windows-latest'
+
+      variables:
+      - ${{ if eq(parameters.Publish, 'true') }}:
+        - group: PythonOrgPublish
+
+      steps:
+      - checkout: self
+
+      - task: NugetToolInstaller@0
+        displayName: 'Install Nuget'
+
+      - powershell: |
+          nuget install python -x -noninteractive -o host_python
+          $py = Get-Item host_python\python\tools
+          Write-Host "Adding $py to PATH"
+          Write-Host "##vso[task.prependpath]$py"
+        displayName: Set up Python for scripts
+        workingDirectory: $(Build.BinariesDirectory)
+
+      - powershell: |
+          $files = gci -File * -EA SilentlyContinue
+          $hashes = $files  | `
+              Sort-Object Name | `
+              Format-Table Name, @{
+                Label="SHA256";
+                Expression={(Get-FileHash $_ -Algorithm SHA256).Hash}
+              }, Length -AutoSize | `
+              Out-String -Width 4096
+          $hashes
+        workingDirectory: $(DIST_DIR)
+        displayName: 'Generate hashes (SHA256)'
+
+      - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
         - task: DownloadSecureFile@1
           name: sshkey
           inputs:
@@ -404,10 +414,10 @@ stages:
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
           UPLOAD_KEYFILE: $(sshkey.secureFilePath)
-          ${{ if ne(parameters.Sign, 'true') }}:
+          ${{ if ne(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
             NO_UPLOAD: 1
 
-      - ${{ if eq(parameters.Sign, 'true') }}:
+      - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
         - powershell: Write-Host "##vso[build.addbuildtag]published"
           displayName: 'Add published tag'
       - ${{ else }}:

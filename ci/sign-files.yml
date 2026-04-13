@@ -1,0 +1,170 @@
+# Copied from release-tools repository
+
+parameters:
+  Include: '*'
+  Exclude: ''
+  Filter: ''
+  WorkingDir: '$(Build.BinariesDirectory)'
+  ExtractDir: ''
+  SigningCertificate: ''
+  ExportCommand: ''
+  ExportLegacyCommand: ''
+  ContinueOnError: false
+  InstallTool: true
+  InstallLegacyTool: false
+  AzureServiceConnectionName: 'Python Signing'
+
+steps:
+- ${{ if and(parameters.SigningCertificate, ne(parameters.SigningCertificate, 'Unsigned')) }}:
+  - ${{ if eq(parameters.InstallTool, 'true') }}:
+    - powershell: |
+        # Install sign tool
+        dotnet tool install --global --prerelease sign
+        $signtool = (gcm sign -EA SilentlyContinue).Source
+        if (-not $signtool) {
+          $signtool = (gi "${env:USERPROFILE}\.dotnet\tools\sign.exe").FullName
+        }
+        $signargs = 'code trusted-signing -v Information ' + `
+          '-fd sha256 -t http://timestamp.acs.microsoft.com -td sha256 ' + `
+          "-tse ""${env:TSE}"" -tsa ""${env:TSA}"" -tscp ""${env:TSCP}"" -d ""${env:DESCRIPTION}"""
+
+        Write-Host "##vso[task.setvariable variable=__TrustedSigningCmd]$signtool"
+        Write-Host "##vso[task.setvariable variable=__TrustedSigningArgs]$signargs"
+        if ($env:EXPORT_COMMAND) {
+          $signcmd = """$signtool"" $signargs"
+          Write-Host "##vso[task.setvariable variable=${env:EXPORT_COMMAND}]$signcmd"
+        }
+      workingDirectory: $(Build.BinariesDirectory)
+      displayName: 'Install Trusted Signing tools'
+      env:
+        TSE: $(TrustedSigningUri)
+        TSA: $(TrustedSigningAccount)
+        TSCP: $(TrustedSigningCertificateName)
+        DESCRIPTION: $(SigningDescription)
+        EXPORT_COMMAND: ${{ parameters.ExportCommand }}
+
+  - ${{ if eq(parameters.InstallLegacyTool, 'true') }}:
+    - powershell: |
+        git clone https://github.com/python/cpython-bin-deps --revision fb06137dccc43ed5b030cdd9e3560990b37f39da --depth 1 --progress -v "signtool"
+
+        $signtool = gi signtool\x64\signtool.exe
+        $dlib = gi signtool\azure_trusted_signing\x64\Azure.CodeSigning.Dlib.dll
+        Write-Host "##vso[task.setvariable variable=MAKECAT]$(gi signtool\x64\makecat.exe)"
+
+        ConvertTo-Json @{
+            Endpoint=$env:TSE;
+            CodeSigningAccountName=$env:TSA;
+            CertificateProfileName=$env:TSCP;
+            # Only allow Azure CLI credentials and environment credentials
+            ExcludeCredentials=@(
+                "ManagedIdentityCredential",
+                "WorkloadIdentityCredential",
+                "SharedTokenCacheCredential",
+                "VisualStudioCredential",
+                "VisualStudioCodeCredential",
+                "AzurePowerShellCredential",
+                "AzureDeveloperCliCredential",
+                "InteractiveBrowserCredential"
+            );
+        } | Out-File signtool\metadata.json -Encoding ascii
+        Write-Host "##vso[task.setvariable variable=SIGNTOOL_METADATA]$(gi signtool\metadata.json)"
+
+        $signargs = 'sign /v /fd sha256 /tr http://timestamp.acs.microsoft.com /td SHA256' + `
+                    "/dlib ""$dlib"" /dmdf ""$(gi signtool\metadata.json)"""
+        Write-Host "##vso[task.setvariable variable=__TrustedSigningCmd]$signtool"
+        Write-Host "##vso[task.setvariable variable=__TrustedSigningArgs]$signargs"
+
+        if ($env:EXPORT_COMMAND) {
+          $signcmd = """$signtool"" $signargs"
+          Write-Host "##vso[task.setvariable variable=${env:EXPORT_COMMAND}]$signcmd"
+        }
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: 'Download signtool binaries'
+      env:
+        TSE: $(TrustedSigningUri)
+        TSA: $(TrustedSigningAccount)
+        TSCP: $(TrustedSigningCertificateName)
+        EXPORT_COMMAND: ${{ parameters.ExportLegacyCommand }}
+
+  - ${{ if parameters.AzureServiceConnectionName }}:
+    # We sign in once with the AzureCLI task, as it uses OIDC to obtain a
+    # temporary token. But the task also logs out, and so we save the token and
+    # use it to log in persistently (for the rest of the build).
+    - task: AzureCLI@2
+      displayName: 'Authenticate signing tools (1/2)'
+      inputs:
+        azureSubscription: ${{ parameters.AzureServiceConnectionName }}
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          "##vso[task.setvariable variable=__AZURE_CLIENT_ID;issecret=true]${env:servicePrincipalId}"
+          "##vso[task.setvariable variable=__AZURE_ID_TOKEN;issecret=true]${env:idToken}"
+          "##vso[task.setvariable variable=__AZURE_TENANT_ID;issecret=true]${env:tenantId}"
+        addSpnToEnvironment: true
+
+    - powershell: >
+        az login --service-principal
+        -u $(__AZURE_CLIENT_ID)
+        --tenant $(__AZURE_TENANT_ID)
+        --allow-no-subscriptions
+        --federated-token $(__AZURE_ID_TOKEN)
+      displayName: 'Authenticate signing tools (2/2)'
+
+  - ${{ if parameters.Include }}:
+    - powershell: |
+        if ($env:EXCLUDE) {
+          $files = (dir $env:INCLUDE -Exclude $env:EXCLUDE -File)
+        } else {
+          $files = (dir $env:INCLUDE -File)
+        }
+        if ($env:FILTER) {
+          ($env:FILTER -split ';') -join "`n" | Out-File __filelist.txt -Encoding utf8
+        } else {
+          "*" | Out-File __filelist.txt -Encoding utf8
+        }
+        foreach ($f in $files) {
+          & $env:TRUSTED_SIGNING_CMD @(-split $env:TRUSTED_SIGNING_ARGS) -fl __filelist.txt $f
+          if (-not $?) { exit $LASTEXITCODE }
+        }
+        del __filelist.txt
+      displayName: 'Sign binaries'
+      ${{ if eq(parameters.ContinueOnError, 'false') }}:
+        retryCountOnTaskFailure: 3
+      ${{ else }}:
+        continueOnError: true
+      workingDirectory: ${{ parameters.WorkingDir }}
+      env:
+        INCLUDE: ${{ parameters.Include }}
+        EXCLUDE: ${{ parameters.Exclude }}
+        TRUSTED_SIGNING_CMD: $(__TrustedSigningCmd)
+        TRUSTED_SIGNING_ARGS: $(__TrustedSigningArgs)
+        ${{ if parameters.Filter }}:
+          FILTER: ${{ parameters.Filter }}
+
+
+  - ${{ if parameters.ExtractDir }}:
+    - powershell: |
+        if ($env:EXCLUDE) {
+          $files = (dir $env:INCLUDE -Exclude $env:EXCLUDE -File)
+        } else {
+          $files = (dir $env:INCLUDE -File)
+        }
+        $c = $files | %{ (Get-AuthenticodeSignature $_).SignerCertificate } | ?{ $_ -ne $null } | select -First 1
+        if (-not $c) {
+          Write-Host "Failed to find certificate for ${{ parameters.SigningCertificate }}"
+          exit
+        }
+
+        $d = mkdir $env:EXTRACT_DIR -Force
+        $cf = "$d\cert.cer"
+        [IO.File]::WriteAllBytes($cf, $c.RawData)
+        $csha = (Get-FileHash $cf -Algorithm SHA256).Hash.ToLower()
+
+        $info = @{ Subject=$c.Subject; SHA256=$csha; }
+        $info | ConvertTo-JSON -Compress | Out-File -Encoding utf8 "$d\certinfo.json"
+      displayName: "Extract certificate info"
+      workingDirectory: ${{ parameters.WorkingDir }}
+      env:
+        INCLUDE: ${{ parameters.Include }}
+        EXCLUDE: ${{ parameters.Exclude }}
+        EXTRACT_DIR: ${{ parameters.ExtractDir }}

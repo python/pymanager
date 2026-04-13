@@ -417,8 +417,9 @@ stages:
           UPLOAD_HOST: $(PyDotOrgServer)
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
-          ${{ if ne(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
+          ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
             UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+          ${{ else }}:
             NO_UPLOAD: 1
 
       - ${{ if eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:

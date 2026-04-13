@@ -24,7 +24,7 @@ steps:
         if (-not $signtool) {
           $signtool = (gi "${env:USERPROFILE}\.dotnet\tools\sign.exe").FullName
         }
-        $signargs = 'code trusted-signing -v Information ' + `
+        $signargs = 'code artifact-signing -v Information ' + `
           '-fd sha256 -t http://timestamp.acs.microsoft.com -td sha256 ' + `
           "-tse ""${env:TSE}"" -tsa ""${env:TSA}"" -tscp ""${env:TSCP}"" -d ""${env:DESCRIPTION}"""
 
@@ -35,7 +35,7 @@ steps:
           Write-Host "##vso[task.setvariable variable=${env:EXPORT_COMMAND}]$signcmd"
         }
       workingDirectory: $(Build.BinariesDirectory)
-      displayName: 'Install Trusted Signing tools'
+      displayName: 'Install Azure Artifact Signing tools'
       env:
         TSE: $(TrustedSigningUri)
         TSA: $(TrustedSigningAccount)

@@ -2,6 +2,8 @@ import pytest
 import shutil
 from pathlib import Path
 
+from manage.urlutils import IndexDownloader
+from manage.exceptions import InvalidFeedError
 from _native import verify_trust
 
 TESTDATA = Path(__file__).absolute().parent / "data"
@@ -127,7 +129,6 @@ class MockIndex:
 ])
 def test_verify_index_ok(verify_with, tmp_path, assert_log):
     # All settings result in successful match
-    from manage.urlutils import IndexDownloader
     cmd = MockConfig()
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
         shutil.copy2(src, dest)
@@ -146,8 +147,6 @@ def test_verify_index_ok(verify_with, tmp_path, assert_log):
 ])
 def test_verify_index_wrong(verify_with, tmp_path, assert_log):
     # Certs exist and verify, but don't match required settings
-    from manage.urlutils import IndexDownloader
-    from manage.exceptions import InvalidFeedError
     cmd = MockConfig()
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
         shutil.copy2(src, dest)
@@ -172,8 +171,6 @@ def test_verify_index_wrong(verify_with, tmp_path, assert_log):
 ])
 def test_verify_index_unsigned(verify_with, expect_fail, tmp_path, assert_log):
     # No certs exist, so mostly fail due to being required
-    from manage.urlutils import IndexDownloader
-    from manage.exceptions import InvalidFeedError
     cmd = MockConfig()
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
         shutil.copy2(src, dest)
@@ -200,7 +197,6 @@ def test_verify_index_unsigned(verify_with, expect_fail, tmp_path, assert_log):
 ])
 def test_verify_index_selfsigned_bypass(verify_with, tmp_path, assert_log):
     # Invalid cert, but user "responds" to continue
-    from manage.urlutils import IndexDownloader
     cmd = MockConfig()
     cmd.response = False
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
@@ -231,8 +227,6 @@ def test_verify_index_selfsigned_bypass(verify_with, tmp_path, assert_log):
 ])
 def test_verify_index_selfsigned(verify_with, expect_fail, tmp_path, assert_log):
     # Wrong cert returned, mostly fail due to being untrusted by OS
-    from manage.urlutils import IndexDownloader
-    from manage.exceptions import InvalidFeedError
     cmd = MockConfig()
     for src, dest in [(TESTDATA / n, tmp_path / n) for n in INDEX_NAMES]:
         shutil.copy2(src, dest)
@@ -250,3 +244,26 @@ def test_verify_index_selfsigned(verify_with, expect_fail, tmp_path, assert_log)
     else:
         indexes = list(idx)
         assert [Path(i.url).name for i in indexes] == INDEX_NAMES
+
+
+def test_verify_index_later(assert_log):
+    # Signature not required until reading the index file
+    cmd = MockConfig()
+    idx = IndexDownloader(cmd, (TESTDATA / "index-require-sig.json").as_uri(), MockIndex)
+    with pytest.raises(InvalidFeedError):
+        indexes = list(idx)
+    assert_log(
+        "Fetching.+",
+        "The signature for %s could not be loaded.",
+    )
+
+
+def test_verify_index_not_later(assert_log):
+    # Signature not required until reading the index file
+    cmd = MockConfig()
+    idx = IndexDownloader(cmd, (TESTDATA / "index-require-no-sig.json").as_uri(), MockIndex)
+    indexes = list(idx)
+    assert_log(
+        "Fetching.+",
+        "No signature to verify for %s",
+    )

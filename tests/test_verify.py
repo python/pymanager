@@ -249,12 +249,35 @@ def test_verify_index_selfsigned(verify_with, expect_fail, tmp_path, assert_log)
 def test_verify_index_later(assert_log):
     # Signature not required until reading the index file
     cmd = MockConfig()
-    idx = IndexDownloader(cmd, (TESTDATA / "index-require-sig.json").as_uri(), MockIndex)
+    u = (TESTDATA / "index-require-sig.json").as_uri()
+    expect_settings = {
+        u: {
+            "requires_signature": True,
+            "required_publisher_subject": "CN=King Arthur, O=Knights of the Round Table, C=Camelot",
+        }
+    }
+    idx = IndexDownloader(cmd, u, MockIndex)
     with pytest.raises(InvalidFeedError):
         indexes = list(idx)
     assert_log(
         "Fetching.+",
+        "Using verification settings from the index.",
+        "Check the log file.+",
+        ("Verifying with the below settings.+", [expect_settings]),
         "The signature for %s could not be loaded.",
+    )
+
+
+def test_verify_index_overridden_later(assert_log):
+    # Signature not required until reading the index file
+    cmd = MockConfig()
+    u = (TESTDATA / "index-require-sig.json").as_uri()
+    cmd.source_settings[u] = {"requires_signature": False}
+    idx = IndexDownloader(cmd, u, MockIndex)
+    indexes = list(idx)
+    assert_log(
+        "Fetching.+",
+        "No signature to verify for %s",
     )
 
 

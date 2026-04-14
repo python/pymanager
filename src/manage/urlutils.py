@@ -683,9 +683,29 @@ class IndexDownloader:
             )
             raise
 
-    def verify(self, previous_verified, url, data, params):
-        if previous_verified is not None or not params or not params.get("requires_signature"):
-            return previous_verified
+    def verify(self, url, data, params, show_settings=False):
+        if not params or not params.get("requires_signature"):
+            return None
+
+        if show_settings:
+            relevant_params = {k: params[k] for k in [
+                    "requires_signature",
+                    "required_root_subject",
+                    "required_publisher_subject",
+                    "required_publisher_eku",
+                ] if k in params}
+            if relevant_params:
+                LOGGER.info("Using verification settings from the index.")
+                LOGGER.info(
+                    "Check the log file or verbose output for the settings "
+                    "being used. Copying these into your configuration "
+                    "file's !G!'source_settings'!W! section to detect "
+                    "changes."
+                )
+                LOGGER.verbose(
+                    "Verifying with the below settings.\n%r",
+                    {sanitise_url(url): relevant_params}
+                )
 
         try:
             cat = self._cache[url + ".cat"]
@@ -767,12 +787,13 @@ class IndexDownloader:
                 )
                 raise
 
-            source_settings = (self.cmd.source_settings if self.cmd else None) or {}
-            verified = self.verify(verified, url, data, source_settings.get(s_url))
+            source_settings = self.cmd.source_settings.get(s_url) if self.cmd else None
+            verified = self.verify(url, data, source_settings)
             parsed = json.loads(data)
 
             # The parsed index may also have its own verification parameters
-            verified = self.verify(verified, url, data, parsed)
+            if not source_settings and not verified:
+                verified = self.verify(url, data, parsed, show_settings=True)
 
             if verified is True:
                 LOGGER.info("!G!The signature for %s was successfully verified.!W!", s_url)

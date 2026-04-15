@@ -26,8 +26,7 @@ DEFAULT_SOURCE_URL = "https://www.python.org/ftp/python/index-windows.json"
 DEFAULT_TAG = "3"
 
 
-# TODO: Remove the /dev/ for stable release
-HELP_URL = "https://docs.python.org/dev/using/windows"
+HELP_URL = "https://docs.python.org/using/windows"
 
 
 COPYRIGHT = f"""Python installation manager {__version__}
@@ -41,9 +40,9 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 
-This update adds global shortcuts for installed scripts such as !G!pip.exe!W!.
-Use !G!py install --refresh!W! to update all shortcuts.
-!Y!This will be needed after installing new scripts, as it is not run automatically.!W!
+Indexes can now be signed to provide tamper detection. When an index signature
+is found to be invalid, the operation will be aborted without modifying your system.
+See !B!https://docs.python.org/using/windows#index-signatures!W! for more information.
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,

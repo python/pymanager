@@ -4,6 +4,7 @@ import time
 from .logging import LOGGER
 from .fsutils import ensure_tree, rmtree, unlink
 from .pathutils import Path, PurePath
+from .exceptions import InvalidFeedError
 
 try:
     from _native import file_url_to_path
@@ -166,12 +167,12 @@ def _bits_urlretrieve(request):
 def _winhttp_urlopen(request):
     from _native import winhttp_urlopen, winhttp_isconnected
     headers = {k.lower(): v for k, v in request.headers.items()}
-    accepts = headers.pop("accepts", "application/*;text/*")
+    accept = headers.pop("accept", "application/*;text/*")
     header_str = "\r\n".join(f"{k}: {v}" for k, v in headers.items())
     method = request.method.upper()
     LOGGER.debug("winhttp_urlopen: %s", request)
     try:
-        data = winhttp_urlopen(request.url, method, header_str, accepts,
+        data = winhttp_urlopen(request.url, method, header_str, accept,
             request.chunksize, request.on_progress, request.on_auth_request)
     except OSError as ex:
         if ex.winerror == 0x00002EE7:
@@ -639,7 +640,8 @@ def is_valid_url(url):
 
 
 class IndexDownloader:
-    def __init__(self, source, index_cls, auth=None, cache=None):
+    def __init__(self, cmd, source, index_cls, auth=None, cache=None):
+        self.cmd = cmd
         self.index_cls = index_cls
         self._url = source.rstrip("/")
         if not self._url.casefold().endswith(".json".casefold()):
@@ -659,6 +661,104 @@ class IndexDownloader:
         except LookupError:
             return None
 
+    def urlopen_index(self, url):
+        try:
+            return self._urlopen(
+                url,
+                "GET",
+                {"Accept": "application/json"},
+                on_auth_request=self.on_auth,
+            )
+        except FileNotFoundError: # includes 404
+            (LOGGER.verbose if self.quiet else LOGGER.error)(
+                "Unable to find runtimes index at %s",
+                sanitise_url(url),
+            )
+            raise
+        except OSError as ex:
+            (LOGGER.verbose if self.quiet else LOGGER.error)(
+                "Unable to access runtimes index at %s: %s",
+                sanitise_url(url),
+                ex.args[1] if len(ex.args) >= 2 else ex,
+            )
+            raise
+
+    def verify(self, url, data, params, show_settings=False):
+        if not params or not params.get("requires_signature"):
+            return None
+
+        if show_settings:
+            relevant_params = {k: params[k] for k in [
+                    "requires_signature",
+                    "required_root_subject",
+                    "required_publisher_subject",
+                    "required_publisher_eku",
+                ] if k in params}
+            if relevant_params:
+                LOGGER.info("Using verification settings from the index.")
+                LOGGER.info(
+                    "Check the log file or verbose output for the settings "
+                    "being used. Copying these into your configuration "
+                    "file's !G!'source_settings'!W! section to detect "
+                    "changes."
+                )
+                LOGGER.verbose(
+                    "Verifying with the below settings.\n%r",
+                    {sanitise_url(url): relevant_params}
+                )
+
+        try:
+            cat = self._cache[url + ".cat"]
+        except KeyError:
+            cat = None
+        if not cat:
+            try:
+                cat = self._urlopen(
+                    url + ".cat",
+                    "GET",
+                    {"Accept": "application/octet-stream"},
+                    on_auth_request=self.on_auth,
+                )
+                self._cache[url + ".cat"] = cat
+            except OSError as ex:
+                LOGGER.error(
+                    "The signature for %s could not be loaded.",
+                    sanitise_url(url),
+                )
+                LOGGER.debug("TRACEBACK", exc_info=True)
+                if self.cmd and not self.cmd.ask_ny("Continue to install?"):
+                    return False
+                raise InvalidFeedError(feed_url=url) from ex
+
+        from tempfile import mkdtemp
+        from _native import verify_trust
+        tmp_dir = Path(mkdtemp(prefix="pymanager-"))
+        try:
+            tmp_data = tmp_dir / "index.json"
+            tmp_cat = tmp_dir / "index.json.cat"
+            tmp_data.write_bytes(data)
+            tmp_cat.write_bytes(cat)
+            verify_trust(
+                tmp_data,
+                tmp_cat,
+                params.get("required_root_subject"),
+                params.get("required_publisher_subject"),
+                params.get("required_publisher_eku"),
+            )
+            return True
+        except OSError as ex:
+            LOGGER.error(
+                "The signature for %s could not be verified.",
+                sanitise_url(url),
+            )
+            LOGGER.debug("TRACEBACK", exc_info=True)
+            if self.cmd and not self.cmd.ask_ny("Continue to install?"):
+                return False
+            raise InvalidFeedError(feed_url=url) from ex
+        finally:
+            rmtree(tmp_dir)
+
+
     def __next__(self):
         if not self._url:
             raise StopIteration
@@ -666,34 +766,20 @@ class IndexDownloader:
         import json
 
         url = self._url
+        s_url = sanitise_url(url)
         LOGGER.debug("Fetching: %s", url)
         try:
             data = self._cache[url]
+            parsed = json.loads(data)
             LOGGER.debug("Fetched from cache")
-        except LookupError:
+        except (LookupError, ValueError):
             data = None
+            parsed = None
 
         if not data:
+            verified = None
             try:
-                data = self._cache[url] = self._urlopen(
-                    url,
-                    "GET",
-                    {"Accepts": "application/json"},
-                    on_auth_request=self.on_auth,
-                )
-            except FileNotFoundError: # includes 404
-                (LOGGER.verbose if self.quiet else LOGGER.error)(
-                    "Unable to find runtimes index at %s",
-                    sanitise_url(url),
-                )
-                raise
-            except OSError as ex:
-                (LOGGER.verbose if self.quiet else LOGGER.error)(
-                    "Unable to access runtimes index at %s: %s",
-                    sanitise_url(url),
-                    ex.args[1] if len(ex.args) >= 2 else ex,
-                )
-                raise
+                data = self.urlopen_index(url)
             except RuntimeError as ex:
                 (LOGGER.verbose if self.quiet else LOGGER.error)(
                     "An unexpected error occurred while downloading the index: %s",
@@ -701,11 +787,27 @@ class IndexDownloader:
                 )
                 raise
 
-        j = json.loads(data)
-        index = self.index_cls(self._url, j)
+            source_settings = self.cmd.source_settings.get(s_url) if self.cmd else None
+            verified = self.verify(url, data, source_settings)
+            parsed = json.loads(data)
 
-        if j.get("next"):
-            self._url = urljoin(url, j["next"], to_parent=True)
+            # The parsed index may also have its own verification parameters
+            if not source_settings and not verified:
+                verified = self.verify(url, data, parsed, show_settings=True)
+
+            if verified is True:
+                LOGGER.info("!G!The signature for %s was successfully verified.!W!", s_url)
+            elif verified is False:
+                LOGGER.warn("Signature verification failure ignored for %s", s_url)
+            else:
+                LOGGER.info("No signature to verify for %s", s_url)
+
+            self._cache[url] = data
+
+        index = self.index_cls(self._url, parsed)
+
+        if parsed.get("next"):
+            self._url = urljoin(url, parsed["next"], to_parent=True)
         else:
             self._url = None
         return index

@@ -58,6 +58,9 @@ NATIVE_PYD = DllPackage(
     VersionInfo(FileDescription="Native helper functions for PyManager"),
     PyFile('__init__.py'),
     CPP_SETTINGS,
+    ItemDefinition("Link",
+        AdditionalDependencies=Prepend("wintrust.lib;"),
+    ),
     IncludeFile('*.h'),
     CSourceFile('*.cpp'),
     CFunction('coinitialize'),
@@ -89,6 +92,7 @@ NATIVE_PYD = DllPackage(
     CFunction('read_alias_package'),
     CFunction('broadcast_settings_change'),
     CFunction('get_processor_architecture'),
+    CFunction('verify_trust'),
     source='src/_native',
     RootNamespace='_native',
 )

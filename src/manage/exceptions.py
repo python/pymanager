@@ -29,6 +29,8 @@ class NoInstallFoundError(Exception):
 
 
 class InvalidFeedError(Exception):
+    exitcode = 1
+
     def __init__(self, message=None, *, feed_url=None):
         from .urlutils import sanitise_url
         if feed_url:

@@ -376,7 +376,7 @@ def _find_one(cmd, source, tag, *, installed=None, by_id=False):
         LOGGER.verbose("Searching for default Python version")
 
     download_cache = cmd.scratch.setdefault("install_command.download_cache", {})
-    downloader = IndexDownloader(source, Index, {}, download_cache)
+    downloader = IndexDownloader(cmd, source, Index, {}, download_cache)
     install = select_package(downloader, tag, cmd.default_platform, by_id=by_id)
 
     if by_id:

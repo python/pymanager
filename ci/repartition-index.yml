@@ -8,14 +8,30 @@ trigger: none
 
 
 parameters:
+- name: SigningCertificate
+  displayName: "Code signing certificate"
+  type: string
+  default: 'PythonSoftwareFoundation'
+  values:
+  - 'PythonSoftwareFoundation'
+  - 'TestSign'
+  - 'Unsigned'
 - name: Publish
   displayName: "Publish"
   type: boolean
   default: false
-- name: TestPublish
-  displayName: "Run all steps without publishing"
-  type: boolean
-  default: false
+- name: SigningDescription
+  displayName: "Signature description"
+  type: string
+  default: '(default)'
+
+
+variables:
+  ${{ if eq(parameters.SigningDescription, '(default)') }}:
+    SigningDescription: "PyManager $(Build.BuildNumber)"
+  ${{ else }}:
+    SigningDescription: ${{ parameters.SigningDescription }}
+
 
 stages:
 - stage: PyManagerIndexPartition
@@ -28,7 +44,12 @@ stages:
       vmImage: 'windows-latest'
 
     variables:
-    - group: PythonOrgPublish
+    - ${{ if eq(parameters.Publish, 'true') }}:
+      - group: PythonOrgPublish
+    - ${{ if eq(parameters.SigningCertificate, 'TestSign') }}:
+      - group: CPythonTestSign
+    - ${{ elseif eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
+      - group: CPythonSign
 
     steps:
     - checkout: self
@@ -37,7 +58,7 @@ stages:
       displayName: 'Install Nuget'
 
     - powershell: |
-        nuget install -o host_python -x -noninteractive -prerelease python
+        nuget install -o host_python -x -noninteractive python
         Write-Host "##vso[task.prependpath]$(gi host_python\python\tools)"
       displayName: 'Install host Python'
       workingDirectory: $(Build.BinariesDirectory)
@@ -50,23 +71,33 @@ stages:
       displayName: 'Repartition index'
       workingDirectory: $(Build.BinariesDirectory)
 
+    - powershell: |
+        dir *.json | %{ New-FileCatalog "$($_.Name).cat" -CatalogVersion 2 $_ }
+      displayName: 'Create index catalog files'
+      workingDirectory: $(Build.BinariesDirectory)\index
+
+    - template: sign-files.yml
+      parameters:
+        Include: "*.cat"
+        WorkingDir: $(Build.BinariesDirectory)\index
+        SigningCertificate: ${{ parameters.SigningCertificate }}
+
     - publish: $(Build.BinariesDirectory)\index
       artifact: index
       displayName: Publish index artifact
 
-    - ${{ if or(eq(parameters.Publish, 'true'), eq(parameters.TestPublish, 'true')) }}:
-      - ${{ if ne(parameters.TestPublish, 'true') }}:
-        - task: DownloadSecureFile@1
-          name: sshkey
-          inputs:
-            secureFile: pydotorg-ssh.ppk
-          displayName: 'Download PuTTY key'
+    - powershell: |
+        git clone https://github.com/python/cpython-bin-deps --revision 9f9e6fc31a55406ee5ff0198ea47bbb445eeb942 --depth 1 --progress -v "putty"
+        "##vso[task.prependpath]$(gi putty)"
+      workingDirectory: $(Pipeline.Workspace)
+      displayName: 'Download PuTTY binaries'
 
-      - powershell: |
-          git clone https://github.com/python/cpython-bin-deps --branch putty --single-branch --depth 1 --progress -v "putty"
-          "##vso[task.prependpath]$(gi putty)"
-        workingDirectory: $(Pipeline.Workspace)
-        displayName: 'Download PuTTY binaries'
+    - ${{ if and(eq(parameters.Publish, 'true'), eq(parameters.SigningCertificate, 'PythonSoftwareFoundation'), eq(variables['Build.SourceBranchName'], 'main')) }}:
+      - task: DownloadSecureFile@1
+        name: sshkey
+        inputs:
+          secureFile: pydotorg-ssh.ppk
+        displayName: 'Download PuTTY key'
 
       - powershell: |
           python ci\upload.py
@@ -80,7 +111,16 @@ stages:
           UPLOAD_HOST_KEY: $(PyDotOrgHostKey)
           UPLOAD_USER: $(PyDotOrgUsername)
           UPLOADING_INDEX: true
-          ${{ if eq(parameters.TestPublish, 'true') }}:
-            NO_UPLOAD: 1
-          ${{ else }}:
-            UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+          UPLOAD_KEYFILE: $(sshkey.secureFilePath)
+
+    - ${{ else }}:
+      - powershell: |
+          python ci\upload.py
+        displayName: 'Pretend to publish packages'
+        env:
+          UPLOAD_URL: $(PyDotOrgUrlPrefix)python/
+          UPLOAD_DIR: $(Build.BinariesDirectory)\index
+          UPLOAD_URL_PREFIX: $(PyDotOrgUrlPrefix)
+          UPLOAD_PATH_PREFIX: $(PyDotOrgUploadPathPrefix)
+          UPLOADING_INDEX: true
+          NO_UPLOAD: 1

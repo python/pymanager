@@ -19,6 +19,10 @@ def config_append(x, y):
     return [x, y]
 
 
+def config_dict_merge(x, y):
+    return {**x, **y}
+
+
 def config_split(x):
     import re
     return re.split("[;:|,+]", x)

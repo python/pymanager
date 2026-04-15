@@ -32,5 +32,26 @@
 
     "launcher_exe": "./templates/launcher.exe",
     "launcherw_exe": "./templates/launcherw.exe",
-    "welcome_on_update": true
+    "welcome_on_update": true,
+
+    "source_settings": {
+        "https://www.python.org/ftp/python/index-windows.json": {
+            "requires_signature": true,
+            "required_root_subject": "CN=Microsoft Identity Verification Root Certificate Authority 2020, O=Microsoft Corporation, C=US",
+            "required_publisher_subject": "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+            "required_publisher_eku": "1.3.6.1.4.1.311.97.608394634.79987812.305991749.578777327"
+        },
+        "https://www.python.org/ftp/python/index-windows-recent.json": {
+            "requires_signature": true,
+            "required_root_subject": "CN=Microsoft Identity Verification Root Certificate Authority 2020, O=Microsoft Corporation, C=US",
+            "required_publisher_subject": "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+            "required_publisher_eku": "1.3.6.1.4.1.311.97.608394634.79987812.305991749.578777327"
+        },
+        "https://www.python.org/ftp/python/index-windows-legacy.json": {
+            "requires_signature": true,
+            "required_root_subject": "CN=Microsoft Identity Verification Root Certificate Authority 2020, O=Microsoft Corporation, C=US",
+            "required_publisher_subject": "CN=Python Software Foundation, O=Python Software Foundation, L=Beaverton, S=Oregon, C=US",
+            "required_publisher_eku": "1.3.6.1.4.1.311.97.608394634.79987812.305991749.578777327"
+        }
+    }
 }

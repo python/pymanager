@@ -330,7 +330,7 @@ def execute(cmd):
             cmd.fallback_source,
         ]:
             if source:
-                downloader = IndexDownloader(source, Index)
+                downloader = IndexDownloader(cmd, source, Index)
                 if cmd.fallback_source_only:
                     downloader.quiet = True
                 try:

@@ -465,17 +465,8 @@ def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024, on_
             return _bits_urlretrieve(request)
         except ImportError:
             LOGGER.debug("BITS module unavailable - using fallback")
-        except NoInternetError as ex:
+        except NoInternetError:
             request.on_progress(None)
-            try:
-                from _native import winhttp_isconnected
-            except ImportError:
-                pass
-            else:
-                if not winhttp_isconnected():
-                    LOGGER.error("Failed to download. Please connect to the internet and try again.")
-                    raise RuntimeError("Failed to download. Please connect to the internet and try again.") from ex
-
             LOGGER.verbose("Failed to download using BITS, " +
                 "possibly due to no internet. Retrying with fallback method.")
         except FileNotFoundError:

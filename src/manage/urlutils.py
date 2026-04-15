@@ -796,11 +796,16 @@ class IndexDownloader:
                 verified = self.verify(url, data, parsed, show_settings=True)
 
             if verified is True:
-                LOGGER.info("!G!The signature for %s was successfully verified.!W!", s_url)
+                (LOGGER.verbose if self.quiet else LOGGER.info)(
+                    "!G!The signature for %s was successfully verified.!W!",
+                    s_url,
+                )
             elif verified is False:
                 LOGGER.warn("Signature verification failure ignored for %s", s_url)
             else:
-                LOGGER.info("No signature to verify for %s", s_url)
+                (LOGGER.verbose if self.quiet else LOGGER.info)(
+                    "No signature to verify for %s", s_url
+                )
 
             self._cache[url] = data
 

@@ -145,17 +145,38 @@ def mainw_exe(name):
     )
 
 
-def launcher_exe(name, platform, windowed=False):
+def launcher_exe(name, platform):
     return CProject(name,
         VersionInfo(
-            FileDescription="Python launcher" + (" (windowed)" if windowed else ""),
+            FileDescription="Python launcher",
             OriginalFilename=f"{name}.exe"
         ),
         CPP_SETTINGS,
         Property('StaticLibcppLinkage', 'true'),
-        ItemDefinition('Link', SubSystem='WINDOWS' if windowed else 'CONSOLE'),
+        ItemDefinition('Link', SubSystem='CONSOLE'),
         Manifest('default.manifest'),
-        ResourceFile('pywicon.rc' if windowed else 'pyicon.rc'),
+        ResourceFile('pyicon.rc'),
+        CSourceFile('launcher.cpp'),
+        CSourceFile('_launch.cpp'),
+        IncludeFile('*.h'),
+        source='src/pymanager',
+        ConfigurationType='Application',
+        Platform=platform,
+    )
+
+
+def launcherw_exe(name, platform):
+    return CProject(name,
+        VersionInfo(
+            FileDescription="Python launcher (windowed)",
+            OriginalFilename=f"{name}.exe"
+        ),
+        CPP_SETTINGS,
+        ItemDefinition('ClCompile', PreprocessorDefinitions=Prepend("PY_WINDOWED=1;")),
+        Property('StaticLibcppLinkage', 'true'),
+        ItemDefinition('Link', SubSystem='WINDOWS'),
+        Manifest('default.manifest'),
+        ResourceFile('pywicon.rc'),
         CSourceFile('launcher.cpp'),
         CSourceFile('_launch.cpp'),
         IncludeFile('*.h'),
@@ -213,12 +234,12 @@ PACKAGE = Package('python-manager',
     Package(
         'templates',
         File('src/pymanager/templates/template.py'),
-        launcher_exe("launcher-64", "x64", windowed=False),
-        launcher_exe("launcherw-64", "x64", windowed=True),
-        launcher_exe("launcher-arm64", "ARM64", windowed=False),
-        launcher_exe("launcherw-arm64", "ARM64", windowed=True),
-        launcher_exe("launcher-32", "Win32", windowed=False),
-        launcher_exe("launcherw-32", "Win32", windowed=True),
+        launcher_exe("launcher-64", "x64"),
+        launcherw_exe("launcherw-64", "x64"),
+        launcher_exe("launcher-arm64", "ARM64"),
+        launcherw_exe("launcherw-arm64", "ARM64"),
+        launcher_exe("launcher-32", "Win32"),
+        launcherw_exe("launcherw-32", "Win32"),
     ),
 
     # Directory for MSIX resources

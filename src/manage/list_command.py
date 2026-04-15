@@ -331,8 +331,7 @@ def execute(cmd):
         ]:
             if source:
                 downloader = IndexDownloader(cmd, source, Index)
-                if cmd.fallback_source_only:
-                    downloader.quiet = True
+                downloader.quiet = True
                 try:
                     installs = _get_installs_from_index(
                         downloader,

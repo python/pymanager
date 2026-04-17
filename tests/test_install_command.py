@@ -330,7 +330,7 @@ def test_install_from_script(tmp_path, assert_log):
     )
 
 
-def test_sanitise_install_urls():
+def test_finalize_metadata_urls():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -341,13 +341,13 @@ def test_sanitise_install_urls():
         "source": "http://user:placeholder@example.com/index.json",
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert i["url"] == "http://example.com/package.zip"
     assert i["source"] == "http://example.com/index.json"
 
 
-def test_sanitise_install_fallback_urls():
+def test_finalize_metadata_fallback_urls():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -358,13 +358,13 @@ def test_sanitise_install_fallback_urls():
         "source": "http://user:placeholder@example.com/index.json",
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert i["url"] == "http://example.com/package.zip"
     assert i["source"] == "http://user:placeholder@example.com/index.json"
 
 
-def test_sanitise_install_shortcuts():
+def test_finalize_metadata_shortcuts():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -375,13 +375,13 @@ def test_sanitise_install_shortcuts():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["a", "b", "c"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
 
 
-def test_sanitise_install_shortcuts_disable():
+def test_finalize_metadata_shortcuts_disable():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = ["b"]
@@ -392,13 +392,13 @@ def test_sanitise_install_shortcuts_disable():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["a", "c"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
 
 
-def test_sanitise_install_shortcuts_enable():
+def test_finalize_metadata_shortcuts_enable():
     class Cmd:
         enable_shortcut_kinds = ["b"]
         disable_shortcut_kinds = []
@@ -409,7 +409,7 @@ def test_sanitise_install_shortcuts_enable():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["b"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]

@@ -41,7 +41,7 @@ jobs:
     # We move faster than GitHub's Python runtimes, so use NuGet instead
     # One day we can use ourselves to download Python, but not yet...
     - name: Set up NuGet
-      uses: nuget/setup-nuget@12c57947e9458a5b976961b08ea0706a17dd71ae # v3.0.0
+      uses: nuget/setup-nuget@b26b823c478ee115be5c9403e62c90b0bf943843 # v3.1.0
 
     - name: Set up Python 3.14.4
       run: |

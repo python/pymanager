@@ -233,6 +233,7 @@ class InstallCommandTestCmd:
         self.download = kwargs.get("download")
         if self.download:
             self.download = tmp_path / self.download
+        self.download_dir = tmp_path / kwargs.get("download_dir", "_cache")
         self.dry_run = kwargs.get("dry_run", True)
         self.fallback_source = kwargs.get("fallback_source")
         self.force = kwargs.get("force", True)
@@ -328,6 +329,84 @@ def test_install_from_script(tmp_path, assert_log):
         assert_log.skip_until("Installing %s", ["Test 1.1 (32)"]),
         ("Tag: %s\\\\%s", ["Test", "1.1-32"]),
     )
+
+
+def test_failed_install_unwind(tmp_path, monkeypatch, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.0", force=False)
+    cmd.dry_run = False
+    cmd.preserve_site_on_upgrade = True
+
+    inst = cmd.installs[0]
+    inst.setdefault("shortcuts", []).append({
+        "kind": "site-dirs", "dirs": ["test-site"],
+    })
+
+    target = tmp_path / "target"
+    test_file = target / "test-site/file.txt"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("Before")
+
+    def remove_existing(*args):
+        pass
+
+    def download_one(*args, **kwargs):
+        return "<package>"
+
+    def extract_package(package, dest, *args, **kwargs):
+        # site dir should be gone
+        assert not test_file.is_file()
+        # create the target directory
+        dest.mkdir(parents=True, exist_ok=True)
+        # interrupt the install process
+        raise RuntimeError("Failed to extract for test reasons")
+
+    monkeypatch.setattr(IC, "_remove_existing", remove_existing)
+    monkeypatch.setattr(IC, "_download_one", download_one)
+    monkeypatch.setattr(IC, "extract_package", extract_package)
+
+    with pytest.raises(RuntimeError):
+        IC._install_one(cmd, "<source>", inst, target=target)
+
+    # site dir should be back
+    assert test_file.is_file()
+    assert test_file.read_text() == "Before"
+
+
+def test_failed_install_unwind_dont_clobber(tmp_path, monkeypatch, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.0", force=False)
+    cmd.dry_run = False
+    cmd.preserve_site_on_upgrade = True
+
+    inst = cmd.installs[0]
+    inst.setdefault("shortcuts", []).append({
+        "kind": "site-dirs", "dirs": ["test-site"],
+    })
+
+    target = tmp_path / "test-site"
+    test_file = target / "file.txt"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("Before")
+
+    def download_one(*args, **kwargs):
+        return "<package>"
+
+    def extract_package(package, dest, *args, **kwargs):
+        # site dir should be gone
+        assert not test_file.is_file()
+        # create a new one - it should be preserved
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("After")
+        # interrupt the install process
+        raise RuntimeError("Failed to extract for test reasons")
+
+    monkeypatch.setattr(IC, "_download_one", download_one)
+    monkeypatch.setattr(IC, "extract_package", extract_package)
+
+    with pytest.raises(RuntimeError):
+        IC._install_one(cmd, "<source>", inst, target=target)
+
+    # Ensure file we extracted is still there
+    assert test_file.read_text() == "After"
 
 
 def test_finalize_metadata_urls():

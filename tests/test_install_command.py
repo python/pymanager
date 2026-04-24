@@ -492,3 +492,28 @@ def test_finalize_metadata_shortcuts_enable():
 
     assert [j["kind"] for j in i["shortcuts"]] == ["b"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
+
+
+def test_finalize_metadata_merge_from(tmp_path):
+    class Cmd:
+        enable_shortcut_kinds = []
+        disable_shortcut_kinds = []
+        fallback_source = None
+
+    merge_from = tmp_path / "file.json"
+    test_url_1 = "https://example.com/"
+    test_url_2 = "https://example.com/path2"
+
+    # merge_from does not exist, but we shouldn't fail
+    i = {"url": test_url_1}
+    IC._finalize_metadata(Cmd, i, merge_from)
+    assert i["url"] == test_url_1
+
+    # Update missing fields from merge_from, but don't touch existing ones
+    with open(merge_from, "w", encoding="utf-8") as f:
+        json.dump({"url": test_url_1, "data1": "b", "data2": "c"}, f)
+    i = {"url": test_url_2, "data1": "a"}
+    IC._finalize_metadata(Cmd, i, merge_from)
+    assert i["url"] == test_url_2
+    assert i["data1"] == "a"
+    assert i["data2"] == "c"

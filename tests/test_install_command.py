@@ -233,6 +233,7 @@ class InstallCommandTestCmd:
         self.download = kwargs.get("download")
         if self.download:
             self.download = tmp_path / self.download
+        self.download_dir = tmp_path / kwargs.get("download_dir", "_cache")
         self.dry_run = kwargs.get("dry_run", True)
         self.fallback_source = kwargs.get("fallback_source")
         self.force = kwargs.get("force", True)
@@ -330,7 +331,85 @@ def test_install_from_script(tmp_path, assert_log):
     )
 
 
-def test_sanitise_install_urls():
+def test_failed_install_unwind(tmp_path, monkeypatch, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.0", force=False)
+    cmd.dry_run = False
+    cmd.preserve_site_on_upgrade = True
+
+    inst = cmd.installs[0]
+    inst.setdefault("shortcuts", []).append({
+        "kind": "site-dirs", "dirs": ["test-site"],
+    })
+
+    target = tmp_path / "target"
+    test_file = target / "test-site/file.txt"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("Before")
+
+    def remove_existing(*args):
+        pass
+
+    def download_one(*args, **kwargs):
+        return "<package>"
+
+    def extract_package(package, dest, *args, **kwargs):
+        # site dir should be gone
+        assert not test_file.is_file()
+        # create the target directory
+        dest.mkdir(parents=True, exist_ok=True)
+        # interrupt the install process
+        raise RuntimeError("Failed to extract for test reasons")
+
+    monkeypatch.setattr(IC, "_remove_existing", remove_existing)
+    monkeypatch.setattr(IC, "_download_one", download_one)
+    monkeypatch.setattr(IC, "extract_package", extract_package)
+
+    with pytest.raises(RuntimeError):
+        IC._install_one(cmd, "<source>", inst, target=target)
+
+    # site dir should be back
+    assert test_file.is_file()
+    assert test_file.read_text() == "Before"
+
+
+def test_failed_install_unwind_dont_clobber(tmp_path, monkeypatch, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1.0", force=False)
+    cmd.dry_run = False
+    cmd.preserve_site_on_upgrade = True
+
+    inst = cmd.installs[0]
+    inst.setdefault("shortcuts", []).append({
+        "kind": "site-dirs", "dirs": ["test-site"],
+    })
+
+    target = tmp_path / "test-site"
+    test_file = target / "file.txt"
+    test_file.parent.mkdir(parents=True, exist_ok=True)
+    test_file.write_text("Before")
+
+    def download_one(*args, **kwargs):
+        return "<package>"
+
+    def extract_package(package, dest, *args, **kwargs):
+        # site dir should be gone
+        assert not test_file.is_file()
+        # create a new one - it should be preserved
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("After")
+        # interrupt the install process
+        raise RuntimeError("Failed to extract for test reasons")
+
+    monkeypatch.setattr(IC, "_download_one", download_one)
+    monkeypatch.setattr(IC, "extract_package", extract_package)
+
+    with pytest.raises(RuntimeError):
+        IC._install_one(cmd, "<source>", inst, target=target)
+
+    # Ensure file we extracted is still there
+    assert test_file.read_text() == "After"
+
+
+def test_finalize_metadata_urls():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -341,13 +420,13 @@ def test_sanitise_install_urls():
         "source": "http://user:placeholder@example.com/index.json",
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert i["url"] == "http://example.com/package.zip"
     assert i["source"] == "http://example.com/index.json"
 
 
-def test_sanitise_install_fallback_urls():
+def test_finalize_metadata_fallback_urls():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -358,13 +437,13 @@ def test_sanitise_install_fallback_urls():
         "source": "http://user:placeholder@example.com/index.json",
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert i["url"] == "http://example.com/package.zip"
     assert i["source"] == "http://user:placeholder@example.com/index.json"
 
 
-def test_sanitise_install_shortcuts():
+def test_finalize_metadata_shortcuts():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = []
@@ -375,13 +454,13 @@ def test_sanitise_install_shortcuts():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["a", "b", "c"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
 
 
-def test_sanitise_install_shortcuts_disable():
+def test_finalize_metadata_shortcuts_disable():
     class Cmd:
         enable_shortcut_kinds = []
         disable_shortcut_kinds = ["b"]
@@ -392,13 +471,13 @@ def test_sanitise_install_shortcuts_disable():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["a", "c"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
 
 
-def test_sanitise_install_shortcuts_enable():
+def test_finalize_metadata_shortcuts_enable():
     class Cmd:
         enable_shortcut_kinds = ["b"]
         disable_shortcut_kinds = []
@@ -409,7 +488,32 @@ def test_sanitise_install_shortcuts_enable():
         "shortcuts": [dict(kind=a) for a in "abc"],
     }
 
-    IC._sanitise_install(Cmd, i)
+    IC._finalize_metadata(Cmd, i)
 
     assert [j["kind"] for j in i["shortcuts"]] == ["b"]
     assert [j["kind"] for j in i["__original-shortcuts"]] == ["a", "b", "c"]
+
+
+def test_finalize_metadata_merge_from(tmp_path):
+    class Cmd:
+        enable_shortcut_kinds = []
+        disable_shortcut_kinds = []
+        fallback_source = None
+
+    merge_from = tmp_path / "file.json"
+    test_url_1 = "https://example.com/"
+    test_url_2 = "https://example.com/path2"
+
+    # merge_from does not exist, but we shouldn't fail
+    i = {"url": test_url_1}
+    IC._finalize_metadata(Cmd, i, merge_from)
+    assert i["url"] == test_url_1
+
+    # Update missing fields from merge_from, but don't touch existing ones
+    with open(merge_from, "w", encoding="utf-8") as f:
+        json.dump({"url": test_url_1, "data1": "b", "data2": "c"}, f)
+    i = {"url": test_url_2, "data1": "a"}
+    IC._finalize_metadata(Cmd, i, merge_from)
+    assert i["url"] == test_url_2
+    assert i["data1"] == "a"
+    assert i["data2"] == "c"

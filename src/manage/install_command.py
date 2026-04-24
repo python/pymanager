@@ -108,7 +108,7 @@ def download_package(cmd, install, dest, cache, *, on_progress=None, urlopen=_ur
                 LOGGER.verbose("Using bundled file at %s", bundled)
                 return bundled
 
-    unlink(dest, "Removing old download is taking some time. " + 
+    unlink(dest, "Removing old download is taking some time. " +
                  "Please continue to wait, or press Ctrl+C to abort.")
 
     def _find_creds(url):
@@ -528,14 +528,114 @@ def _restore_site(cmd, state):
             LOGGER.verbose("TRACEBACK", exc_info=True)
 
 
-def _sanitise_install(cmd, install):
+def _install_one(cmd, source, install, *, target=None):
+    if cmd.repair:
+        LOGGER.info("Repairing %s.", install['display-name'])
+    elif cmd.update:
+        LOGGER.info("Updating to %s.", install['display-name'])
+    else:
+        LOGGER.info("Installing %s.", install['display-name'])
+    LOGGER.verbose("Tag: %s\\%s", install['company'], install['tag'])
+
+    if cmd.dry_run:
+        LOGGER.info("Skipping rest of install due to --dry-run")
+        return
+
+    package = _download_one(cmd, source, install, cmd.download_dir)
+
+    dest = target or (cmd.install_dir / install["id"])
+    metadata_dest = dest / "__install__.json"
+
+    preserved_site = _preserve_site(cmd, dest, install)
+
+    LOGGER.verbose("Extracting %s to %s", package, dest)
+    try:
+        if not cmd.repair:
+            _remove_existing(dest)
+
+        with ProgressPrinter("Extracting", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
+            extract_package(package, dest, on_progress=on_progress, repair=cmd.repair)
+
+        if target:
+            unlink(
+                metadata_dest,
+                "Removing metadata from the install is taking some time. Please " +
+                "continue to wait, or press Ctrl+C to abort."
+            )
+        else:
+            _finalize_metadata(cmd, install, metadata_dest)
+
+            LOGGER.debug("Write __install__.json to %s", dest)
+            with open(metadata_dest, "w", encoding="utf-8") as f:
+                json.dump(install, f, default=str)
+
+    finally:
+        # May be letting an exception bubble out here, so we'll handle and log
+        # here rather than letting any new ones leave.
+        try:
+            if dest.is_dir():
+                # Install may be broken at this point, but we'll put site back anyway
+                _restore_site(cmd, preserved_site)
+            else:
+                # Install is certainly broken, but we don't want to delete user files
+                # Just warn, until we come up with a better idea
+                LOGGER.warn("This runtime has been lost due to an error, you will "
+                            "need to reinstall.")
+        except Exception:
+            LOGGER.warn("Unexpected failure finalizing install. See log file for details")
+            LOGGER.verbose("TRACEBACK", exc_info=True)
+
+    LOGGER.verbose("Install complete")
+
+
+def _remove_existing(install_dir):
+    try:
+        rmtree(
+            install_dir,
+            "Removing the previous install is taking some time. " +
+            "Ensure Python is not running, and continue to wait " +
+            "or press Ctrl+C to abort.",
+            remove_ext_first=("exe", "dll", "json"),
+        )
+    except FileExistsError:
+        LOGGER.error(
+            "Unable to remove previous install. " +
+            "Please check your packages directory at %s for issues.",
+            install_dir.parent
+        )
+        raise
+    except FilesInUseError:
+        LOGGER.error(
+            "Unable to remove previous install because files are still in use. " +
+            "Please ensure Python is not currently running."
+        )
+        raise
+
+
+def _finalize_metadata(cmd, install, merge_from=None):
     """Prepares install metadata for storing locally.
-    
+
     This includes:
     * filtering out disabled shortcuts
     * preserving original shortcuts
     * sanitising URLs
     """
+
+    if merge_from:
+        try:
+            with open(merge_from, "r", encoding="utf-8-sig") as f:
+                LOGGER.debug("Updating from __install__.json in %s", merge_from.parent)
+                for k, v in json.load(f).items():
+                    if not install.setdefault(k, v):
+                        install[k] = v
+        except FileNotFoundError:
+            pass
+        except (TypeError, ValueError):
+            LOGGER.error(
+                "Invalid data found in bundled install data. " +
+                "Please report this to the provider of your package."
+            )
+            raise
 
     if "shortcuts" in install:
         # This saves our original set of shortcuts, so a later repair operation
@@ -556,85 +656,6 @@ def _sanitise_install(cmd, install):
     # If there's a non-empty and non-default source, sanitise it
     if install.get("source") and install["source"] != cmd.fallback_source:
         install["source"] = sanitise_url(install["source"])
-
-
-def _install_one(cmd, source, install, *, target=None):
-    if cmd.repair:
-        LOGGER.info("Repairing %s.", install['display-name'])
-    elif cmd.update:
-        LOGGER.info("Updating to %s.", install['display-name'])
-    else:
-        LOGGER.info("Installing %s.", install['display-name'])
-    LOGGER.verbose("Tag: %s\\%s", install['company'], install['tag'])
-
-    if cmd.dry_run:
-        LOGGER.info("Skipping rest of install due to --dry-run")
-        return
-
-    package = _download_one(cmd, source, install, cmd.download_dir)
-
-    dest = target or (cmd.install_dir / install["id"])
-
-    preserved_site = _preserve_site(cmd, dest, install)
-
-    LOGGER.verbose("Extracting %s to %s", package, dest)
-    if not cmd.repair:
-        try:
-            rmtree(
-                dest,
-                "Removing the previous install is taking some time. " +
-                "Ensure Python is not running, and continue to wait " +
-                "or press Ctrl+C to abort.",
-                remove_ext_first=("exe", "dll", "json"),
-            )
-        except FileExistsError:
-            LOGGER.error(
-                "Unable to remove previous install. " +
-                "Please check your packages directory at %s for issues.",
-                dest.parent
-            )
-            raise
-        except FilesInUseError:
-            LOGGER.error(
-                "Unable to remove previous install because files are still in use. " +
-                "Please ensure Python is not currently running."
-            )
-            raise
-
-    with ProgressPrinter("Extracting", maxwidth=CONSOLE_MAX_WIDTH) as on_progress:
-        extract_package(package, dest, on_progress=on_progress, repair=cmd.repair)
-
-    if target:
-        unlink(
-            dest / "__install__.json",
-            "Removing metadata from the install is taking some time. Please " +
-            "continue to wait, or press Ctrl+C to abort."
-        )
-    else:
-        try:
-            with open(dest / "__install__.json", "r", encoding="utf-8-sig") as f:
-                LOGGER.debug("Updating from __install__.json in %s", dest)
-                for k, v in json.load(f).items():
-                    if not install.setdefault(k, v):
-                        install[k] = v
-        except FileNotFoundError:
-            pass
-        except (TypeError, ValueError):
-            LOGGER.error(
-                "Invalid data found in bundled install data. " +
-                "Please report this to the provider of your package."
-            )
-            raise
-
-        _sanitise_install(cmd, install)
-
-        LOGGER.debug("Write __install__.json to %s", dest)
-        with open(dest / "__install__.json", "w", encoding="utf-8") as f:
-            json.dump(install, f, default=str)
-
-    _restore_site(cmd, preserved_site)
-
-    LOGGER.verbose("Install complete")
 
 
 def _merge_existing_index(versions, index_json):

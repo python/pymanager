@@ -1,16 +1,20 @@
 import os
+import sys
 from pymsbuild import *
 from pymsbuild.dllpack import *
 
 
-DLL_NAME = "python314"
-EMBED_URL = "https://www.python.org/ftp/python/3.14.3/python-3.14.3-embed-amd64.zip"
+DLL_NAME = "python{0.major}{0.minor}".format(sys.version_info)
+VER_NUM = "{0.major}.{0.minor}.{0.micro}".format(sys.version_info)
+EMBED_URL = f"https://www.python.org/ftp/python/{VER_NUM}/python-{VER_NUM}-embed-amd64.zip"
 
 def can_embed(tag):
     """Return False if tag doesn't match DLL_NAME and EMBED_URL.
     This is used for validation at build time, we don't currently handle
     requesting a different build target."""
-    return tag == "cp314-cp314-win_amd64"
+    return tag == "cp{0.major}{0.minor}-cp{0.major}{0.minor}-win_amd64".format(
+        sys.version_info
+    )
 
 
 METADATA = {
@@ -454,6 +458,7 @@ def init_PACKAGE(tag=None):
         from zipfile import ZipFile
         package = tmpdir / tag / "package.zip"
         package.parent.mkdir(exist_ok=True, parents=True)
+        print("Downloading", EMBED_URL)
         urlretrieve(EMBED_URL, package)
         with ZipFile(package) as zf:
             for f in [*embed_files, *runtime_files]:

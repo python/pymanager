@@ -43,20 +43,20 @@ jobs:
     - name: Set up NuGet
       uses: nuget/setup-nuget@b26b823c478ee115be5c9403e62c90b0bf943843 # v3.1.0
 
-    - name: Set up Python 3.14.4
+    - name: Set up Python 3.14.5
       run: |
-        nuget install python -Version 3.14.4 -x -o .
+        nuget install python -Version 3.14.5 -x -o .
         $py = Get-Item python\tools
         Write-Host "Adding $py to PATH"
         "$py" | Out-File $env:GITHUB_PATH -Encoding UTF8 -Append
       working-directory: ${{ runner.temp }}
 
-    - name: Check Python version is 3.14.4
+    - name: Check Python version is 3.14.5
       run: >
         python -c "import sys;
         print(sys.version);
         print(sys.executable);
-        sys.exit(0 if sys.version_info[:5] == (3, 14, 4, 'final', 0) else 1)"
+        sys.exit(0 if sys.version_info[:5] == (3, 14, 5, 'final', 0) else 1)"
 
     - name: Install build dependencies
       run: python -m pip install "pymsbuild==1.2.2"

@@ -379,6 +379,12 @@ def _find_one(cmd, source, tag, *, installed=None, by_id=False):
     downloader = IndexDownloader(cmd, source, Index, {}, download_cache)
     install = select_package(downloader, tag, cmd.default_platform, by_id=by_id)
 
+    # Ensure the requested source URL is in the install
+    if install and source:
+        if install.get("source") != source:
+            LOGGER.verbose("Storing %s as source of package", sanitise_url(source))
+        install = {**install, "source": source}
+
     if by_id:
         return install
 

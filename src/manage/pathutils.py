@@ -83,7 +83,8 @@ class PurePath:
         while ".." in bits:
             i = bits.index("..")
             bits.pop(i)
-            bits.pop(i - 1)
+            if i >= 1:
+                bits.pop(i - 1)
         return bits
 
     def __truediv__(self, other):

@@ -99,7 +99,7 @@ def _create_alias(
     p = cmd.global_dir / name
     # Raise exception if someone has tried to get us to write outside of the
     # intended directory
-    if p.relative_to(cmd.global_dir).parts != (name,):
+    if str(p.relative_to(cmd.global_dir)) != name:
         raise ValueError(f"Invalid alias name: {name}")
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")
@@ -239,7 +239,6 @@ def _parse_entrypoint_line(line):
     name, sep, rest = line.partition("=")
     name = name.strip()
     if name and name[0].isalnum() and sep and rest:
-        print(PurePath(name).parent)
         if PurePath(name).parent:
             return None, None, None
         mod, sep, rest = rest.partition(":")

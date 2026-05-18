@@ -99,7 +99,7 @@ def _create_alias(
     p = cmd.global_dir / name
     # Raise exception if someone has tried to get us to write outside of the
     # intended directory
-    if str(p.relative_to(cmd.global_dir)) != name:
+    if str(p.relative_to(cmd.global_dir)) != PurePath(name).name:
         raise ValueError(f"Invalid alias name: {name}")
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")

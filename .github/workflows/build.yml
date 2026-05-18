@@ -140,6 +140,11 @@ jobs:
       env:
         PYMANAGER_DEBUG: true
 
+    - name: 'Install additional runtimes'
+      run: pymanager install 3.5 3.6 3.7 3.8 3.9
+      env:
+        PYMANAGER_DEBUG: true
+
     - name: 'List installed runtimes'
       run: pymanager list
       env:

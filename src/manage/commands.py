@@ -902,12 +902,25 @@ Removes one or more runtimes from your machine.
     purge = False
     by_id = False
 
-    # Not settable, but are checked by update_all_shortcuts() so we need them.
+    # Not directly settable, but will be copied from install configuration
     enable_shortcut_kinds = None
     disable_shortcut_kinds = None
+    enable_entrypoints = True
+    hard_link_entrypoints = True
 
     def execute(self):
         from .uninstall_command import execute
+        # Copy settings from install section of config
+        for k in [
+            "enable_shortcut_kinds",
+            "disable_shortcut_kinds",
+            "enable_entrypoints",
+            "hard_link_entrypoints",
+        ]:
+            v = self.config.get("install", {}).get(k, ...)
+            if v is not ...:
+                setattr(self, k, v)
+                LOGGER.debug("Setting config %s to %s from install.%s", k, v, k)
         self.show_welcome()
         execute(self)
 

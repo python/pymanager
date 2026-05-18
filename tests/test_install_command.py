@@ -517,3 +517,33 @@ def test_finalize_metadata_merge_from(tmp_path):
     assert i["url"] == test_url_2
     assert i["data1"] == "a"
     assert i["data2"] == "c"
+
+
+def test_user_provided_source_retained(tmp_path, assert_log, monkeypatch):
+    cmd = InstallCommandTestCmd(tmp_path, "1.1", force=False)
+
+    source1 = cmd.source
+    source2 = "http://example.com/index-2.json"
+    cmd.source = source2
+    cmd.download_cache[source2] = json.dumps({
+        "versions": [],
+        "next": source1,
+    })
+
+    def find_one(*args, _orig=IC._find_one, **kwargs):
+        i = _orig(*args, **kwargs)
+        assert i["source"] == cmd.source
+        return i
+
+    monkeypatch.setattr(IC, "_find_one", find_one)
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching %s", ["1.1"]),
+        assert_log.skip_until("Fetching: %s", [source2]),
+        assert_log.skip_until("No install found.+"),
+        assert_log.skip_until("Fetching: %s", [source1]),
+        assert_log.skip_until("Storing %s as source of package", [source2]),
+        assert_log.skip_until("Installing %s", ["Test 1.1 (32)"]),
+        ("Tag: %s\\\\%s", ["Test", "1.1-32"]),
+    )

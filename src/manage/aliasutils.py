@@ -239,6 +239,7 @@ def _parse_entrypoint_line(line):
     name, sep, rest = line.partition("=")
     name = name.strip()
     if name and name[0].isalnum() and sep and rest:
+        # "names" that have a parent directory/slash are invalid
         if PurePath(name).parent:
             return None, None, None
         mod, sep, rest = rest.partition(":")

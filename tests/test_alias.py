@@ -121,6 +121,7 @@ def test_write_script_alias(alias_checker):
     "..\\evil_path",
     "dir\\..\\evil_path",
     "normal\\subdir",
+    "C:\\absolute\\evil_path",
 ])
 def test_write_invalid_alias_name(alias_checker, name):
     with pytest.raises(ValueError):

@@ -117,6 +117,17 @@ def test_write_script_alias(alias_checker):
     alias_checker.check_script(alias_checker.Cmd(), "1.0-32", "testA", windowed=0)
 
 
+@pytest.mark.parametrize("name", [
+    "..\\evil_path",
+    "dir\\..\\evil_path",
+    "normal\\subdir",
+    "C:\\absolute\\evil_path",
+])
+def test_write_invalid_alias_name(alias_checker, name):
+    with pytest.raises(ValueError):
+        alias_checker.check(alias_checker.Cmd(), "1.0-32", name, None)
+
+
 def test_write_alias_launcher_missing(fake_config, assert_log, tmp_path):
     fake_config.launcher_exe = tmp_path / "non-existent.exe"
     fake_config.default_platform = '-32'
@@ -255,6 +266,8 @@ def test_parse_entrypoint_line():
         (" name = mod : func ", ("name", "mod", "func")),
         ("name=mod:func[extra]", ("name", "mod", "func")),
         ("name=mod:func [extra]", ("name", "mod", "func")),
+        ("../name=mod:func", (None, None, None)),
+        ("name/../../../name=mod:func", (None, None, None)),
     ]:
         assert expect == AU._parse_entrypoint_line(line)
 

@@ -3,7 +3,7 @@ import os
 from .exceptions import FilesInUseError, NoLauncherTemplateError
 from .fsutils import atomic_unlink, ensure_tree, unlink
 from .logging import LOGGER
-from .pathutils import Path, relative_to
+from .pathutils import Path, PurePath, relative_to
 from .tagutils import install_matches_any
 
 _EXE = ".exe".casefold()
@@ -97,6 +97,10 @@ def _create_alias(
     allow_link=True,
     _link=os.link):
     p = cmd.global_dir / name
+    # Raise exception if someone has tried to get us to write outside of the
+    # intended directory
+    if str(p.relative_to(cmd.global_dir)) != PurePath(name).name:
+        raise ValueError(f"Invalid alias name: {name}")
     if not p.match("*.exe"):
         p = p.with_name(p.name + ".exe")
     if not isinstance(target, Path):
@@ -235,6 +239,9 @@ def _parse_entrypoint_line(line):
     name, sep, rest = line.partition("=")
     name = name.strip()
     if name and name[0].isalnum() and sep and rest:
+        # "names" that have a parent directory/slash are invalid
+        if PurePath(name).parent:
+            return None, None, None
         mod, sep, rest = rest.partition(":")
         mod = mod.strip()
         if mod and sep and rest:
@@ -382,6 +389,14 @@ def create_aliases(cmd, aliases, *, allow_link=True, _create_alias=_create_alias
             else:
                 LOGGER.debug("Skipping %s alias because "
                              "the launcher template was not found.", alias.name)
+        except Exception:
+            if install_matches_any(alias.install, getattr(cmd, "tags", None)):
+                LOGGER.warn("Skipping %s alias because an unexpected error "
+                            "occurred.", alias.name)
+                LOGGER.debug("TRACEBACK", exc_info=True)
+            else:
+                LOGGER.debug("Skipping %s alias because an unexpected error "
+                             "occurred.", alias.name, exc_info=True)
 
 
 

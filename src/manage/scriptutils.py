@@ -48,16 +48,19 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
     if not sh_cmd.match("*.exe"):
         sh_cmd = sh_cmd.with_name(sh_cmd.name + ".exe")
 
-    is_wdefault = (
+    # Only apply virtual aliases and wildcard tag extraction to bare names.
+    is_name_only = not ('/' in full_cmd or '\\' in full_cmd)
+
+    is_wdefault = is_name_only and (
         sh_cmd.match("pythonw.exe")
         or sh_cmd.match("pyw.exe")
         or sh_cmd.match("pythonw3.exe")
     )
-    is_default = is_wdefault or (
+    is_default = is_wdefault or (is_name_only and (
         sh_cmd.match("python.exe")
         or sh_cmd.match("py.exe")
         or sh_cmd.match("python3.exe")
-    )
+    ))
 
     # Internal logic error, but non-fatal, if it has no value
     assert windowed is not None
@@ -76,7 +79,8 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
 
     for i in cmd.get_installs():
         for a in i.get("alias", ()):
-            if sh_cmd.match(a["name"]):
+            # Only match aliases against bare names
+            if is_name_only and sh_cmd.match(a["name"]):
                 exe = a["target"]
                 LOGGER.debug("Matched alias %s in %s", a["name"], i["id"])
                 if windowed and not a.get("windowed"):
@@ -85,20 +89,27 @@ def _find_shebang_command(cmd, full_cmd, *, windowed=None):
                         exe = target[0]["target"]
                         LOGGER.debug("Substituting target %s for windowed=1", exe)
                 return {**i, "executable": i["prefix"] / exe}
-        if sh_cmd.full_match(PurePath(i["executable"]).name):
+        # Only match raw executable names against bare names
+        if is_name_only and sh_cmd.full_match(PurePath(i["executable"]).name):
             LOGGER.debug("Matched executable name %s in %s", i["executable"], i["id"])
             return i
+        # Ensure absolute shebang paths don't incorrectly match relative executable
+        # paths
         if sh_cmd.match(i["executable"]):
+            if not is_name_only and not PurePath(i["executable"]).is_absolute():
+                continue
             LOGGER.debug("Matched executable %s in %s", i["executable"], i["id"])
             return i
 
-    # Fallback search for 'python[w]<TAG>.exe' shebangs
-    if sh_cmd.match("pythonw*.exe"):
-        tag = sh_cmd.name[7:-4]
-        return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=True)
-    if sh_cmd.match("python*.exe"):
-        tag = sh_cmd.name[6:-4]
-        return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=windowed)
+    # Fallback search for 'python[w]<TAG>.exe' shebangs and prevent absolute paths
+    # from being blindly sliced
+    if is_name_only:
+        if sh_cmd.match("pythonw*.exe"):
+            tag = sh_cmd.name[7:-4]
+            return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=True)
+        if sh_cmd.match("python*.exe"):
+            tag = sh_cmd.name[6:-4]
+            return cmd.get_install_to_run(f"PythonCore/{tag}", windowed=windowed)
 
     raise LookupError
 

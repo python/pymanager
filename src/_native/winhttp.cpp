@@ -129,7 +129,7 @@ static int crack_url(const wchar_t *url, URL_COMPONENTS *parts) {
     return 1;
 }
 
-static wchar_t *_recode_url_part(bool encode, const wchar_t *url_part, DWORD cch, bool allow_env=false)
+static wchar_t *_escape_url_part(bool encode, const wchar_t *url_part, DWORD cch, bool allow_env=false)
 {
     if (!url_part) {
         return NULL;
@@ -175,14 +175,14 @@ static wchar_t *_recode_url_part(bool encode, const wchar_t *url_part, DWORD cch
     return result;
 }
 
-static wchar_t *encode_url_part(const wchar_t *url_part, DWORD cch, bool allow_env=false)
+static wchar_t *escape_url_part(const wchar_t *url_part, DWORD cch, bool allow_env=false)
 {
-    return _recode_url_part(true, url_part, cch, allow_env);
+    return _escape_url_part(true, url_part, cch, allow_env);
 }
 
-static wchar_t *decode_url_part(const wchar_t *url_part, DWORD cch, bool allow_env=false)
+static wchar_t *unescape_url_part(const wchar_t *url_part, DWORD cch, bool allow_env=false)
 {
-    return _recode_url_part(false, url_part, cch, allow_env);
+    return _escape_url_part(false, url_part, cch, allow_env);
 }
 
 
@@ -308,11 +308,11 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     if (!crack_url(url, &url_parts)) {
         goto exit;
     }
-    hostname = decode_url_part(url_parts.lpszHostName, url_parts.dwHostNameLength);
+    hostname = unescape_url_part(url_parts.lpszHostName, url_parts.dwHostNameLength);
     if (!hostname) {
         goto exit;
     }
-    urlpath = decode_url_part(url_parts.lpszUrlPath, url_parts.dwUrlPathLength);
+    urlpath = unescape_url_part(url_parts.lpszUrlPath, url_parts.dwUrlPathLength);
     if (!urlpath) {
         goto exit;
     }
@@ -381,11 +381,11 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     ));
 
     if (url_parts.dwUserNameLength || url_parts.dwPasswordLength) {
-        user = decode_url_part(url_parts.lpszUserName, url_parts.dwUserNameLength);
+        user = unescape_url_part(url_parts.lpszUserName, url_parts.dwUserNameLength);
         if (!user) {
             goto exit;
         }
-        pass = decode_url_part(url_parts.lpszPassword, url_parts.dwPasswordLength);
+        pass = unescape_url_part(url_parts.lpszPassword, url_parts.dwPasswordLength);
         if (!pass) {
             goto exit;
         }
@@ -568,8 +568,8 @@ PyObject *winhttp_urlsplit(PyObject *, PyObject *args, PyObject *kwargs) {
     // Deliberately not decoding host or path. We never use a blacklist, we only
     // match against values specified by the user, or pass it to. If they want
     // to provide the same URL with different encoding, that's their fault.
-    wchar_t *user = decode_url_part(url_parts.lpszUserName, url_parts.dwUserNameLength, true);
-    wchar_t *pass = decode_url_part(url_parts.lpszPassword, url_parts.dwPasswordLength, true);
+    wchar_t *user = unescape_url_part(url_parts.lpszUserName, url_parts.dwUserNameLength, true);
+    wchar_t *pass = unescape_url_part(url_parts.lpszPassword, url_parts.dwPasswordLength, true);
     PyObject *r = Py_BuildValue("(u#u#u#u#nu#u#)",
         url_parts.lpszScheme, (Py_ssize_t)url_parts.dwSchemeLength,
         user, (Py_ssize_t)(user ? wcslen(user) : 0),
@@ -605,11 +605,11 @@ PyObject *winhttp_urlunsplit(PyObject *, PyObject *args, PyObject *kwargs) {
     }
     DWORD cch = 0;
     PyObject *r = NULL;
-    url.lpszUserName = encode_url_part(user, user ? wcslen(user) : 0, true);
+    url.lpszUserName = escape_url_part(user, user ? wcslen(user) : 0, true);
     if (user && !url.lpszUserName) {
         goto exit;
     }
-    url.lpszPassword = encode_url_part(pass, pass ? wcslen(pass) : 0, true);
+    url.lpszPassword = escape_url_part(pass, pass ? wcslen(pass) : 0, true);
     if (pass && !url.lpszPassword) {
         goto exit;
     }

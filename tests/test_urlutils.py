@@ -36,9 +36,6 @@ def test_urlunsanitise_encoded():
     candidates = ["https://user%40example.com:place%40holder@example.com/"]
     url = "https://example.com/my_path"
     expect = "https://user%40example.com:place%40holder@example.com/my_path"
-    actual = UU.unsanitise_url(url, candidates)
-    print(actual)
-    print(UU.winhttp_urlsplit(actual))
     assert expect == UU.unsanitise_url(url, candidates)
 
 
@@ -46,8 +43,8 @@ def test_extract_url_auth():
     assert "1", "2" == UU.extract_url_auth("https://1:2@example.com")
     assert "1", "" == UU.extract_url_auth("https://1@example.com")
 
-    assert "1", "2" == UU.extract_url_auth("https://%31:%32@example.com")
-    assert "1", "" == UU.extract_url_auth("https://%31@example.com")
+    assert ("1", "2") == UU.extract_url_auth("https://%31:%32@example.com")
+    assert ("1", "") == UU.extract_url_auth("https://%31@example.com")
 
     os.environ["PYMANAGER_TEST_VALUE"] = v = str(time.time())
     assert "1", v == UU.extract_url_auth("https://1:%PYMANAGER_TEST_VALUE%@example.com")

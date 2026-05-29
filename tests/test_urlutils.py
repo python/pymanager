@@ -11,6 +11,8 @@ import manage.urlutils as UU
     ("https://example.com/", "https://example.com/"),
     ("https://user@example.com/", "https://example.com/"),
     ("https://user:placeholder@example.com/", "https://example.com/"),
+    ("https://%placeholder%@example.com/", "https://%placeholder%@example.com/"),
+    ("https://%user%:%placeholder%@example.com/", "https://%user%:%placeholder%@example.com/"),
 ]])
 def test_urlsanitise(url, expect):
     assert expect == UU.sanitise_url(url)
@@ -30,9 +32,22 @@ def test_urlunsanitise():
     assert None == UU.unsanitise_url(url, candidates)
 
 
+def test_urlunsanitise_encoded():
+    candidates = ["https://user%40example.com:place%40holder@example.com/"]
+    url = "https://example.com/my_path"
+    expect = "https://user%40example.com:place%40holder@example.com/my_path"
+    actual = UU.unsanitise_url(url, candidates)
+    print(actual)
+    print(UU.winhttp_urlsplit(actual))
+    assert expect == UU.unsanitise_url(url, candidates)
+
+
 def test_extract_url_auth():
     assert "1", "2" == UU.extract_url_auth("https://1:2@example.com")
     assert "1", "" == UU.extract_url_auth("https://1@example.com")
+
+    assert "1", "2" == UU.extract_url_auth("https://%31:%32@example.com")
+    assert "1", "" == UU.extract_url_auth("https://%31@example.com")
 
     os.environ["PYMANAGER_TEST_VALUE"] = v = str(time.time())
     assert "1", v == UU.extract_url_auth("https://1:%PYMANAGER_TEST_VALUE%@example.com")
@@ -47,6 +62,11 @@ def test_extract_url_auth():
         ("https://example.com/A/B/C", "//EXAMPLE.COM", None, "https://EXAMPLE.COM/A/B/C"),
         ("https://example.com/A/B/C", "//EXAMPLE.COM/A", True, "https://EXAMPLE.COM/A"),
         ("https://example.com/A/B/C", "//EXAMPLE.COM/", None, "https://EXAMPLE.COM/"),
+
+        # We are intentionally blind to encoded chars.
+        ("https://example.com/A/B/C", "%2fD", False, "https://example.com/A/B/C/%2fD"),
+        ("https://example.com/A/B/C", "%2f%2fD", False, "https://example.com/A/B/C/%2f%2fD"),
+        ("https://example.com/A/B%2fC", "D", True, "https://example.com/A/D"),
 
         ("file:///C:/local/path", "file.json", False, "file:///C:/local/path/file.json"),
         ("file:///C:/local/path", "file.json", True, "file:///C:/local/file.json"),

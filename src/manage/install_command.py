@@ -48,7 +48,7 @@ def _expand_versions_by_tag(versions):
                 yield {**v, "tag": t}
 
 
-def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by_id=False):
+def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by_id=False, allow_pre=True):
     """Finds suitable package from index.json that looks like:
     {"versions": [
       {"id": ..., "company": ..., "tag": ..., "url": ..., "hash": {"sha256": hexdigest}},
@@ -63,6 +63,8 @@ def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by
         try:
             if by_id:
                 for v in index.versions:
+                    if not allow_pre and v["sort-version"].is_prerelease:
+                        continue
                     if v["id"].casefold() == tag.casefold():
                         return v
                 raise LookupError("Could not find a runtime matching '{}' at '{}'".format(
@@ -70,12 +72,22 @@ def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by
                 ))
             if platform:
                 try:
-                    return index.find_to_install(tag + platform)
+                    v = index.find_to_install(tag + platform)
                 except LookupError:
                     pass
-            return index.find_to_install(tag)
+                else:
+                    if allow_pre or not v["sort-version"].is_prerelease:
+                        return v
+            v = index.find_to_install(tag)
+            if v["sort-version"].is_prerelease and not allow_pre:
+                raise LookupError("Found '{}' matching '{}' but excluded "
+                                  "because we are now allowing prereleases.".format(
+                                  v["display-name"], tag))
+            return v
         except LookupError as ex:
-            first_exc = ex
+            LOGGER.debug("Potential error: %s", ex)
+            if not first_exc:
+                first_exc = ex
 
     if first_exc:
         raise first_exc
@@ -367,7 +379,7 @@ def _same_install(i, j):
     return i["id"] == j["id"] and i["sort-version"] == j["sort-version"]
 
 
-def _find_one(cmd, source, tag, *, installed=None, by_id=False):
+def _find_one(cmd, source, tag, *, installed=None, by_id=False, allow_pre=True):
     if by_id:
         LOGGER.debug("Searching for Python with ID %s", tag)
     elif tag:
@@ -377,7 +389,7 @@ def _find_one(cmd, source, tag, *, installed=None, by_id=False):
 
     download_cache = cmd.scratch.setdefault("install_command.download_cache", {})
     downloader = IndexDownloader(cmd, source, Index, {}, download_cache)
-    install = select_package(downloader, tag, cmd.default_platform, by_id=by_id)
+    install = select_package(downloader, tag, cmd.default_platform, by_id=by_id, allow_pre=allow_pre)
 
     # Ensure the requested source URL is in the install
     if install and source:
@@ -829,14 +841,16 @@ def execute(cmd):
                     # Fallthrough is safe - cmd.tags is empty
                 elif cmd.update:
                     LOGGER.verbose("No tags provided, updating all installs:")
+                    from .verutils import Version
                     for install in installed:
                         first_exc = None
                         update = None
+                        allow_pre = Version(install['sort-version']).is_prerelease
                         for source in [install.get('source'), cmd.source, cmd.fallback_source]:
                             if not source:
                                 continue
                             try:
-                                update = _find_one(cmd, source, install['id'], by_id=True)
+                                update = _find_one(cmd, source, install['id'], by_id=True, allow_pre=allow_pre)
                                 if update:
                                     break
                             except LookupError:

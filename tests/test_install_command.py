@@ -6,6 +6,7 @@ from pathlib import Path, PurePath
 from manage import install_command as IC
 from manage import installs
 from manage.exceptions import NoInstallFoundError
+from manage.logging import LOGGER
 
 
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
@@ -225,50 +226,51 @@ class InstallCommandTestCmd:
         self.scratch = {
             "install_command.download_cache": self.download_cache,
         }
-        self.automatic = kwargs.get("automatic", False)
-        self.by_id = kwargs.get("by_id", False)
-        self.default_install_tag = kwargs.get("default_install_tag", "1")
-        self.default_platform = kwargs.get("default_platform", "-32")
-        self.default_tag = kwargs.get("default_tag", "1")
-        self.download = kwargs.get("download")
+        self.automatic = kwargs.pop("automatic", False)
+        self.by_id = kwargs.pop("by_id", False)
+        self.default_install_tag = kwargs.pop("default_install_tag", "1")
+        self.default_platform = kwargs.pop("default_platform", "-32")
+        self.default_tag = kwargs.pop("default_tag", "1")
+        self.download = kwargs.pop("download", None)
         if self.download:
             self.download = tmp_path / self.download
-        self.download_dir = tmp_path / kwargs.get("download_dir", "_cache")
-        self.dry_run = kwargs.get("dry_run", True)
-        self.fallback_source = kwargs.get("fallback_source")
-        self.force = kwargs.get("force", True)
-        self.from_script = kwargs.get("from_script")
-        self.log_file = kwargs.get("log_file")
-        self.refresh = kwargs.get("refresh", False)
-        self.repair = kwargs.get("repair", False)
-        self.shebang_can_run_anything = kwargs.get("shebang_can_run_anything", False)
-        self.shebang_can_run_anything_silently = kwargs.get("shebang_can_run_anything_silently", False)
-        self.source = kwargs.get("source", "http://example.com/index.json")
-        self.target = kwargs.get("target")
+        self.download_dir = tmp_path / kwargs.pop("download_dir", "_cache")
+        self.dry_run = kwargs.pop("dry_run", True)
+        self.fallback_source = kwargs.pop("fallback_source", None)
+        self.force = kwargs.pop("force", True)
+        self.from_script = kwargs.pop("from_script", None)
+        self.log_file = kwargs.pop("log_file", None)
+        self.refresh = kwargs.pop("refresh", False)
+        self.repair = kwargs.pop("repair", False)
+        self.shebang_can_run_anything = kwargs.pop("shebang_can_run_anything", False)
+        self.shebang_can_run_anything_silently = kwargs.pop("shebang_can_run_anything_silently", False)
+        self.source = kwargs.pop("source", "http://example.com/index.json")
+        self.target = kwargs.pop("target", None)
         if self.target:
             self.target = tmp_path / self.target
-        self.update = kwargs.get("update", False)
-        self.virtual_env = kwargs.get("virtual_env")
+        self.update = kwargs.pop("update", False)
+        self.virtual_env = kwargs.pop("virtual_env", None)
 
         self.index_installs = [
+            *kwargs.pop("index_installs", ()),
             {
                 "schema": 1,
-                "id": "test-1.1-32",
+                "id": "test-32",
                 "sort-version": "1.1",
                 "company": "Test",
                 "tag": "1.1-32",
-                "install-for": ["1", "1.1", "1.1-32"],
+                "install-for": ["1-32", "1.1-32", "1.1-32"],
                 "display-name": "Test 1.1 (32)",
                 "executable": "test.exe",
                 "url": "about:blank",
             },
             {
                 "schema": 1,
-                "id": "test-1.0-32",
+                "id": "test-32",
                 "sort-version": "1.0",
                 "company": "Test",
                 "tag": "1.0-32",
-                "install-for": ["1", "1.0", "1.0-32"],
+                "install-for": ["1-32", "1.0-32", "1.0-32"],
                 "display-name": "Test 1.0 (32)",
                 "executable": "test.exe",
                 "url": "about:blank",
@@ -280,8 +282,13 @@ class InstallCommandTestCmd:
         self.installs = [{
             **self.index_installs[-1],
             "source": self.source,
-            "prefix": tmp_path / "test-1.0-32",
+            "prefix": tmp_path / "test-32",
         }]
+        assert not kwargs
+
+    def ask_yn(self, prompt, *args):
+        LOGGER.info(prompt, *args)
+        return True
 
     def get_log_file(self):
         return self.log_file
@@ -302,6 +309,7 @@ def test_install_simple(tmp_path, assert_log):
     IC.execute(cmd)
     assert_log(
         assert_log.skip_until("Searching for Python matching %s", ["1.1"]),
+        assert_log.skip_until(".*Your existing %s install.*", ["Test 1.0 (32)", "Test 1.1 (32)"]),
         assert_log.skip_until("Installing %s", ["Test 1.1 (32)"]),
         ("Tag: %s\\\\%s", ["Test", "1.1-32"]),
     )
@@ -314,6 +322,58 @@ def test_install_already_installed(tmp_path, assert_log):
     assert_log(
         assert_log.skip_until("Searching for Python matching %s", ["1.0"]),
         assert_log.skip_until("%s is already installed", ["Test 1.0 (32)"]),
+    )
+
+
+
+def test_install_update(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, update=True, force=False,
+        index_installs=[
+            {"schema": 1, "id": "test-32", "sort-version": "1.2rc1",
+             "display-name": "Test 1.2rc1 (32)",
+             "company": "Test", "tag": "1.2rc-32",
+             "install-for": ["1-32", "1.2-32", "1.2rc1-32"]}
+        ],
+    )
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python with ID %s", ["test-32"]),
+        assert_log.skip_until("Updating to %s", ["Test 1.1 (32)"]),
+    )
+
+
+def test_install_update_explicit(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1", update=True, force=False,
+        index_installs=[
+            {"schema": 1, "id": "test-32", "sort-version": "1.2rc1",
+             "display-name": "Test 1.2rc1 (32)",
+             "company": "Test", "tag": "1.2rc-32",
+             "install-for": ["1-32", "1.2-32", "1.2rc1-32"]}
+        ],
+    )
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching %s", ["1"]),
+        assert_log.skip_until("Updating to %s", ["Test 1.1 (32)"]),
+    )
+
+
+def test_install_update_explicit_pre(tmp_path, assert_log):
+    cmd = InstallCommandTestCmd(tmp_path, "1rc", update=True, force=False,
+        index_installs=[
+            {"schema": 1, "id": "test-32", "sort-version": "1.2rc1",
+             "display-name": "Test 1.2rc1 (32)",
+             "company": "Test", "tag": "1.2rc-32",
+             "install-for": ["1-32", "1.2-32", "1.2rc1-32"]}
+        ],
+    )
+
+    IC.execute(cmd)
+    assert_log(
+        assert_log.skip_until("Searching for Python matching %s", ["1rc"]),
+        assert_log.skip_until("Updating to %s", ["Test 1.2rc1 (32)"]),
     )
 
 

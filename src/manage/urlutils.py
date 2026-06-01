@@ -552,9 +552,11 @@ def sanitise_url(url):
         if ex.winerror in (12005, 12006):
             return url
         raise
-    p[U_USERNAME] = None
+    u = p[U_USERNAME]
+    if u and not (u.startswith("%") and u.endswith("%")):
+        p[U_USERNAME] = None
     pw = p[U_PASSWORD]
-    if pw and not (pw.startswith("%") and pw.startswith("%")):
+    if pw and not (pw.startswith("%") and pw.endswith("%")):
         p[U_PASSWORD] = None
     return winhttp_urlunsplit(*p)
 

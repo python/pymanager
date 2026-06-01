@@ -79,8 +79,8 @@ def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by
                     if allow_pre or not v["sort-version"].is_prerelease:
                         return v
             v = index.find_to_install(tag)
-            if v["sort-version"].is_prerelease and not allow_prerelease:
-                raise LookupError(f"Found '{}' matching '{}' but excluded "
+            if v["sort-version"].is_prerelease and not allow_pre:
+                raise LookupError("Found '{}' matching '{}' but excluded "
                                   "because we are now allowing prereleases.".format(
                                   v["display-name"], tag))
             return v

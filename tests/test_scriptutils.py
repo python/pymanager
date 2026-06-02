@@ -10,6 +10,7 @@ from manage.scriptutils import (
     find_install_from_script,
     _find_shebang_command,
     _read_script,
+    _replace_templates,
     NewEncoding,
     _maybe_quote,
     quote_args,
@@ -274,3 +275,27 @@ def test_quote_args(args, expect):
     assert expect == quote_args(args)
     # Test that our split function produces the same result
     assert args == split_args(expect), expect
+
+
+@pytest.mark.parametrize("line, expect_id, expect_line", [pytest.param(*a, id=a[0]) for a in [
+    ("#!/usr/bin/python", "Test1", None),
+    ("#!/usr/bin/python2", "Test2", None),
+    # TODO: More test cases
+]])
+def test_shebang_templates(fake_config, line, expect_id, expect_line):
+    fake_config.installs = [
+        dict(id="Test1", company="Test", tag="1", default=True),
+        dict(id="Test2", company="Test", tag="2"),
+    ]
+    fake_config.shebang_templates = {
+        "/usr/bin/python": "py",
+        "/usr/bin/python2": "py -V:Test/2",
+    }
+    actual, actual_line = _replace_templates(fake_config, line, False)
+    if expect_id:
+        assert actual
+        assert expect_id == actual["id"]
+    elif expect_line:
+        assert expect_line == actual_line
+    else:
+        pytest.fail("Invalid test")

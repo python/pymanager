@@ -162,6 +162,7 @@ class FakeConfig:
         self.installs = list(installs)
         self.shebang_can_run_anything = True
         self.shebang_can_run_anything_silently = False
+        self.shebang_templates = {}
         self.scratch = {}
 
     def get_installs(self, *, include_unmanaged=False, set_default=True):
@@ -169,7 +170,7 @@ class FakeConfig:
             return self.installs
         return [i for i in self.installs if not i.get("unmanaged", 0)]
 
-    def get_install_to_run(self, tag, *, windowed=False):
+    def get_install_to_run(self, tag=None, script=None, *, windowed=False):
         if windowed:
             i = self.get_install_to_run(tag)
             target = [t for t in i.get("run-for", []) if t.get("windowed")]
@@ -177,13 +178,16 @@ class FakeConfig:
                 return {**i, "executable": i["prefix"] / target[0]["target"]}
             return i
 
-        company, _, tag = tag.replace("/", "\\").rpartition("\\")
-        try:
-            found = [i for i in self.installs
-                     if (not tag or i["tag"] == tag) and (not company or i["company"] == company)]
-        except LookupError as ex:
-            # LookupError is expected from this function, so make sure we don't raise it here
-            raise RuntimeError from ex
+        if not tag:
+            found = [i for i in self.installs if i.get("default")]
+        else:
+            company, _, tag = tag.replace("/", "\\").rpartition("\\")
+            try:
+                found = [i for i in self.installs
+                         if (not tag or i["tag"] == tag) and (not company or i["company"] == company)]
+            except LookupError as ex:
+                # LookupError is expected from this function, so make sure we don't raise it here
+                raise RuntimeError from ex
         if found:
             return found[0]
         raise LookupError(tag)

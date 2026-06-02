@@ -1,4 +1,5 @@
 import _native
+import time
 
 from .fsutils import rmtree, unlink
 from .logging import LOGGER
@@ -47,15 +48,28 @@ def _make(root, prefix, item, allow_warn=True):
         LOGGER.debug("Path: %s", lnk)
         LOGGER.debug("Directory: %s", root)
         return None
-    _native.shortcut_create(
-        lnk,
-        target,
-        arguments=_unprefix(item.get("Arguments"), prefix),
-        working_directory=_unprefix(item.get("WorkingDirectory"), prefix)
-            or _native.shortcut_default_cwd(),
-        icon=_unprefix(item.get("Icon"), prefix),
-        icon_index=item.get("IconIndex", 0),
-    )
+    first_exc = None
+    for retry in range(5):
+        try:
+            _native.shortcut_create(
+                lnk,
+                target,
+                arguments=_unprefix(item.get("Arguments"), prefix),
+                working_directory=_unprefix(item.get("WorkingDirectory"), prefix)
+                    or _native.shortcut_default_cwd(),
+                icon=_unprefix(item.get("Icon"), prefix),
+                icon_index=item.get("IconIndex", 0),
+            )
+            break
+        except OSError as ex:
+            # No errors are reasonably expected here, so we'll retry for any.
+            # So far, all we've observed have been race conditions.
+            if not first_exc:
+                first_exc = ex
+            time.sleep(0.1)
+    if first_exc:
+        LOGGER.debug("Failed to create shortcut")
+        raise first_exc
     return lnk
 
 

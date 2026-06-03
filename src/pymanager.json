@@ -36,7 +36,7 @@
 
     "shebang_templates": {
         "/usr/bin/python": "py",
-        "/usr/bin/pythonw": "py",
+        "/usr/bin/pythonw": "pyw",
         "/usr/bin/python3": "py",
         "/usr/bin/pythonw3": "pyw",
         "/usr/local/bin/python": "py",

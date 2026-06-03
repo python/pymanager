@@ -281,6 +281,7 @@ def test_quote_args(args, expect):
 
 @pytest.mark.parametrize("line, expect_id, expect_line", [pytest.param(*a, id=a[0]) for a in [
     ("#!/usr/bin/python", "Test1", None),
+    ("#!/usr/bin/python -Es", "Test1", None),
     ("#! /usr/bin/pythonw", "Test1", None),
     ("#!  /usr/bin/python2", "Test2", None),
     ("#!   /usr/bin/pythonw2", "Test2", None),

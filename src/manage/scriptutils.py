@@ -123,14 +123,25 @@ def _find_on_path(cmd, full_cmd):
 
 def _replace_templates(cmd, line, windowed):
     # Override can be the entire line or just the first argument
-    shebang = re.match(r"#!\s*(.+)(.*)", line) or re.match(r"#!\s*([^\s]+)(.*)", line)
+    # Override can be the entire line (including args) or just the first argument
+    m = re.match(r"^#!\s*([^\s]+)(.*)$", line)
 
-    if not shebang or shebang.group(1) not in cmd.shebang_templates:
+    if not m:
         return None, None
 
-    new_cmd = cmd.shebang_templates[shebang.group(1)]
+    full_key = (m.group(1) + m.group(2)).strip()
+    if full_key in cmd.shebang_templates:
+        template_key = full_key
+        suffix = ""
+    elif m.group(1) in cmd.shebang_templates:
+        template_key = m.group(1)
+        suffix = m.group(2)
+    else:
+        return None, None
+
+    new_cmd = cmd.shebang_templates[template_key]
     LOGGER.verbose("Using '%s' from configuration file in place of shebang '%s'",
-                   new_cmd, shebang.group(1))
+                   new_cmd, template_key)
     install = None
     if new_cmd.startswith("py -V:"):
         install = cmd.get_install_to_run(new_cmd[6:], windowed=windowed)
@@ -146,7 +157,7 @@ def _replace_templates(cmd, line, windowed):
         install = cmd.get_install_to_run(windowed=True)
     else:
         # Recreate the shebang with the alternate command and continue.
-        line = f"#!{new_cmd}{shebang.group(2)}"
+        line = f"#!{new_cmd}{suffix}"
     return install, line
 
 
@@ -237,6 +248,7 @@ def _parse_shebang(cmd, line, *, windowed=None):
             except LookupError as ex:
                 LOGGER.error("Could not launch '%s'. Using default interpreter "
                              "instead.", full_cmd)
+                raise
         else:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)

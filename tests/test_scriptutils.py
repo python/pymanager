@@ -279,7 +279,10 @@ def test_quote_args(args, expect):
 
 @pytest.mark.parametrize("line, expect_id, expect_line", [pytest.param(*a, id=a[0]) for a in [
     ("#!/usr/bin/python", "Test1", None),
-    ("#!/usr/bin/python2", "Test2", None),
+    ("#! /usr/bin/python2", "Test2", None),
+    ("#!  custom", None, "#!CUSTOM"),
+    ("#! custom full line", None, "#!CUSTOM2"),
+    ("#!custom full line with extra", None, None),
     # TODO: More test cases
 ]])
 def test_shebang_templates(fake_config, line, expect_id, expect_line):
@@ -290,6 +293,8 @@ def test_shebang_templates(fake_config, line, expect_id, expect_line):
     fake_config.shebang_templates = {
         "/usr/bin/python": "py",
         "/usr/bin/python2": "py -V:Test/2",
+        "custom": "CUSTOM",
+        "custom full line": "CUSTOM2",
     }
     actual, actual_line = _replace_templates(fake_config, line, False)
     if expect_id:
@@ -298,4 +303,5 @@ def test_shebang_templates(fake_config, line, expect_id, expect_line):
     elif expect_line:
         assert expect_line == actual_line
     else:
-        pytest.fail("Invalid test")
+        assert not actual
+        assert not actual_line

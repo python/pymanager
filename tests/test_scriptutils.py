@@ -6,9 +6,11 @@ import textwrap
 
 from pathlib import PurePath
 
+import manage.scriptutils as SU
 from manage.scriptutils import (
     find_install_from_script,
     _find_shebang_command,
+    _parse_shebang,
     _read_script,
     _replace_templates,
     NewEncoding,
@@ -279,20 +281,31 @@ def test_quote_args(args, expect):
 
 @pytest.mark.parametrize("line, expect_id, expect_line", [pytest.param(*a, id=a[0]) for a in [
     ("#!/usr/bin/python", "Test1", None),
-    ("#! /usr/bin/python2", "Test2", None),
+    ("#! /usr/bin/pythonw", "Test1", None),
+    ("#!  /usr/bin/python2", "Test2", None),
+    ("#!   /usr/bin/pythonw2", "Test2", None),
+    ("#!  /usr/bin/python3", "PythonCore3", None),
+    ("#!   /usr/bin/pythonw3", "PythonCore3", None),
     ("#!  custom", None, "#!CUSTOM"),
     ("#! custom full line", None, "#!CUSTOM2"),
     ("#!custom full line with extra", None, None),
-    # TODO: More test cases
+    ("custom", None, None),
+    ("custom full line", None, None),
 ]])
 def test_shebang_templates(fake_config, line, expect_id, expect_line):
     fake_config.installs = [
         dict(id="Test1", company="Test", tag="1", default=True),
         dict(id="Test2", company="Test", tag="2"),
+        dict(id="Test3", company="Test", tag="3.2"),
+        dict(id="PythonCore3", company="PythonCore", tag="3.2"),
     ]
     fake_config.shebang_templates = {
         "/usr/bin/python": "py",
+        "/usr/bin/pythonw": "pyw",
         "/usr/bin/python2": "py -V:Test/2",
+        "/usr/bin/pythonw2": "pyw -V:Test/2",
+        "/usr/bin/python3": "py -3.2",
+        "/usr/bin/pythonw3": "pyw -3.2",
         "custom": "CUSTOM",
         "custom full line": "CUSTOM2",
     }
@@ -305,3 +318,19 @@ def test_shebang_templates(fake_config, line, expect_id, expect_line):
     else:
         assert not actual
         assert not actual_line
+
+
+def test_parse_shebang_templates(monkeypatch):
+    class Cmd:
+        shebang_templates = True
+
+    expect = {"an": "install"}
+    monkeypatch.setattr(SU, "_replace_templates", lambda *a: (expect, None))
+    actual = _parse_shebang(Cmd, "Anything at all")
+    assert expect == actual
+
+    expect = {"id": "COMMAND"}
+    monkeypatch.setattr(SU, "_replace_templates", lambda *a: (None, "#!COMMAND"))
+    monkeypatch.setattr(SU, "_find_shebang_command", lambda cmd, full_cmd, **kw: {"id": full_cmd})
+    actual = _parse_shebang(Cmd, "Anything at all", windowed=False)
+    assert expect == actual

@@ -288,10 +288,10 @@ def test_quote_args(args, expect):
     ("#!  /usr/bin/python3", "PythonCore3", None),
     ("#!   /usr/bin/pythonw3", "PythonCore3", None),
     ("#!  custom", None, "#!CUSTOM"),
-    ("#! custom full line", None, "#!CUSTOM2"),
-    ("#!custom full line with extra", None, None),
+    ("#! full line custom", None, "#!CUSTOM2"),
+    ("#!full line custom with extra", None, None),
     ("custom", None, None),
-    ("custom full line", None, None),
+    ("full line custom", None, None),
 ]])
 def test_shebang_templates(fake_config, line, expect_id, expect_line):
     fake_config.installs = [
@@ -308,7 +308,7 @@ def test_shebang_templates(fake_config, line, expect_id, expect_line):
         "/usr/bin/python3": "py -3.2",
         "/usr/bin/pythonw3": "pyw -3.2",
         "custom": "CUSTOM",
-        "custom full line": "CUSTOM2",
+        "full line custom": "CUSTOM2",
     }
     actual, actual_line = _replace_templates(fake_config, line, False)
     if expect_id:

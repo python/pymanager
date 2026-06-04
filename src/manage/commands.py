@@ -40,9 +40,8 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 
-Indexes can now be signed to provide tamper detection. When an index signature
-is found to be invalid, the operation will be aborted without modifying your system.
-See !B!{HELP_URL}#index-signatures!W! for more information.
+Additional shebang configuration is now available. Please see
+!B!{HELP_URL}#shebang-lines!W! for more information.
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,

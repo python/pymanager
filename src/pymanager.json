@@ -34,6 +34,17 @@
     "launcherw_exe": "./templates/launcherw.exe",
     "welcome_on_update": true,
 
+    "shebang_templates": {
+        "/usr/bin/python": "py",
+        "/usr/bin/pythonw": "pyw",
+        "/usr/bin/python3": "py",
+        "/usr/bin/pythonw3": "pyw",
+        "/usr/local/bin/python": "py",
+        "/usr/local/bin/pythonw": "pyw",
+        "/usr/local/bin/python3": "py",
+        "/usr/local/bin/pythonw3": "pyw"
+    },
+
     "source_settings": {
         "https://www.python.org/ftp/python/index-windows.json": {
             "requires_signature": true,

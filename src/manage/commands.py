@@ -242,6 +242,9 @@ CONFIG_SCHEMA = {
     "include_unmanaged": (config_bool, None, "env"),
     "shebang_can_run_anything": (config_bool, None, "env"),
     "shebang_can_run_anything_silently": (config_bool, None, "env"),
+    # Mapping from shebang template to '-V:Company/Tag' argument or an
+    # executable path. The latter requires 'shebang_can_run_anything'.
+    "shebang_templates": (dict, config_dict_merge),
     # Typically configured to '%VIRTUAL_ENV%' to pick up the active environment
     "virtual_env": (str, None, "env", "path"),
 
@@ -347,6 +350,7 @@ class BaseCommand:
     virtual_env = None
     shebang_can_run_anything = True
     shebang_can_run_anything_silently = False
+    shebang_templates = {}
     welcome_on_update = False
 
     log_file = None
@@ -366,7 +370,7 @@ class BaseCommand:
     launcher_exe = None
     launcherw_exe = None
 
-    source_settings = None
+    source_settings = {}
 
     show_help = False
 

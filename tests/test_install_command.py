@@ -244,6 +244,7 @@ class InstallCommandTestCmd:
         self.repair = kwargs.pop("repair", False)
         self.shebang_can_run_anything = kwargs.pop("shebang_can_run_anything", False)
         self.shebang_can_run_anything_silently = kwargs.pop("shebang_can_run_anything_silently", False)
+        self.shebang_templates = {}
         self.source = kwargs.pop("source", "http://example.com/index.json")
         self.target = kwargs.pop("target", None)
         if self.target:

@@ -121,7 +121,61 @@ def _find_on_path(cmd, full_cmd):
     }
 
 
+def _replace_templates(cmd, line, windowed):
+    # Override can be the entire line or just the first argument
+    # Override can be the entire line (including args) or just the first argument
+    m = re.match(r"^#!\s*([^\s]+)(.*)$", line)
+
+    if not m:
+        return None, None
+
+    full_key = (m.group(1) + m.group(2)).strip()
+    if full_key in cmd.shebang_templates:
+        template_key = full_key
+        suffix = ""
+    elif m.group(1) in cmd.shebang_templates:
+        template_key = m.group(1)
+        suffix = m.group(2)
+    else:
+        return None, None
+
+    new_cmd = cmd.shebang_templates[template_key]
+    LOGGER.verbose("Using '%s' from configuration file in place of shebang '%s'",
+                   new_cmd, template_key)
+    install = None
+    if new_cmd.startswith("py -V:"):
+        install = cmd.get_install_to_run(new_cmd[6:], windowed=windowed)
+    elif new_cmd.startswith("pyw -V:"):
+        install = cmd.get_install_to_run(new_cmd[7:], windowed=True)
+    elif new_cmd.startswith("py -3"):
+        install = cmd.get_install_to_run(f"PythonCore/{new_cmd[4:]}", windowed=windowed)
+    elif new_cmd.startswith("pyw -3"):
+        install = cmd.get_install_to_run(f"PythonCore/{new_cmd[5:]}", windowed=True)
+    elif new_cmd == "py":
+        install = cmd.get_install_to_run(windowed=windowed)
+    elif new_cmd == "pyw":
+        install = cmd.get_install_to_run(windowed=True)
+    else:
+        # Recreate the shebang with the alternate command and continue.
+        line = f"#!{new_cmd}{suffix}"
+    return install, line
+
+
 def _parse_shebang(cmd, line, *, windowed=None):
+    # To silence our warning when we get the path from config file
+    run_anything_silently = False
+
+    # First check the user-provided overrides
+    if cmd.shebang_templates:
+        install, new_line = _replace_templates(cmd, line, windowed)
+        if install:
+            return install
+        if new_line:
+            # We don't warn about custom executables if they've come from
+            # the config file, unless they don't exist or are disabled.
+            run_anything_silently = True
+            line = new_line
+
     # For /usr[/local]/bin, we look for a matching alias name.
     shebang = re.match(r"#!\s*/usr/(?:local/)?bin/(?!env\b)([^\\/\s]+).*", line)
     if shebang:
@@ -151,7 +205,7 @@ def _parse_shebang(cmd, line, *, windowed=None):
         # If not, warn and do regular PATH search
         if cmd.shebang_can_run_anything or cmd.shebang_can_run_anything_silently:
             i = _find_on_path(cmd, full_cmd)
-            if not cmd.shebang_can_run_anything_silently:
+            if not cmd.shebang_can_run_anything_silently and not run_anything_silently:
                 LOGGER.warn("A shebang '%s' was found but could not be matched "
                             "to an installed runtime, so it will be treated as "
                             "an arbitrary command.", full_cmd)
@@ -181,14 +235,20 @@ def _parse_shebang(cmd, line, *, windowed=None):
         except LookupError:
             pass
         if cmd.shebang_can_run_anything or cmd.shebang_can_run_anything_silently:
-            if not cmd.shebang_can_run_anything_silently:
+            if not cmd.shebang_can_run_anything_silently and not run_anything_silently:
                 LOGGER.warn("A shebang '%s' was found but does not match any "
-                            "supported template (e.g. '/usr/bin/python'), so it "
-                            "will be treated as an arbitrary command.", full_cmd)
+                            "supported or configured template (e.g. "
+                            "'/usr/bin/python'), so it will be treated as an "
+                            "arbitrary command.", full_cmd)
                 LOGGER.warn("To prevent execution of programs that are not "
                             "Python runtimes, set 'shebang_can_run_anything' to "
                             "'false' in your configuration file.")
-            return _find_on_path(cmd, full_cmd)
+            try:
+                return _find_on_path(cmd, full_cmd)
+            except LookupError as ex:
+                LOGGER.error("Could not launch '%s'. Using default interpreter "
+                             "instead.", full_cmd)
+                raise
         else:
             LOGGER.warn("A shebang '%s' was found, but could not be matched "
                         "to an installed runtime.", full_cmd)

@@ -129,6 +129,7 @@ def _replace_templates(cmd, line, windowed):
     if not m:
         return None, None
 
+    template_key = None
     full_key = (m.group(1) + m.group(2)).strip()
     if full_key in cmd.shebang_templates:
         template_key = full_key
@@ -137,6 +138,15 @@ def _replace_templates(cmd, line, windowed):
         template_key = m.group(1)
         suffix = m.group(2)
     else:
+        # Also map case-insensitive keys back to their original casing
+        keys_cf = {k.casefold(): k for k in cmd.shebang_templates}
+        template_key = keys_cf.get(full_key.casefold())
+        suffix = ""
+        if not template_key:
+            template_key = keys_cf.get(m.group(1).casefold())
+            suffix = m.group(2)
+
+    if not template_key:
         return None, None
 
     new_cmd = cmd.shebang_templates[template_key]

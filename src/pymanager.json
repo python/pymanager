@@ -1,8 +1,7 @@
 {
     "install": {
         "source": "%PYTHON_MANAGER_SOURCE_URL%",
-        "fallback_source": "./bundled/fallback-index.json",
-        "default_install_tag": "3"
+        "fallback_source": "./bundled/fallback-index.json"
     },
     "list": {
         "format": "%PYTHON_MANAGER_LIST_FORMAT%"

@@ -6,6 +6,31 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self, header_only=False):
+        if self.path.startswith("http://"):
+            from base64 import b64decode
+            from urllib.parse import urlsplit
+
+            target = urlsplit(self.path).path
+            if target == "/through-proxy":
+                body = b"Proxy OK"
+            elif target == "/through-auth-proxy":
+                auth = self.headers.get("Proxy-Authorization")
+                if not auth:
+                    self.send_response(407)
+                    self.send_header("Proxy-Authenticate", 'Basic realm="test"')
+                    self.end_headers()
+                    return
+                kind, _, value = auth.partition(" ")
+                body = b"Proxy " + kind.encode() + b" " + b64decode(value)
+            else:
+                self.send_error(502)
+                return
+            self.send_response(200)
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            if not header_only:
+                self.wfile.write(body)
+            return
         if self.path == "/stop":
             self.send_response(200)
             self.end_headers()

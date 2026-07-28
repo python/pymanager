@@ -7,6 +7,194 @@ import _native
 import manage.urlutils as UU
 
 
+@pytest.fixture
+def clean_proxy_env(monkeypatch):
+    for name in ("NO_PROXY", "HTTP_PROXY", "HTTPS_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_proxy_settings_auto(clean_proxy_env):
+    settings = UU._proxy_settings_from_env()
+    assert settings.mode == UU.PROXY_MODE_AUTO
+    assert settings.proxy_list is None
+    assert settings.powershell_proxy is None
+    assert settings.username is None
+    assert settings.password is None
+
+
+def test_proxy_settings_no_proxy(clean_proxy_env, monkeypatch):
+    monkeypatch.setenv("NO_PROXY", "example.com")
+    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8080")
+
+    settings = UU._proxy_settings_from_env()
+    assert settings.mode == UU.PROXY_MODE_DIRECT
+    assert settings.proxy_list is None
+    assert settings.powershell_proxy is None
+
+
+def test_proxy_settings_override(clean_proxy_env, monkeypatch):
+    monkeypatch.setenv(
+        "HTTP_PROXY",
+        "http://http%40user:http%40password@http-proxy.example:8080/path",
+    )
+    monkeypatch.setenv(
+        "HTTPS_PROXY",
+        "https://https%40user:https%40password@https-proxy.example:8443/path",
+    )
+
+    settings = UU._proxy_settings_from_env()
+    assert settings.mode == UU.PROXY_MODE_OVERRIDE
+    assert settings.proxy_list == (
+        "http=http://http-proxy.example:8080 "
+        "https=https://https-proxy.example:8443"
+    )
+    assert settings.powershell_proxy == "https://https-proxy.example:8443"
+    assert settings.username == "https@user"
+    assert settings.password == "https@password"
+    assert "http@password" not in settings.proxy_list
+    assert "https@password" not in settings.proxy_list
+
+
+def test_proxy_settings_http_credentials_fallback(clean_proxy_env, monkeypatch):
+    monkeypatch.setenv(
+        "HTTP_PROXY",
+        "proxy%40user:proxy%40password@proxy.example:8080",
+    )
+    monkeypatch.setenv("HTTPS_PROXY", "https://secure-proxy.example:8443")
+
+    settings = UU._proxy_settings_from_env()
+    assert settings.proxy_list == (
+        "http=http://proxy.example:8080 "
+        "https=https://secure-proxy.example:8443"
+    )
+    assert settings.powershell_proxy == "https://secure-proxy.example:8443"
+    assert settings.username == "proxy@user"
+    assert settings.password == "proxy@password"
+
+
+def test_winhttp_proxy_env(clean_proxy_env, monkeypatch, localserver):
+    monkeypatch.setenv("HTTP_PROXY", localserver)
+    request = UU._Request("http://proxy-target.invalid/through-proxy")
+
+    assert UU._winhttp_urlopen(request) == b"Proxy OK"
+
+
+def test_winhttp_proxy_env_auth(clean_proxy_env, monkeypatch, localserver):
+    proxy = localserver.replace(
+        "http://",
+        "http://proxy-user:proxy-password@",
+    )
+    monkeypatch.setenv("HTTP_PROXY", proxy)
+    request = UU._Request("http://proxy-target.invalid/through-auth-proxy")
+
+    assert UU._winhttp_urlopen(request) == b"Proxy Basic proxy-user:proxy-password"
+
+
+def test_powershell_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_path):
+    monkeypatch.setenv("HTTPS_PROXY", localserver)
+    request = UU._Request(
+        "http://proxy-target.invalid/through-proxy",
+        outfile=tmp_path / "proxy.txt",
+    )
+
+    UU._powershell_urlretrieve(request)
+
+    assert request.outfile.read_bytes() == b"Proxy OK"
+
+
+def test_powershell_proxy_env_auth(
+    clean_proxy_env,
+    monkeypatch,
+    localserver,
+    tmp_path,
+):
+    proxy = localserver.replace(
+        "http://",
+        "http://proxy-user:proxy-password@",
+    )
+    monkeypatch.setenv("HTTPS_PROXY", proxy)
+    request = UU._Request(
+        "http://proxy-target.invalid/through-auth-proxy",
+        outfile=tmp_path / "proxy-auth.txt",
+    )
+
+    UU._powershell_urlretrieve(request)
+
+    assert request.outfile.read_bytes() == b"Proxy Basic proxy-user:proxy-password"
+
+
+def test_powershell_no_proxy_env(
+    clean_proxy_env,
+    monkeypatch,
+    localserver,
+    tmp_path,
+):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("NO_PROXY", "anything")
+    request = UU._Request(
+        localserver + "/1kb",
+        outfile=tmp_path / "direct.txt",
+    )
+
+    UU._powershell_urlretrieve(request)
+
+    assert len(request.outfile.read_bytes()) == 1024
+
+
+def test_bits_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_path):
+    monkeypatch.setenv("HTTP_PROXY", localserver)
+    request = UU._Request(
+        "http://proxy-target.invalid/through-proxy",
+        outfile=tmp_path / "proxy.txt",
+    )
+
+    UU._bits_urlretrieve(request)
+
+    assert request.outfile.read_bytes() == b"Proxy OK"
+
+
+def test_bits_proxy_env_auth(clean_proxy_env, monkeypatch, localserver, tmp_path):
+    proxy = localserver.replace(
+        "http://",
+        "http://proxy-user:proxy-password@",
+    )
+    monkeypatch.setenv("HTTP_PROXY", proxy)
+    request = UU._Request(
+        "http://proxy-target.invalid/through-auth-proxy",
+        outfile=tmp_path / "proxy-auth.txt",
+    )
+
+    UU._bits_urlretrieve(request)
+
+    assert request.outfile.read_bytes() == b"Proxy Basic proxy-user:proxy-password"
+
+
+def test_winhttp_no_proxy_env(clean_proxy_env, monkeypatch, localserver):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("NO_PROXY", "anything")
+    request = UU._Request(localserver + "/1kb")
+
+    assert UU._winhttp_urlopen(request)
+
+
+def test_bits_no_proxy_env(
+    clean_proxy_env,
+    monkeypatch,
+    localserver,
+    tmp_path,
+):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("NO_PROXY", "anything")
+    request = UU._Request(
+        localserver + "/1kb",
+        outfile=tmp_path / "direct.txt",
+    )
+
+    UU._bits_urlretrieve(request)
+
+    assert request.outfile.is_file()
+
+
 @pytest.mark.parametrize("url, expect", [pytest.param(*i, id=i[0]) for i in [
     ("https://example.com/", "https://example.com/"),
     ("https://user@example.com/", "https://example.com/"),

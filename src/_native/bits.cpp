@@ -5,6 +5,7 @@
 #include <typeinfo>
 
 #include "helpers.h"
+#include "proxy.h"
 
 #ifdef BITS_INJECT_ERROR
 static HRESULT _inject_hr[]
@@ -205,7 +206,18 @@ PyObject *bits_serialize_job(PyObject *, PyObject *args, PyObject *kwargs) {
 }
 
 
-static HRESULT _job_setproxy(IBackgroundCopyJob *job) {
+static HRESULT _job_setproxy(IBackgroundCopyJob *job, const ProxySettings *settings) {
+    if (settings->mode == PROXY_MODE_DIRECT) {
+        return job->SetProxySettings(BG_JOB_PROXY_USAGE_NO_PROXY, NULL, NULL);
+    }
+    if (settings->mode == PROXY_MODE_OVERRIDE) {
+        return job->SetProxySettings(
+            BG_JOB_PROXY_USAGE_OVERRIDE,
+            settings->proxy_list,
+            NULL
+        );
+    }
+
     WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxy_config = { 0 };
     if (WinHttpGetIEProxyConfigForCurrentUser(&proxy_config)) {
         if (proxy_config.lpszProxy || proxy_config.lpszAutoConfigUrl || proxy_config.fAutoDetect) {
@@ -257,18 +269,21 @@ static HRESULT _job_setcredentials(
     return hr;
 }
 
-// (conn, name, url, path, [username], [password]) -> job
+// (conn, name, url, path, [username], [password], [proxy_settings]) -> job
 PyObject *bits_begin(PyObject *, PyObject *args, PyObject *kwargs) {
-    static const char * keywords[] = {"conn", "name", "url", "path", "username", "password", NULL};
+    static const char * keywords[] = {
+        "conn", "name", "url", "path", "username", "password", "proxy_settings", NULL
+    };
     IBackgroundCopyManager *bcm = NULL;
     wchar_t *name = NULL;
     wchar_t *url = NULL;
     wchar_t *path = NULL;
     wchar_t *username = NULL;
     wchar_t *password = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&O&O&O&|O&O&:bits_begin", keywords,
+    PyObject *proxy_settings_obj = Py_None;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&O&O&O&|O&O&O:bits_begin", keywords,
         from_capsule<IBackgroundCopyManager>, &bcm, as_utf16, &name, as_utf16, &url, as_utf16, &path,
-        as_utf16, &username, as_utf16, &password
+        as_utf16, &username, as_utf16, &password, &proxy_settings_obj
     )) {
         return NULL;
     }
@@ -276,20 +291,28 @@ PyObject *bits_begin(PyObject *, PyObject *args, PyObject *kwargs) {
     PyObject *r = NULL;
     GUID jobId;
     IBackgroundCopyJob* job = NULL;
+    ProxySettings proxy_settings = {};
     HRESULT hr;
+    if (!proxy_settings_parse(proxy_settings_obj, &proxy_settings)) {
+        goto done;
+    }
     if (FAILED(hr = _inject_hr[0])
         || FAILED(hr = bcm->CreateJob(name, BG_JOB_TYPE_DOWNLOAD, &jobId, &job))) {
         error_from_bits_hr(bcm, hr, "Creating download job");
         goto done;
     }
-    if (FAILED(hr = _job_setproxy(job))) {
+    if (FAILED(hr = _job_setproxy(job, &proxy_settings))) {
         error_from_bits_hr(bcm, hr, "Setting proxy");
         goto done;
     }
-    // Setting proxy credentials to NULL will automatically infer credentials
-    // if needed. It's a good default (provided users have not configured a
-    // malicious proxy server, which we can't do anything about here anyway).
-    if (FAILED(hr = _job_setcredentials(job, BG_AUTH_TARGET_PROXY, NULL, NULL))) {
+    // Explicit proxy credentials come from the configured proxy URL. NULL
+    // automatically infers credentials if needed, which remains the default.
+    if (FAILED(hr = _job_setcredentials(
+        job,
+        BG_AUTH_TARGET_PROXY,
+        proxy_settings.username,
+        proxy_settings.password
+    ))) {
         error_from_bits_hr(bcm, hr, "Setting proxy credentials");
         goto done;
     }
@@ -317,6 +340,7 @@ done:
     if (job) {
         job->Release();
     }
+    proxy_settings_clear(&proxy_settings);
     PyMem_Free(path);
     PyMem_Free(url);
     PyMem_Free(name);

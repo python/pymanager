@@ -5,6 +5,7 @@
 #include <netlistmgr.h>
 
 #include "helpers.h"
+#include "proxy.h"
 
 #pragma comment(lib, "winhttp.lib")
 
@@ -191,7 +192,12 @@ extern "C" {
 #define CHECK_WINHTTP(x) if (!x) { winhttp_error(); goto exit; }
 
 
-static bool winhttp_apply_proxy(HINTERNET hSession, HINTERNET hRequest, const wchar_t *url) {
+static bool winhttp_apply_proxy(
+    HINTERNET hSession,
+    HINTERNET hRequest,
+    const wchar_t *url,
+    const ProxySettings *settings
+) {
     bool result = false;
     WINHTTP_CURRENT_USER_IE_PROXY_CONFIG proxy_config = { 0 };
     WINHTTP_AUTOPROXY_OPTIONS proxy_opt = {
@@ -199,6 +205,42 @@ static bool winhttp_apply_proxy(HINTERNET hSession, HINTERNET hRequest, const wc
         .fAutoLogonIfChallenged = TRUE
     };
     WINHTTP_PROXY_INFO proxy_info = { 0 };
+
+    if (settings->mode == PROXY_MODE_DIRECT) {
+        // The session may have inherited a static WinHTTP proxy, so explicitly
+        // override it rather than relying on the absence of request settings.
+        proxy_info.dwAccessType = WINHTTP_ACCESS_TYPE_NO_PROXY;
+        CHECK_WINHTTP(WinHttpSetOption(
+            hRequest,
+            WINHTTP_OPTION_PROXY,
+            &proxy_info,
+            sizeof(proxy_info)
+        ));
+        result = true;
+        goto exit;
+    }
+
+    if (settings->mode == PROXY_MODE_OVERRIDE) {
+        proxy_info.dwAccessType = WINHTTP_ACCESS_TYPE_NAMED_PROXY;
+        proxy_info.lpszProxy = settings->proxy_list;
+
+        CHECK_WINHTTP(WinHttpSetCredentials(
+            hRequest,
+            WINHTTP_AUTH_TARGET_PROXY,
+            settings->username ? WINHTTP_AUTH_SCHEME_BASIC : WINHTTP_AUTH_SCHEME_NEGOTIATE,
+            settings->username,
+            settings->username ? settings->password : NULL,
+            NULL
+        ));
+        CHECK_WINHTTP(WinHttpSetOption(
+            hRequest,
+            WINHTTP_OPTION_PROXY,
+            &proxy_info,
+            sizeof(proxy_info)
+        ));
+        result = true;
+        goto exit;
+    }
 
     // First load the global-ish config settings
     if (!WinHttpGetIEProxyConfigForCurrentUser(&proxy_config)) {
@@ -248,10 +290,10 @@ static bool winhttp_apply_proxy(HINTERNET hSession, HINTERNET hRequest, const wc
 
     result = true;
 exit:
-    if (proxy_info.lpszProxy) {
+    if (settings->mode == PROXY_MODE_AUTO && proxy_info.lpszProxy) {
         GlobalFree((HGLOBAL)proxy_info.lpszProxy);
     }
-    if (proxy_info.lpszProxyBypass) {
+    if (settings->mode == PROXY_MODE_AUTO && proxy_info.lpszProxyBypass) {
         GlobalFree((HGLOBAL)proxy_info.lpszProxyBypass);
     }
     if (proxy_opt.lpszAutoConfigUrl) {
@@ -262,13 +304,17 @@ exit:
 
 
 PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
-    static const char * keywords[] = {"url", "method", "headers", "accepts", "chunksize", "on_progress", "on_cred_request", NULL};
+    static const char * keywords[] = {
+        "url", "method", "headers", "accepts", "chunksize",
+        "on_progress", "on_cred_request", "proxy_settings", NULL
+    };
     wchar_t *url = NULL;
     wchar_t *method = NULL;
     wchar_t *headers = NULL;
     wchar_t *accepts = NULL;
     PyObject *on_progress = NULL;
     PyObject *on_cred_request = NULL;
+    PyObject *proxy_settings_obj = Py_None;
 
     PyObject *result = NULL;
     URL_COMPONENTS url_parts = { sizeof(URL_COMPONENTS) };
@@ -276,7 +322,8 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     HINTERNET hConnection = NULL;
     HINTERNET hRequest = NULL;
     DWORD opt = 0;
-    LPCWSTR *accepts_array;
+    LPCWSTR *accepts_array = NULL;
+    ProxySettings proxy_settings = {};
 
     Py_ssize_t chunksize = 65536;
     DWORD status_code = 0;
@@ -289,9 +336,13 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     wchar_t *user = NULL;
     wchar_t *pass = NULL;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&O&O&O&|nOO:winhttp_urlopen", keywords,
-        as_utf16, &url, as_utf16, &method, as_utf16, &headers, as_utf16, &accepts, &chunksize, &on_progress, &on_cred_request)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O&O&O&O&|nOOO:winhttp_urlopen", keywords,
+        as_utf16, &url, as_utf16, &method, as_utf16, &headers, as_utf16, &accepts,
+        &chunksize, &on_progress, &on_cred_request, &proxy_settings_obj)) {
         return NULL;
+    }
+    if (!proxy_settings_parse(proxy_settings_obj, &proxy_settings)) {
+        goto exit;
     }
 
     if (on_progress && !PyObject_IsTrue(on_progress)) {
@@ -370,7 +421,7 @@ PyObject *winhttp_urlopen(PyObject *, PyObject *args, PyObject *kwargs) {
     );
     CHECK_WINHTTP(hRequest);
 
-    CHECK_WINHTTP(winhttp_apply_proxy(hSession, hRequest, url));
+    CHECK_WINHTTP(winhttp_apply_proxy(hSession, hRequest, url, &proxy_settings));
 
     opt = WINHTTP_DECOMPRESSION_FLAG_ALL;
     CHECK_WINHTTP(WinHttpSetOption(
@@ -514,6 +565,7 @@ exit:
     }
     PyMem_Free(user);
     PyMem_Free(pass);
+    proxy_settings_clear(&proxy_settings);
     PyMem_Free(hostname);
     PyMem_Free(urlpath);
     PyMem_Free(accepts_array);

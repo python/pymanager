@@ -66,8 +66,6 @@ PROXY_MODE_OVERRIDE = 2
 
 
 class _ProxySettings:
-    __slots__ = ("mode", "proxy_list", "powershell_proxy", "username", "password")
-
     def __init__(
         self,
         mode=PROXY_MODE_AUTO,

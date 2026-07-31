@@ -6,6 +6,11 @@ from copy import copy
 from manage.exceptions import FilesInUseError
 from manage.fsutils import atomic_unlink, ensure_tree, rmtree, unlink
 
+try:
+    import _winapi
+except ImportError:
+    _winapi = None
+
 @pytest.fixture
 def tree(tmp_path):
     a = tmp_path / "a"
@@ -56,6 +61,38 @@ def test_unlink_with_rename(tree, monkeypatch):
 def test_rmtree(tree):
     rmtree(tree)
     assert not tree.exists()
+
+
+@pytest.mark.skipif(_winapi is None, reason="requires _winapi")
+def test_rmtree_junction(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    target_file = target / "preserve.txt"
+    target_file.write_bytes(b"preserve")
+    junction = tmp_path / "junction"
+    _winapi.CreateJunction(str(target), str(junction))
+
+    rmtree(junction)
+
+    assert not junction.exists()
+    assert target_file.read_bytes() == b"preserve"
+
+
+@pytest.mark.skipif(_winapi is None, reason="requires _winapi")
+def test_rmtree_nested_junction(tmp_path):
+    target = tmp_path / "target"
+    target.mkdir()
+    target_file = target / "preserve.txt"
+    target_file.write_bytes(b"preserve")
+    root = tmp_path / "root"
+    root.mkdir()
+    junction = root / "junction"
+    _winapi.CreateJunction(str(target), str(junction))
+
+    rmtree(root)
+
+    assert not root.exists()
+    assert target_file.read_bytes() == b"preserve"
 
 
 def test_atomic_unlink(tree):

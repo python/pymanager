@@ -21,13 +21,16 @@ def ensure_tree(path, overwrite_files=True):
         path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def _rglob(root):
+def _rglob(root, follow_links=True):
     q = [root]
     while q:
         r = q.pop(0)
         for f in os.scandir(r):
             p = r / f.name
-            if f.is_dir():
+            is_dir = f.is_dir(follow_symlinks=follow_links)
+            if not follow_links and f.is_junction():
+                is_dir = False
+            if is_dir:
                 q.append(p)
                 yield p, None
             else:
@@ -92,6 +95,13 @@ def rmtree(path, after_5s_warning=None, remove_ext_first=()):
 
     if isinstance(path, (str, bytes)):
         path = Path(path)
+    if os.path.islink(path):
+        unlink(path, after_5s_warning=after_5s_warning)
+        return
+    if os.path.isjunction(path):
+        LOGGER.debug("Removing junction without traversing it: %s", path)
+        _rmdir(path, on_fail=lambda p: LOGGER.warn("Failed to remove %s", p))
+        return
     if not path.is_dir():
         if path.is_file():
             unlink(path)
@@ -131,7 +141,7 @@ def rmtree(path, after_5s_warning=None, remove_ext_first=()):
 
     to_rmdir = [path]
     to_unlink = []
-    for d, f in _rglob(path):
+    for d, f in _rglob(path, follow_links=False):
         if after_5s_warning and (time.monotonic() - start) > 5:
             LOGGER.warn(after_5s_warning)
             after_5s_warning = None

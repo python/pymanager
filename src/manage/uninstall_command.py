@@ -86,6 +86,7 @@ def execute(cmd):
         if not cmd.ask_yn("Uninstall all runtimes?"):
             LOGGER.debug("END uninstall_command.execute")
             return
+        installs_in_use = set()
         for i in installed:
             LOGGER.info("Purging %s from %s", i["display-name"], i["prefix"])
             try:
@@ -97,6 +98,7 @@ def execute(cmd):
             except FilesInUseError:
                 LOGGER.warn("Unable to purge %s because it is still in use.",
                             i["display-name"])
+                installs_in_use.add(Path(i["prefix"]))
                 continue
         LOGGER.info("Purging saved downloads from %s", cmd.download_dir)
         rmtree(cmd.download_dir, after_5s_warning=warn_msg.format("cached downloads"))
@@ -106,6 +108,14 @@ def execute(cmd):
         for _, cleanup in SHORTCUT_HANDLERS.values():
             if cleanup:
                 cleanup(cmd, [])
+        unknown = [p for p in _iterdir(cmd.install_dir)
+                   if p not in installs_in_use]
+        if unknown:
+            LOGGER.info("Purging unrecognized files from %s", cmd.install_dir)
+            for p in unknown:
+                rmtree(p, after_5s_warning=warn_msg.format(
+                    "unrecognized files"
+                ))
         LOGGER.debug("END uninstall_command.execute")
         return
 

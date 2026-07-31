@@ -1,11 +1,15 @@
 import pytest
 import shutil
-import _winapi
 
 from copy import copy
 
 from manage.exceptions import FilesInUseError
 from manage.fsutils import atomic_unlink, ensure_tree, rmtree, unlink
+
+try:
+    import _winapi
+except ImportError:
+    _winapi = None
 
 @pytest.fixture
 def tree(tmp_path):
@@ -59,6 +63,7 @@ def test_rmtree(tree):
     assert not tree.exists()
 
 
+@pytest.mark.skipif(_winapi is None, reason="requires _winapi")
 def test_rmtree_junction(tmp_path):
     target = tmp_path / "target"
     target.mkdir()
@@ -73,6 +78,7 @@ def test_rmtree_junction(tmp_path):
     assert target_file.read_bytes() == b"preserve"
 
 
+@pytest.mark.skipif(_winapi is None, reason="requires _winapi")
 def test_rmtree_nested_junction(tmp_path):
     target = tmp_path / "target"
     target.mkdir()

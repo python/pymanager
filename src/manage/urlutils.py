@@ -60,6 +60,80 @@ ENABLE_POWERSHELL = os.getenv("PYMANAGER_ENABLE_POWERSHELL_DOWNLOAD", "1").lower
 
 SUPPORTED_SCHEMES = "http".casefold(), "https".casefold(), "file".casefold()
 
+PROXY_MODE_AUTO = 0
+PROXY_MODE_DIRECT = 1
+PROXY_MODE_OVERRIDE = 2
+
+
+class _ProxySettings:
+    def __init__(
+        self,
+        mode=PROXY_MODE_AUTO,
+        proxy_list=None,
+        powershell_proxy=None,
+        username=None,
+        password=None,
+    ):
+        self.mode = mode
+        self.proxy_list = proxy_list
+        self.powershell_proxy = powershell_proxy
+        self.username = username
+        self.password = password
+
+    def as_native(self):
+        return self.mode, self.proxy_list, self.username, self.password
+
+
+def _parse_proxy(value):
+    parts = list(winhttp_urlsplit(value if "://" in value else f"http://{value}"))
+    if not parts[U_NETLOC]:
+        raise ValueError("Proxy URL does not contain a host")
+
+    has_credentials = parts[U_USERNAME] is not None or parts[U_PASSWORD] is not None
+    credentials = None
+    if has_credentials:
+        credentials = parts[U_USERNAME] or "", parts[U_PASSWORD] or ""
+
+    parts[U_USERNAME] = None
+    parts[U_PASSWORD] = None
+    parts[U_PATH] = ""
+    parts[U_EXTRA] = ""
+    proxy = winhttp_urlunsplit(*parts).removesuffix("/")
+    return proxy, credentials
+
+
+def _proxy_settings_from_env():
+    if os.getenv("NO_PROXY"):
+        return _ProxySettings(mode=PROXY_MODE_DIRECT)
+
+    http_value = os.getenv("HTTP_PROXY")
+    https_value = os.getenv("HTTPS_PROXY")
+    if not http_value and not https_value:
+        return _ProxySettings()
+
+    http_proxy = http_credentials = None
+    https_proxy = https_credentials = None
+    if http_value:
+        http_proxy, http_credentials = _parse_proxy(http_value)
+    if https_value:
+        https_proxy, https_credentials = _parse_proxy(https_value)
+
+    proxy_list = " ".join(
+        value for value in (
+            f"http={http_proxy}" if http_proxy else None,
+            f"https={https_proxy}" if https_proxy else None,
+        ) if value
+    )
+    credentials = https_credentials or http_credentials or (None, None)
+    return _ProxySettings(
+        mode=PROXY_MODE_OVERRIDE,
+        proxy_list=proxy_list,
+        powershell_proxy=https_proxy or http_proxy,
+        username=credentials[0],
+        password=credentials[1],
+    )
+
+
 class NoInternetError(Exception):
     pass
 
@@ -73,6 +147,7 @@ class _Request:
         self.username = None
         self.password = None
         self.outfile = Path(outfile) if outfile else None
+        self.proxy_settings = _proxy_settings_from_env()
         self._on_progress = None
         self._on_auth_request = None
 
@@ -127,7 +202,13 @@ def _bits_urlretrieve(request):
         if not job:
             LOGGER.debug("Starting new BITS job: %s -> %s", request, outfile)
             ensure_tree(outfile)
-            job = bits_begin(bits, PurePath(outfile).name, request.url, outfile)
+            job = bits_begin(
+                bits,
+                PurePath(outfile).name,
+                request.url,
+                outfile,
+                proxy_settings=request.proxy_settings.as_native(),
+            )
             LOGGER.debug("Writing %s", jobfile)
             jobfile.write_bytes(bits_serialize_job(bits, job))
 
@@ -173,7 +254,8 @@ def _winhttp_urlopen(request):
     LOGGER.debug("winhttp_urlopen: %s", request)
     try:
         data = winhttp_urlopen(request.url, method, header_str, accept,
-            request.chunksize, request.on_progress, request.on_auth_request)
+            request.chunksize, request.on_progress, request.on_auth_request,
+            request.proxy_settings.as_native())
     except OSError as ex:
         if ex.winerror == 0x00002EE7:
             LOGGER.debug("winhttp_isconnected: %s", winhttp_isconnected())
@@ -295,6 +377,23 @@ def _powershell_urlretrieve(request):
 $url = $env:PYMANAGER_URL
 $outfile = $env:PYMANAGER_OUTFILE
 $method = $env:PYMANAGER_METHOD
+$proxyMode = $env:PYMANAGER_PROXY_MODE
+$proxy = $env:PYMANAGER_PROXY
+$proxyUser = $env:PYMANAGER_PROXY_USERNAME
+$proxyPassword = $env:PYMANAGER_PROXY_PASSWORD
+$proxyHasCredentials = $env:PYMANAGER_PROXY_HAS_CREDENTIALS -eq "1"
+$proxyArgs = @{}
+if ($proxyMode -eq "direct") {
+    [System.Net.WebRequest]::DefaultWebProxy = [System.Net.WebProxy]::new()
+} elseif ($proxyMode -eq "override") {
+    $proxyArgs["Proxy"] = [Uri]$proxy
+    if ($proxyHasCredentials) {
+        $securePassword = ConvertTo-SecureString $proxyPassword -AsPlainText -Force
+        $proxyArgs["ProxyCredential"] = [pscredential]::new($proxyUser, $securePassword)
+    } else {
+        $proxyArgs["ProxyUseDefaultCredentials"] = $true
+    }
+}
 $headersObj = ConvertFrom-Json $env:PYMANAGER_HEADERS
 $headers = @{}
 if ($headersObj -ne $null) {
@@ -308,7 +407,8 @@ $r = Invoke-WebRequest -Uri $url -UseBasicParsing `
     -Headers $headers `
     -UseDefaultCredentials `
     -Method $method `
-    -OutFile $outfile
+    -OutFile $outfile `
+    @proxyArgs
 """
     LOGGER.debug("PowerShell download invoked (env-based)")
     env = os.environ.copy()
@@ -317,6 +417,23 @@ $r = Invoke-WebRequest -Uri $url -UseBasicParsing `
         "PYMANAGER_OUTFILE": str(request.outfile),
         "PYMANAGER_METHOD": request.method,
         "PYMANAGER_HEADERS": json.dumps(headers),
+        "PYMANAGER_PROXY_MODE": {
+            PROXY_MODE_AUTO: "auto",
+            PROXY_MODE_DIRECT: "direct",
+            PROXY_MODE_OVERRIDE: "override",
+        }[request.proxy_settings.mode],
+        "PYMANAGER_PROXY": request.proxy_settings.powershell_proxy or "",
+        "PYMANAGER_PROXY_USERNAME": request.proxy_settings.username or "",
+        "PYMANAGER_PROXY_PASSWORD": request.proxy_settings.password or "",
+        "PYMANAGER_PROXY_HAS_CREDENTIALS": (
+            "1" if any(
+                value is not None
+                for value in (
+                    request.proxy_settings.username,
+                    request.proxy_settings.password,
+                )
+            ) else "0"
+        ),
     })
     with subprocess.Popen(
         [powershell,

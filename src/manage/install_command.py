@@ -137,7 +137,13 @@ def download_package(cmd, install, dest, cache, *, on_progress=None, urlopen=_ur
         return None
 
     ensure_tree(dest)
-    urlretrieve(install["url"], dest, on_progress=on_progress, on_auth_request=_find_creds)
+    urlretrieve(
+        install["url"],
+        dest,
+        on_progress=on_progress,
+        on_auth_request=_find_creds,
+        on_cancel=lambda: cmd.ask_yn("Abort download?"),
+    )
     LOGGER.debug("Downloaded to %s", dest)
     return dest
 

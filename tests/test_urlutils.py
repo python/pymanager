@@ -421,6 +421,51 @@ def test_bits_urlretrieve_auth(local_withauth, tmp_path):
     assert dest.read_bytes() == b"Basic placeholder:placeholder"
 
 
+@pytest.mark.parametrize("cancel,cancel_error", [
+    (False, False),
+    (True, False),
+    (True, True),
+])
+def test_bits_urlretrieve_keyboard_interrupt(
+    monkeypatch, tmp_path, cancel, cancel_error
+):
+    bits = object()
+    job = object()
+    cancelled = []
+    cancel_requested = []
+
+    monkeypatch.setattr(_native, "coinitialize", lambda: None)
+    monkeypatch.setattr(_native, "bits_connect", lambda: bits)
+    monkeypatch.setattr(_native, "bits_begin", lambda *a, **k: job)
+    monkeypatch.setattr(_native, "bits_serialize_job", lambda *a: b"job-id")
+
+    def bits_get_progress(*args):
+        raise KeyboardInterrupt()
+
+    def bits_cancel(*args):
+        cancelled.append(args)
+        if cancel_error:
+            raise OSError()
+
+    monkeypatch.setattr(_native, "bits_get_progress", bits_get_progress)
+    monkeypatch.setattr(_native, "bits_cancel", bits_cancel)
+
+    request = UU._Request("https://example.com/download")
+    request.outfile = tmp_path / "download.zip"
+    progress = []
+    request._on_progress = progress.append
+    request._on_cancel = lambda: cancel_requested.append(True) or cancel
+    jobfile = request.outfile.with_suffix(".job")
+
+    with pytest.raises(KeyboardInterrupt):
+        UU._bits_urlretrieve(request)
+
+    assert cancel_requested == [True]
+    assert progress == [None]
+    assert bool(cancelled) == cancel
+    assert jobfile.is_file() == (not cancel or cancel_error)
+
+
 @pytest.fixture
 def inject_error():
     try:

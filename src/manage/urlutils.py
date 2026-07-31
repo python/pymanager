@@ -150,6 +150,7 @@ class _Request:
         self.proxy_settings = _proxy_settings_from_env()
         self._on_progress = None
         self._on_auth_request = None
+        self._on_cancel = None
 
     def __str__(self):
         return sanitise_url(self.url)
@@ -166,6 +167,11 @@ class _Request:
         if self.username or self.password:
             return self.username, self.password
         return None
+
+    def on_cancel(self):
+        if self._on_cancel:
+            return self._on_cancel()
+        return False
 
 
 def _bits_urlretrieve(request):
@@ -234,6 +240,18 @@ def _bits_urlretrieve(request):
                 request.on_progress(progress)
             last_progress = progress
             time.sleep(0.1)
+    except KeyboardInterrupt:
+        request.on_progress(None)
+        if job and request.on_cancel():
+            try:
+                bits_cancel(bits, job)
+            except OSError:
+                LOGGER.warn("Failed to cancel background download.")
+                LOGGER.debug("ERROR:", exc_info=True)
+            else:
+                if jobfile.is_file():
+                    unlink(jobfile)
+        raise
     except OSError as ex:
         if job:
             bits_cancel(bits, job)
@@ -542,7 +560,8 @@ def urlopen(url, method="GET", headers={}, on_progress=None, on_auth_request=Non
     raise RuntimeError("Unable to download from the internet")
 
 
-def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024, on_progress=None, on_auth_request=None):
+def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024,
+                on_progress=None, on_auth_request=None, on_cancel=None):
     scheme, sep, path = url.partition("://")
     if not sep:
         scheme = "file"
@@ -574,6 +593,7 @@ def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024, on_
     request.chunksize = chunksize
     request._on_progress = on_progress
     request._on_auth_request = on_auth_request
+    request._on_cancel = on_cancel
 
     first_error = None
 

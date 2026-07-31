@@ -5,6 +5,7 @@ from pathlib import Path, PurePath
 
 from manage import install_command as IC
 from manage import installs
+from manage.commands import BaseCommand
 from manage.exceptions import NoInstallFoundError
 from manage.logging import LOGGER
 
@@ -71,6 +72,33 @@ def test_merge_existing_index(tmp_path):
         {"id": "test-1", "url": "test-file-1.zip"},
         {"id": "test-3", "url": "test-file-3.zip"},
     ]
+
+
+def test_download_package_yes_aborts_background_download(tmp_path):
+    class Cmd:
+        force = False
+        bundled_dir = None
+        source = "https://example.com/index.json"
+        confirm = False
+        _ask = BaseCommand._ask
+        ask_yn = BaseCommand.ask_yn
+
+    def urlretrieve(url, dest, **kwargs):
+        assert url == "https://example.com/download.zip"
+        assert kwargs["on_cancel"]() is True
+        dest.write_bytes(b"download")
+
+    dest = tmp_path / "download.zip"
+    result = IC.download_package(
+        Cmd(),
+        {"url": "https://example.com/download.zip"},
+        dest,
+        {},
+        urlretrieve=urlretrieve,
+    )
+
+    assert result == dest
+    assert dest.read_bytes() == b"download"
 
 
 def test_merge_existing_index_not_found(tmp_path):

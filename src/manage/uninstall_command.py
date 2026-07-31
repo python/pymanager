@@ -17,6 +17,35 @@ def _iterdir(p, only_files=False):
         return []
 
 
+def _is_relative_to(path, root):
+    path = Path(path)
+    root = Path(root)
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return False
+    return root / relative == path
+
+
+def _remove_unrecognized(root, preserve, warn_msg):
+    to_remove = []
+    for path in _iterdir(root):
+        if path in preserve:
+            continue
+        nested_preserve = {p for p in preserve if _is_relative_to(p, path)}
+        if nested_preserve:
+            _remove_unrecognized(path, nested_preserve, warn_msg)
+        else:
+            to_remove.append(path)
+
+    if to_remove:
+        LOGGER.info("Removing cached and unrecognized files from %s", root)
+        for path in to_remove:
+            rmtree(path, after_5s_warning=warn_msg.format(
+                "cached and unrecognized files"
+            ))
+
+
 def _do_purge_global_dir(global_dir, warn_msg, *, hive=None, subkey="Environment"):
     import winreg
 
@@ -76,11 +105,44 @@ def execute(cmd):
         "Ensure no Python interpreters are running, and continue to wait " +
         "or press Ctrl+C to abort.")
 
+    if cmd.purge and cmd.cleanup:
+        raise ArgumentError("--purge and --cleanup cannot be combined.")
+    if (cmd.purge or cmd.cleanup) and cmd.args:
+        option = "--purge" if cmd.purge else "--cleanup"
+        raise ArgumentError(f"{option} does not accept runtime tags.")
+
     # Clear any active venv so we don't try to delete it
     cmd.virtual_env = None
     installed = list(cmd.get_installs())
 
     cmd.tags = []
+
+    if cmd.cleanup:
+        prompt = ("Clean up cached files and unrecognized content? "
+                  "This will preserve recognized runtimes.")
+        if not cmd.ask_yn(prompt):
+            LOGGER.debug("END uninstall_command.execute")
+            return
+
+        recognized = {Path(i["prefix"]) for i in installed}
+        roots = {Path(cmd.install_dir), Path(cmd.download_dir)}
+        for root in roots:
+            if any(_is_relative_to(root, other)
+                   for other in roots if other != root):
+                continue
+            if any(_is_relative_to(path, root) for path in recognized):
+                _remove_unrecognized(root, recognized, warn_msg)
+            else:
+                LOGGER.info(
+                    "Removing cached and unrecognized files from %s", root
+                )
+                rmtree(root, after_5s_warning=warn_msg.format(
+                    "cached and unrecognized files"
+                ))
+
+        update_all_shortcuts(cmd)
+        LOGGER.debug("END uninstall_command.execute")
+        return
 
     if cmd.purge:
         if not cmd.ask_yn("Uninstall all runtimes?"):

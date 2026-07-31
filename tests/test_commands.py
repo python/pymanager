@@ -75,6 +75,21 @@ def test_legacy_list_command_args():
         commands.ListLegacyCommand(["--list", "--help"])
 
 
+def test_uninstall_cleanup_arg(assert_log):
+    cmd = commands.UninstallCommand(
+        ["uninstall", "--cleanup", "--yes"]
+    )
+
+    assert cmd.cleanup
+    assert not cmd.purge
+    assert not cmd.confirm
+    assert not cmd.args
+
+    prompt = "This prompt should be bypassed"
+    assert cmd.ask_yn(prompt)
+    assert_log(assert_log.not_logged(prompt))
+
+
 def test_legacy_listpaths_command_help(assert_log, patched_installs):
     cmd = commands.ListPathsLegacyCommand(["--list-paths"])
     cmd.help()

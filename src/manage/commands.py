@@ -207,6 +207,7 @@ CLI_SCHEMA = {
     },
 
     "uninstall": {
+        "cleanup": ("cleanup", True),
         "purge": ("purge", True),
         "by-id": ("by_id", True),
         # Undocumented aliases so that install and uninstall can be mirrored
@@ -877,7 +878,8 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
 class UninstallCommand(BaseCommand):
     CMD = "uninstall"
     HELP_LINE = ("Remove one or more runtimes from your machine. Pass " +
-                 "!B!--purge!W! to clean up all runtimes and cached files.")
+                 "!B!--cleanup!W! to remove cached and unrecognized files while " +
+                 "preserving recognized runtimes, or !B!--purge!W! to remove all.")
     USAGE_LINE = "uninstall !B!<TAG>!W!"
     HELP_TEXT = r"""!G!Uninstall command!W!
 Removes one or more runtimes from your machine.
@@ -885,7 +887,10 @@ Removes one or more runtimes from your machine.
 > py uninstall !B![options] <TAG> [<TAG>] ...!W!
 
 !G!Options:!W!
-    --purge         Remove all runtimes, shortcuts, and cached files. Ignores tags.
+    --cleanup       Remove cached and unrecognized content while preserving
+                    recognized runtimes. Does not accept tags.
+    --purge         Remove all runtimes, shortcuts, and cached files. Does not
+                    accept tags.
     --by-id         Require TAG to exactly match the install ID. (For advanced use.)
     !B!<TAG> <TAG>!W! ... One or more runtimes to uninstall (Company\Tag format)
                     Each tag will only remove a single runtime, even if it matches
@@ -897,11 +902,15 @@ Removes one or more runtimes from your machine.
 !B!EXAMPLE:!W! Uninstall all runtimes without confirmation
 > py uninstall --yes --purge
 
+!B!EXAMPLE:!W! Clean up cached and unrecognized content
+> py uninstall --cleanup
+
 !B!EXAMPLE:!W! Uninstall all runtimes using their install ID.
 > py uninstall --by-id (py list --only-managed -f=id)
 """
 
     confirm = True
+    cleanup = False
     purge = False
     by_id = False
 

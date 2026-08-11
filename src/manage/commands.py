@@ -472,10 +472,9 @@ class BaseCommand:
 
         if not self.default_platform:
             from _native import get_processor_architecture
-            LOGGER.debug("Get CPU architecture, its prefix is %s", get_processor_architecture())
+            self.default_platform = get_processor_architecture()
+            LOGGER.debug("Default to current CPU architecture: %s", self.default_platform)
 
-            # Currently, we always default to -64.
-            self.default_platform = "-64"
 
         # If our command has any config, load them to override anything that
         # wasn't set on the command line.

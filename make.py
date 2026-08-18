@@ -42,7 +42,7 @@ run([sys.executable, "-m", "pymsbuild", "wheel"],
     env={**os.environ, "BUILD_SOURCEBRANCH": ref})
 
 # Bundle current latest release
-run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", TEMP / "bundle", "default"])
+run([LAYOUT / "py-manager.exe", "install", "-v", "-f", "--download", TEMP / "bundle", "3-64", "3-arm64"])
 (LAYOUT / "bundled").mkdir(parents=True, exist_ok=True)
 (TEMP / "bundle" / "index.json").rename(LAYOUT / "bundled" / "fallback-index.json")
 for f in (TEMP / "bundle").iterdir():

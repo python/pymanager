@@ -1,3 +1,18 @@
+################################################################################
+# HACK: Work around gh-148750 in 3.15
+# In short, encodings is now partially frozen, which means its submodules can
+# only be loaded if they are also frozen or if they are in their default
+# location relative to the executable. For embedded runtimes, this is not true,
+# so we need to patch the __path__ to point at our expected location.
+# This code is very fragile and should not be reused.
+import sys
+import encodings
+for p in sys.path:
+    if p.endswith(".zip"):
+        encodings.__path__[:] = [f"{p}\\encodings"]
+        break
+################################################################################
+
 from .exceptions import (
     ArgumentError,
     AutomaticInstallDisabledError,

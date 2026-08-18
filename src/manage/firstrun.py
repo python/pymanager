@@ -413,9 +413,9 @@ def first_run(cmd):
             LOGGER.print("!Y!The global shortcuts directory is not "
                          "configured.!W!", level=logging.WARN)
             LOGGER.print("\nConfiguring this enables commands like "
-                         "!B!python3.14.exe!W! to run from your terminal, "
+                         "!B!python3.15.exe!W! to run from your terminal, "
                          "but is not needed for the !B!python!W! or !B!py!W! "
-                         "commands (for example, !B!py -V:3.14!W!).",
+                         "commands (for example, !B!py -V:3.15!W!).",
                          wrap=True)
             LOGGER.print("\nWe can add the directory (!B!%s!W!) to PATH now, "
                          "but you will need to restart your terminal to use "

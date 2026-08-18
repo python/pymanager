@@ -6,7 +6,11 @@ from pymsbuild.dllpack import *
 
 DLL_NAME = "python{0.major}{0.minor}".format(sys.version_info)
 VER_NUM = "{0.major}.{0.minor}.{0.micro}".format(sys.version_info)
-EMBED_URL = f"https://www.python.org/ftp/python/{VER_NUM}/python-{VER_NUM}-embed-amd64.zip"
+if sys.version_info.releaselevel == "candidate":
+    VER_NUM_RC = f"rc{sys.version_info.serial}"
+else:
+    VER_NUM_RC = ""
+EMBED_URL = f"https://www.python.org/ftp/python/{VER_NUM}/python-{VER_NUM}{VER_NUM_RC}-embed-amd64.zip"
 
 def can_embed(tag):
     """Return False if tag doesn't match DLL_NAME and EMBED_URL.

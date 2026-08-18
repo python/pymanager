@@ -78,6 +78,9 @@ stages:
       - group: CPythonTestSign
     - ${{ elseif eq(parameters.SigningCertificate, 'PythonSoftwareFoundation') }}:
       - group: CPythonSign
+    - ${{ else }}:
+      - name: TrustedSigningCertificateSubject
+        value: CN=00000000-0000-0000-0000-000000000000
 
 
     steps:

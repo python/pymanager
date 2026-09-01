@@ -20,16 +20,6 @@ if not hasattr(_native, "coinitialize"):
 _native.coinitialize()
 
 
-################################################################################
-# HACK: Work around gh-148750 in 3.15
-import encodings
-_orig_encodings_path = encodings.__path__[:]
-import manage
-# Importing manage has changed this value because of our hack
-encodings.__path__[:] = _orig_encodings_path
-################################################################################
-
-
 # Importing in order carefully to ensure the variables we override are handled
 # correctly by submodules.
 import manage

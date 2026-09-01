@@ -233,25 +233,24 @@ PyObject *broadcast_settings_change(PyObject *, PyObject *, PyObject *) {
     return Py_GetConstant(Py_CONSTANT_NONE);
 }
 
-typedef enum {
-    CPU_X86     = 0,
-    CPU_X86_64  = 9,
-    CPU_ARM     = 5,
-    CPU_ARM64   = 12,
-    CPU_UNKNOWN = 0xffff
-} CpuArchitecture;
+// We load IsWow64Process2 dynamically to avoid breaking on earlier OS than we
+// officially support. If the API doesn't exist, then we assume -64.
+typedef BOOL (*PIsWow64Process2)(HANDLE, USHORT*, USHORT*);
 
 PyObject *get_processor_architecture(PyObject *, PyObject *, PyObject *) {
-    SYSTEM_INFO system_info;
-    GetNativeSystemInfo(&system_info);
-
-    switch (system_info.wProcessorArchitecture) {
-        case CPU_X86: return PyUnicode_FromString("-32");
-        case CPU_X86_64: return PyUnicode_FromString("-64");
-        case CPU_ARM: return PyUnicode_FromString("-arm");
-        case CPU_ARM64: return PyUnicode_FromString("-arm64");
-        default: return PyUnicode_FromString("-64"); // x86-64
+    USHORT dummy, machine = IMAGE_FILE_MACHINE_AMD64;
+    HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    if (kernel32) {
+        PIsWow64Process2 isWow64Process2 = (PIsWow64Process2)GetProcAddress(kernel32, "IsWow64Process2");
+        if (!isWow64Process2 || !isWow64Process2(0, &dummy, &machine)) {
+            machine = IMAGE_FILE_MACHINE_AMD64;
+        }
     }
+    switch (machine) {
+        case IMAGE_FILE_MACHINE_I386: return PyUnicode_FromString("-32");
+        case IMAGE_FILE_MACHINE_ARM64: return PyUnicode_FromString("-arm64");
+    }
+    return PyUnicode_FromString("-64");
 }
 
 }

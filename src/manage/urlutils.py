@@ -148,6 +148,7 @@ class _Request:
         self.password = None
         self.outfile = Path(outfile) if outfile else None
         self.proxy_settings = _proxy_settings_from_env()
+        self._download_start = time.monotonic()
         self._on_progress = None
         self._on_auth_request = None
         self._on_cancel = None
@@ -158,6 +159,15 @@ class _Request:
     def on_progress(self, progress):
         if self._on_progress:
             self._on_progress(progress)
+        elif (self._download_start is not None
+              and progress is not None and progress < 100
+              and time.monotonic() - self._download_start > 5):
+            LOGGER.warn(
+                "Downloading %s is taking some time. Please continue to wait, "
+                "or press Ctrl+C to abort.",
+                self,
+            )
+            self._download_start = None
 
     def on_auth_request(self, url=None):
         if url is None:
@@ -236,7 +246,7 @@ def _bits_urlretrieve(request):
                     # Returned HTTP status 404 (0x194)
                     raise FileNotFoundError() from ex
                 raise
-            if progress > last_progress:
+            if progress > last_progress or not request._on_progress:
                 request.on_progress(progress)
             last_progress = progress
             time.sleep(0.1)
@@ -320,6 +330,8 @@ def _urllib_urlopen(request):
                 raise FileNotFoundError from ex
             else:
                 raise
+        if not request._on_progress:
+            request.on_progress(0)
         with r:
             data = r.read()
         request.on_progress(100)
@@ -349,6 +361,8 @@ def _urllib_urlretrieve(request):
                 r = urlopen(req)
             else:
                 raise
+        if not request._on_progress:
+            request.on_progress(0)
         with r:
             progress = 0
             try:
@@ -467,20 +481,23 @@ $r = Invoke-WebRequest -Uri $url -UseBasicParsing `
         stderr=subprocess.STDOUT,
     ) as p:
         request.on_progress(0)
-        start = time.time()
+        start = time.monotonic()
+        timeout = 10.0 if request._on_progress else 1.0
         while True:
             try:
                 try:
-                    out = p.communicate(b'', timeout=10.0)[0].decode("utf-8", "replace")
+                    out = p.communicate(b'', timeout=timeout)[0].decode("utf-8", "replace")
                     if '<S S="Error">Invoke-WebRequest' in out:
                         raise RuntimeError("Powershell download failed:" + out)
                     request.on_progress(100)
                     LOGGER.debug("PowerShell Output: %s", out)
                     return
                 except subprocess.TimeoutExpired:
-                    if not request.outfile.exists():
+                    request.on_progress(0)
+                    elapsed = time.monotonic() - start
+                    if not request.outfile.exists() and elapsed >= 10:
                         # Suppress the original exception to avoid leaking the command
-                        raise subprocess.TimeoutExpired(powershell, int(time.time() - start)) from None
+                        raise subprocess.TimeoutExpired(powershell, int(elapsed)) from None
             except:
                 p.terminate()
                 out = p.communicate()[0]

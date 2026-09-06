@@ -139,6 +139,50 @@ def test_format_table_aliases(assert_log):
     )
 
 
+def test_format_table_aliases_default_platform(assert_log):
+    # https://github.com/python/pymanager/issues/407
+    # Aliases from the online index, in feed order. Each install lists both
+    # the bare alias and its platform-specific variant; format_table shows
+    # only the first occurrence of each name, so the -64 install is left
+    # with lone "-64" names. Those must still render as optional ("[-64]"),
+    # mirroring how the Tag column marks the default platform.
+    import types
+
+    def online_aliases(plat):
+        return [
+            {"name": "python3.15.exe", "target": "python.exe"},
+            {"name": f"python3.15{plat}.exe", "target": "python.exe"},
+            {"name": "python3.exe", "target": "python.exe"},
+            {"name": f"python3{plat}.exe", "target": "python.exe"},
+            {"name": "pythonw3.15.exe", "target": "pythonw.exe", "windowed": 1},
+            {"name": f"pythonw3.15{plat}.exe", "target": "pythonw.exe", "windowed": 1},
+            {"name": "pythonw3.exe", "target": "pythonw.exe", "windowed": 1},
+            {"name": f"pythonw3{plat}.exe", "target": "pythonw.exe", "windowed": 1},
+        ]
+
+    def online_install(tag, plat):
+        return {
+            "company": "PythonCore",
+            "tag": tag,
+            "display-name": "Python 3.15.0rc2",
+            "sort-version": "3.15.0rc2",
+            "alias": online_aliases(plat),
+        }
+
+    cmd = types.SimpleNamespace(default_platform="-64")
+    list_command.format_table(cmd, [
+        online_install("3.15-dev-32", "-32"),
+        online_install("3.15-dev-64", "-64"),
+        online_install("3.15-dev-arm64", "-arm64"),
+    ])
+    assert_log(
+        (r"!B!Tag\s+Name\s+Managed By\s+Version\s+Alias\s*!W!", ()),
+        (r"3\.15-dev-32.*" + re.escape("python[w]3[-32].exe, python[w]3.15[-32].exe"), ()),
+        (r"3\.15-dev\[-64\].*" + re.escape("python[w]3[-64].exe, python[w]3.15[-64].exe"), ()),
+        (r"3\.15-dev-arm64.*" + re.escape("python[w]3-arm64.exe, python[w]3.15-arm64.exe"), ()),
+    )
+
+
 def test_format_table_truncated(assert_log):
     list_command.format_table(None, [
         {

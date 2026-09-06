@@ -6,13 +6,16 @@ from .exceptions import ArgumentError
 LOGGER = logging.LOGGER
 
 
-def _format_alias(i, seen):
+def _format_alias(cmd, i, seen):
     from manage.installs import get_install_alias_names
     aliases = [a for a in i.get("alias", ()) if a["name"].casefold() not in seen]
     seen.update(a["name"].casefold() for a in aliases)
 
     include_w = LOGGER.would_log_to_console(logging.VERBOSE)
-    names = get_install_alias_names(aliases, windowed=include_w)
+    default_platform = cmd.default_platform if cmd else None
+    names = get_install_alias_names(
+        aliases, windowed=include_w, default_platform=default_platform
+    )
     return ", ".join(names)
 
 
@@ -46,7 +49,7 @@ def format_table(cmd, installs):
     seen_alias = set()
     installs = [{
         **i,
-        "alias": _format_alias(i, seen_alias),
+        "alias": _format_alias(cmd, i, seen_alias),
         "sort-version": str(i['sort-version']),
         "default-star": "",
         "tag-with-co": _format_tag_with_co(cmd, i),

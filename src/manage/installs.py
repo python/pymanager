@@ -174,7 +174,7 @@ def _make_alias_name_sortkey(n):
     return re.sub(r"(\d+|\[|\])", _sk_sub, n)
 
 
-def get_install_alias_names(aliases, friendly=True, windowed=True):
+def get_install_alias_names(aliases, friendly=True, windowed=True, default_platform=None):
     if not windowed:
         aliases = [a for a in aliases if not a.get("windowed")]
     if not friendly:
@@ -191,11 +191,17 @@ def get_install_alias_names(aliases, friendly=True, windowed=True):
 
     result = []
     for k, (n1, n2, n3) in seen.items():
+        plat_parts = plats.get(k)
+        plat = _make_opt_part(plat_parts)
+        if default_platform and plat_parts == {default_platform}:
+            # The bare alias was already shown for another install, but the
+            # suffix is still optional when it matches the default platform.
+            plat = f"[{default_platform}]"
         result.append("".join([
             n1,
             _make_opt_part(has_w.get(k)),
             n2,
-            _make_opt_part(plats.get(k)),
+            plat,
             n3,
         ]))
     return sorted(result, key=_make_alias_name_sortkey)

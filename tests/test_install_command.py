@@ -10,6 +10,48 @@ from manage.exceptions import NoInstallFoundError
 from manage.logging import LOGGER
 
 
+@pytest.mark.parametrize("suffix", [".zip", ".nupkg"])
+@pytest.mark.parametrize("repair", [False, True])
+def test_extract_package_streaming(tmp_path, monkeypatch, suffix, repair):
+    """Extract in bounded reads while preserving overwrite and repair behavior."""
+    import zipfile
+
+    package = tmp_path / ("package" + suffix)
+    prefix = tmp_path / "install"
+    prefix.mkdir()
+    existing = prefix / "existing.txt"
+    existing.write_bytes(b"original")
+    data = bytes(range(256)) * 10000
+    archive_prefix = "tools/" if suffix == ".nupkg" else ""
+    with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(archive_prefix + "nested/data.bin", data)
+        zf.writestr(archive_prefix + "empty.txt", b"")
+        zf.writestr(archive_prefix + "existing.txt", b"replacement")
+        if suffix == ".nupkg":
+            zf.writestr("metadata.txt", b"ignored")
+
+    reads = []
+    original_read = zipfile.ZipExtFile.read
+
+    def bounded_read(self, n=-1):
+        assert 0 < n <= 1024 * 1024
+        reads.append(n)
+        return original_read(self, n)
+
+    monkeypatch.setattr(zipfile.ZipExtFile, "read", bounded_read)
+    progress = []
+    IC.extract_package(package, prefix, calculate_dest=Path,
+                       on_progress=progress.append, repair=repair)
+    assert (prefix / "nested/data.bin").read_bytes() == data
+    assert (prefix / "empty.txt").read_bytes() == b""
+    assert existing.read_bytes() == (b"replacement" if repair else b"original")
+    assert not (prefix / "metadata.txt").exists()
+    assert len(reads) >= 4
+    assert progress[0] == 0
+    assert 100 in progress
+    assert (None in progress) == (not repair)
+
+
 def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path):
     class Cmd:
         scratch = {}

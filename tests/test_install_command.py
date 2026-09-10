@@ -246,6 +246,71 @@ def test_write_alias_default(monkeypatch, tmp_path, default):
     assert set(a.target for a in created) == {"p.exe", "pw.exe"}
 
 
+def test_update_all_shortcuts_default_first(tmp_path):
+    # Regression test for https://github.com/python/pymanager/issues/413
+    # When the default install is not first in precedence order (e.g. via
+    # PYTHON_MANAGER_DEFAULT), its entrypoints must still win over the
+    # first install's, so pip and python resolve to the same runtime.
+    prefix_new = Path(tmp_path) / "new"
+    prefix_default = Path(tmp_path) / "default"
+    for prefix in (prefix_new, prefix_default):
+        prefix.mkdir(exist_ok=True, parents=True)
+        (prefix / "python.exe").write_bytes(b"")
+        (prefix / "shared-target.exe").write_bytes(b"")
+
+    class Cmd:
+        global_dir = Path(tmp_path) / "bin"
+        launcher_exe = None
+        scratch = {}
+        enable_shortcut_kinds = disable_shortcut_kinds = None
+        enable_entrypoints = False
+        def get_installs(self):
+            return [
+                {
+                    "id": "new",
+                    "alias": [
+                        {"name": "python3.14.exe", "target": "python.exe"},
+                        {"name": "shared.exe", "target": "shared-target.exe"},
+                    ],
+                    "prefix": prefix_new,
+                },
+                {
+                    "id": "default",
+                    "alias": [
+                        {"name": "python3.13.exe", "target": "python.exe"},
+                        {"name": "shared.exe", "target": "shared-target.exe"},
+                    ],
+                    "default": True,
+                    "prefix": prefix_default,
+                },
+            ]
+
+    created = []
+
+    class AliasUtils:
+        import manage.aliasutils as AU
+        calculate_aliases = staticmethod(AU.calculate_aliases)
+
+        @staticmethod
+        def create_aliases(cmd, aliases, *, allow_link=True):
+            created.extend(aliases)
+
+        @staticmethod
+        def cleanup_aliases(cmd, preserve):
+            pass
+
+    IC.update_all_shortcuts(Cmd(), _aliasutils=AliasUtils)
+
+    shared = [a for a in created if a.name.casefold() == "shared.exe"]
+    assert len(shared) == 2
+    # Default install must come first so first-match-wins picks it
+    assert shared[0].install["id"] == "default"
+    assert shared[1].install["id"] == "new"
+    python_aliases = [a for a in created if a.name in ("python", "pythonw")]
+    assert python_aliases
+    assert all(a.install["id"] == "default" for a in python_aliases)
+
+
 class InstallCommandTestCmd:
     def __init__(self, tmp_path, *args, **kwargs):
         self.args = args

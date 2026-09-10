@@ -207,7 +207,7 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
                 continue
             ensure_tree(dest)
             with zf.open(member) as source, open(dest, "wb") as f:
-                shutil.copyfileobj(source, f, length=1024 * 1024)
+                shutil.copyfileobj(source, f, length=10 * 1024 * 1024)
     on_progress(100)
 
     if warn_out_of_prefix:

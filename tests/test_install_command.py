@@ -21,7 +21,8 @@ def test_extract_package_streaming(tmp_path, monkeypatch, suffix, repair):
     prefix.mkdir()
     existing = prefix / "existing.txt"
     existing.write_bytes(b"original")
-    data = bytes(range(256)) * 10000
+    chunk_size = 10 * 1024 * 1024
+    data = bytes(range(256)) * (chunk_size // 256 + 1)
     archive_prefix = "tools/" if suffix == ".nupkg" else ""
     with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(archive_prefix + "nested/data.bin", data)
@@ -34,9 +35,11 @@ def test_extract_package_streaming(tmp_path, monkeypatch, suffix, repair):
     original_read = zipfile.ZipExtFile.read
 
     def bounded_read(self, n=-1):
-        assert 0 < n <= 1024 * 1024
-        reads.append(n)
-        return original_read(self, n)
+        assert n == chunk_size
+        result = original_read(self, n)
+        if self.name == archive_prefix + "nested/data.bin":
+            reads.append(len(result))
+        return result
 
     monkeypatch.setattr(zipfile.ZipExtFile, "read", bounded_read)
     progress = []
@@ -46,7 +49,7 @@ def test_extract_package_streaming(tmp_path, monkeypatch, suffix, repair):
     assert (prefix / "empty.txt").read_bytes() == b""
     assert existing.read_bytes() == (b"replacement" if repair else b"original")
     assert not (prefix / "metadata.txt").exists()
-    assert len(reads) >= 4
+    assert reads == [chunk_size, 256, 0]
     assert progress[0] == 0
     assert 100 in progress
     assert (None in progress) == (not repair)

@@ -299,7 +299,15 @@ SHORTCUT_HANDLERS = {
 
 def update_all_shortcuts(cmd, *, _aliasutils=None):
     LOGGER.debug("Updating global shortcuts")
-    installs = cmd.get_installs()
+    installs = list(cmd.get_installs())
+    # get_installs() keeps precedence order and only flags the overridden
+    # default, so move it front for first-match-wins alias creation.
+    # Kept here instead of get_installs() to preserve `py list` order.
+    for n, i in enumerate(installs):
+        if i.get("default"):
+            if n:
+                installs.insert(0, installs.pop(n))
+            break
     shortcut_written = {}
 
     if cmd.global_dir:

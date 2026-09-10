@@ -166,6 +166,7 @@ def validate_package(install, dest, *, delete=True):
 
 
 def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, repair=False):
+    import shutil
     import zipfile
 
     LOGGER.debug("Starting extract of %s to %s", package, prefix)
@@ -205,8 +206,8 @@ def extract_package(package, prefix, calculate_dest=Path, *, on_progress=None, r
                 warn_overwrite.append(dest)
                 continue
             ensure_tree(dest)
-            with open(dest, "wb") as f:
-                f.write(zf.read(member))
+            with zf.open(member) as source, open(dest, "wb") as f:
+                shutil.copyfileobj(source, f, length=10 * 1024 * 1024)
     on_progress(100)
 
     if warn_out_of_prefix:

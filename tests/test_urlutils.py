@@ -295,6 +295,145 @@ def local_withauth(localserver):
     yield req
 
 
+def test_slow_download_warning(monkeypatch, assert_log):
+    now = [10.0]
+    monkeypatch.setattr(UU.time, "monotonic", lambda: now[0])
+
+    def urlopen(request):
+        request.on_progress(0)
+        now[0] += 5
+        request.on_progress(50)
+        assert_log(assert_log.not_logged("Downloading .+ is taking some time.+"))
+
+        now[0] += 0.1
+        request.on_progress(50)
+        request.on_progress(75)
+        return b"download"
+
+    monkeypatch.setattr(UU, "ENABLE_WINHTTP", True)
+    monkeypatch.setattr(UU, "_winhttp_urlopen", urlopen)
+
+    result = UU.urlopen("https://user:pass@example.com/index.json")
+
+    assert result == b"download"
+    assert_log(
+        (
+            "Downloading %s is taking some time. Please continue to wait, "
+            "or press Ctrl\\+C to abort.",
+            ["https://example.com/index.json"],
+        ),
+        assert_log.end_of_log(),
+    )
+
+
+def test_slow_download_warning_not_emitted_on_completion(monkeypatch, assert_log):
+    now = [10.0]
+    monkeypatch.setattr(UU.time, "monotonic", lambda: now[0])
+    request = UU._Request("https://example.com/index.json")
+
+    now[0] += 5.1
+    request.on_progress(100)
+
+    assert_log(assert_log.not_logged("Downloading .+ is taking some time.+"))
+
+
+def test_slow_download_warning_suppressed_by_progress(monkeypatch, assert_log):
+    now = [10.0]
+    monkeypatch.setattr(UU.time, "monotonic", lambda: now[0])
+    request = UU._Request("https://example.com/index.json")
+    progress = []
+    request._on_progress = progress.append
+
+    now[0] += 5.1
+    request.on_progress(50)
+
+    assert progress == [50]
+    assert_log(assert_log.not_logged("Downloading .+ is taking some time.+"))
+
+
+def test_powershell_slow_download_warning(monkeypatch, assert_log, tmp_path):
+    import shutil
+    import subprocess
+
+    now = [10.0]
+    monkeypatch.setattr(UU.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(shutil, "which", lambda _: "powershell.exe")
+
+    class Process:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc_info):
+            pass
+
+        def communicate(self, _=None, timeout=None):
+            if timeout is None:
+                return (b"",)
+            now[0] += timeout
+            if now[0] <= 16:
+                raise subprocess.TimeoutExpired("powershell.exe", timeout)
+            return (b"",)
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setattr(subprocess, "Popen", Process)
+
+    request = UU._Request("https://user:pass@example.com/index.json")
+    request.outfile = tmp_path / "index.json"
+
+    UU._powershell_urlretrieve(request)
+
+    warning = (
+        "Downloading %s is taking some time. Please continue to wait, "
+        "or press Ctrl+C to abort."
+    )
+    assert_log(assert_log.skip_until(
+        warning.replace("+", "\\+"),
+        ["https://example.com/index.json"],
+    ))
+    assert sum(1 for msg, _ in assert_log if msg == warning) == 1
+
+
+def test_bits_slow_download_warning(monkeypatch, assert_log, tmp_path):
+    bits = object()
+    job = object()
+    now = [10.0]
+    progress = iter([0] * 52 + [100])
+
+    def sleep(delay):
+        now[0] += delay
+
+    monkeypatch.setattr(UU.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(UU.time, "sleep", sleep)
+    monkeypatch.setattr(_native, "coinitialize", lambda: None, raising=False)
+    monkeypatch.setattr(_native, "bits_connect", lambda: bits, raising=False)
+    monkeypatch.setattr(_native, "bits_begin", lambda *a, **k: job, raising=False)
+    monkeypatch.setattr(_native, "bits_cancel", lambda *a: None, raising=False)
+    monkeypatch.setattr(_native, "bits_get_progress", lambda *a: next(progress), raising=False)
+    monkeypatch.setattr(_native, "bits_retry_with_auth", lambda *a: None, raising=False)
+    monkeypatch.setattr(_native, "bits_find_job", lambda *a: None, raising=False)
+    monkeypatch.setattr(_native, "bits_serialize_job", lambda *a: b"job-id", raising=False)
+
+    request = UU._Request("https://user:pass@example.com/download.zip")
+    request.outfile = tmp_path / "download.zip"
+
+    UU._bits_urlretrieve(request)
+
+    warning = (
+        "Downloading %s is taking some time. Please continue to wait, "
+        "or press Ctrl+C to abort."
+    )
+    assert_log(assert_log.skip_until(
+        warning.replace("+", "\\+"),
+        ["https://example.com/download.zip"],
+    ))
+    assert sum(1 for msg, _ in assert_log if msg == warning) == 1
+
+
 def test_urllib_urlretrieve(local_128kb, tmp_path):
     local_128kb.outfile = dest = tmp_path / "read.txt"
     progress = local_128kb.progress

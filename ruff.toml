@@ -1,0 +1,23 @@
+[lint]
+# When using Ruff to check source correctness, feel free to aggressively add
+# codes to ignore. We don't care to use it as a nitpicker, just a quick way to
+# check for actual incorrect code.
+ignore = [
+    "B006",
+    "BLE001",
+    "C401",
+    "C408",
+    "FURB",
+    "G010",
+    "I001",
+    "PIE808",
+    "PLC",
+    "PLR1730",
+    "RUF012",
+    "RUF015",
+    "RUF022",
+    "RUF059",
+    "SIM",
+    "UP012",
+    "UP032",
+]

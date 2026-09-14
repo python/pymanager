@@ -23,7 +23,7 @@ SCRIPT_CODE = """import sys
 
 # Avoid letting __main__.__file__ lead back to this script
 try:
-    __file__ = None
+    del __file__
 except Exception:
     pass
 

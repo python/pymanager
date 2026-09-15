@@ -371,13 +371,13 @@ def print_cli_shortcuts(cmd):
         if not verbose:
             if i.get("default"):
                 LOGGER.debug("%s will be launched by !G!python.exe!W!", i["display-name"])
-            names = get_install_alias_names(aliases, windowed=True)
+            names = get_install_alias_names(aliases, windowed=True, default_platform=cmd.default_platform)
             LOGGER.debug("%s will be launched by %s", i["display-name"], ", ".join(names))
 
         if not install_matches_any(i, tags):
             continue
 
-        names = get_install_alias_names(aliases, windowed=False)
+        names = get_install_alias_names(aliases, windowed=False, default_platform=cmd.default_platform)
         if i.get("default") and names:
             LOGGER.info("%s will be launched by !G!python.exe!W! and also %s",
                         i["display-name"], ", ".join(names))

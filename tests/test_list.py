@@ -177,7 +177,7 @@ def test_format_table_aliases_default_platform(assert_log):
     ])
     assert_log(
         (r"!B!Tag\s+Name\s+Managed By\s+Version\s+Alias\s*!W!", ()),
-        (r"3\.15-dev-32.*" + re.escape("python[w]3[-32].exe, python[w]3.15[-32].exe"), ()),
+        (r"3\.15-dev-32.*" + re.escape("python[w]3-32.exe, python[w]3.15-32.exe"), ()),
         (r"3\.15-dev\[-64\].*" + re.escape("python[w]3[-64].exe, python[w]3.15[-64].exe"), ()),
         (r"3\.15-dev-arm64.*" + re.escape("python[w]3-arm64.exe, python[w]3.15-arm64.exe"), ()),
     )

@@ -59,6 +59,7 @@ def test_print_cli_shortcuts(patched_installs, assert_log, monkeypatch, tmp_path
     class Cmd:
         scratch = {}
         global_dir = Path(tmp_path)
+        default_platform = "-64"
         def get_installs(self):
             return installs.get_installs(None)
 

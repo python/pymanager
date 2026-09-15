@@ -27,6 +27,7 @@ DEFAULT_TAG = "3"
 
 
 HELP_URL = "https://docs.python.org/using/windows"
+CHANGELOG_URL = f"https://github.com/python/pymanager/releases/tag/{__version__}"
 
 
 COPYRIGHT = f"""Python installation manager {__version__}
@@ -40,8 +41,15 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 
-Additional shebang configuration is now available. Please see
-!B!{HELP_URL}#shebang-lines!W! for more information.
+Please see !B!{CHANGELOG_URL}!W! for all changes.
+"""
+
+# Temporarily use an ARM64-specific welcome message
+# This should be reverted around October 2027.
+WELCOME_ARM64 = f"""!B!Python install manager was successfully updated to {__version__}.!W!
+
+The default platform on this PC is now !Y!-arm64!W! instead of !Y!-64!W!.
+Please see !B!{CHANGELOG_URL}!W! for more details and all other changes.
 """
 
 # The 'py help' or 'pymanager help' output is constructed by these default docs,
@@ -533,13 +541,22 @@ class BaseCommand:
             if __version__ == "0.1a0":
                 last_update_file.unlink()
             return
+
+        # Temporarily use an ARM64-specific welcome message
+        # This should be reverted around October 2027.
+        from _native import get_processor_architecture
+        if get_processor_architecture() == "-arm64":
+            msg = WELCOME_ARM64
+        else:
+            msg = WELCOME
+
         try:
             ensure_tree(last_update_file)
-            last_update_file.write_text(f"{__version__}\n\n{WELCOME}")
+            last_update_file.write_text(f"{__version__}\n\n{msg}")
         except OSError:
             LOGGER.debug("Failed to update %s", last_update_file, exc_info=True)
             return
-        LOGGER.info(WELCOME)
+        LOGGER.info(msg)
 
     def dump_arguments(self):
         try:

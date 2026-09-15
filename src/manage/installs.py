@@ -148,12 +148,19 @@ def _make_alias_key(alias):
     return n1, w, n2, plat, n3
 
 
-def _make_opt_part(parts):
+def _make_opt_part(parts, default=""):
     if not parts:
         return ""
-    if len(parts) == 1:
-        return list(parts)[0]
-    return "[{}]".format("|".join(sorted(p for p in parts if p)))
+    # If there's an explicit default, then we ignore empty parts.
+    if default:
+        parts = sorted(p for p in parts if p)
+    else:
+        parts = sorted(parts)
+    if not parts:
+        return ""
+    if len(parts) == 1 and (not parts[0] or parts[0] != default):
+        return parts[0]
+    return "[{}]".format("|".join(p for p in parts if p))
 
 
 def _sk_sub(m):
@@ -191,17 +198,11 @@ def get_install_alias_names(aliases, friendly=True, windowed=True, default_platf
 
     result = []
     for k, (n1, n2, n3) in seen.items():
-        plat_parts = plats.get(k)
-        plat = _make_opt_part(plat_parts)
-        if default_platform and plat_parts == {default_platform}:
-            # The bare alias was already shown for another install, but the
-            # suffix is still optional when it matches the default platform.
-            plat = f"[{default_platform}]"
         result.append("".join([
             n1,
             _make_opt_part(has_w.get(k)),
             n2,
-            plat,
+            _make_opt_part(plats.get(k), default_platform),
             n3,
         ]))
     return sorted(result, key=_make_alias_name_sortkey)

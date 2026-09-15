@@ -147,6 +147,9 @@ def test_install_alias_opt_part():
     assert "" == installs._make_opt_part([])
     assert "x" == installs._make_opt_part(["x"])
     assert "[x]" == installs._make_opt_part(["x", ""])
+    assert "[x]" == installs._make_opt_part(["x"], default="x")
+    assert "[x]" == installs._make_opt_part(["x", ""], default="x")
+    assert "y" == installs._make_opt_part(["y", ""], default="x")
     assert "[x|y]" == installs._make_opt_part(["", "y", "x"])
 
 
@@ -155,5 +158,5 @@ def test_install_alias_names():
     input.extend([{"name": i, "windowed": 1} for i in ["xy3.exe", "XY3-64.exe", "XYW3.exe", "xyw3-64.exe"]])
     expect = ["py[w]3[-64].exe"]
     expectw = ["py[w]3[-64].exe", "xy[w]3[-64].exe"]
-    assert expect == installs.get_install_alias_names(input, friendly=True, windowed=False)
-    assert expectw == installs.get_install_alias_names(input, friendly=True, windowed=True)
+    assert expect == installs.get_install_alias_names(input, friendly=True, windowed=False, default_platform="-64")
+    assert expectw == installs.get_install_alias_names(input, friendly=True, windowed=True, default_platform="-64")

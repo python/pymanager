@@ -255,7 +255,7 @@ def _parse_shebang(cmd, line, *, windowed=None):
                             "'false' in your configuration file.")
             try:
                 return _find_on_path(cmd, full_cmd)
-            except LookupError as ex:
+            except LookupError:
                 LOGGER.error("Could not launch '%s'. Using default interpreter "
                              "instead.", full_cmd)
                 raise

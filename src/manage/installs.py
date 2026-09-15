@@ -149,6 +149,8 @@ def _make_alias_key(alias):
 
 
 def _make_opt_part(parts, default=""):
+    if not parts:
+        return ""
     # If there's an explicit default, then we ignore empty parts.
     if default:
         parts = sorted(p for p in parts if p)

@@ -246,8 +246,8 @@ def parse_cli(args):
     write = WriteFiles()
     for a in args:
         if a == "--windows-default":
-            print("Using equivalent of: --pre --latest-micro -r >=3.11.0 index-windows.json")
-            print("                     --pre -r >=3.11.0 index-windows-recent.json")
+            print("Using equivalent of: --pre --latest-micro -r >=3.12.0 index-windows.json")
+            print("                     --pre -r >=3.12.0 index-windows-recent.json")
             print("                     index-windows-legacy.json")
             print("                     --report index-windows.txt")
             plan_split = [SplitToFile(), SplitToFile(), SplitToFile(), SplitToFile()]
@@ -258,8 +258,8 @@ def parse_cli(args):
             plan_split[3].report = True
             plan_split[0].pre = plan_split[1].pre = plan_split[2].pre = True
             plan_split[0].latest_micro = True
-            plan_split[0].tag_or_range = [tag_or_range(">=3.11"), tag_or_range(">=3.13t")]
-            plan_split[1].tag_or_range = [tag_or_range(">=3.11"), tag_or_range(">=3.13t")]
+            plan_split[0].tag_or_range = [tag_or_range(">=3.12"), tag_or_range(">=3.13t")]
+            plan_split[1].tag_or_range = [tag_or_range(">=3.12"), tag_or_range(">=3.13t")]
         elif a == "-i":
             action = ReadFile()
             plan_read.append(action)

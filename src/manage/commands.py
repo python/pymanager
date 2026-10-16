@@ -256,6 +256,20 @@ CONFIG_SCHEMA = {
     # Typically configured to '%VIRTUAL_ENV%' to pick up the active environment
     "virtual_env": (str, None, "env", "path"),
 
+    # Overrides for the OS proxy configuration, typically set to '%HTTP_PROXY%'
+    # by default to pick up environment settings, but can be overridden to empty
+    # to disable use of the process environment.
+    "http_proxy": (str, None, "env"),
+    "https_proxy": (str, None, "env"),
+    "no_proxy": (str, None, "env"),
+
+    # Global auth for accessing sources, typically set to '%PYMANAGER_USERNAME%'
+    # and '%PYMANAGER_PASSWORD%'. These should really have been
+    # '%PYTHON_MANAGER_USERNAME%' rather than '%PYMANAGER' - the latter is meant
+    # for debugging/hidden options, not user-visible ones.
+    "username": (str, None, "env"),
+    "password": (str, None, "env"),
+
     "list": {
         "format": (str, None, "env"),
         "unmanaged": (config_bool, None, "env"),
@@ -355,6 +369,9 @@ class BaseCommand:
     default_platform = None
     automatic_install = True
     include_unmanaged = True
+    http_proxy = None
+    https_proxy = None
+    no_proxy = None
     virtual_env = None
     shebang_can_run_anything = True
     shebang_can_run_anything_silently = False

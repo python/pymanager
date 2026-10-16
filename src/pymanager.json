@@ -12,6 +12,14 @@
     "automatic_install": "%PYTHON_MANAGER_AUTOMATIC_INSTALL%",
     "include_unmanaged": "%PYTHON_MANAGER_INCLUDE_UNMANAGED%",
     "virtual_env": "%VIRTUAL_ENV%",
+
+    "http_proxy": "%HTTP_PROXY%",
+    "https_proxy": "%HTTPS_PROXY%",
+    "no_proxy": "%NO_PROXY",
+
+    "username": "%PYMANAGER_USERNAME%",
+    "password": "%PYMANAGER_PASSWORD%",
+
     "shebang_can_run_anything": "%PYTHON_MANAGER_SHEBANG_CAN_RUN_ANYTHING%",
     "shebang_can_run_anything_silently": false,
 

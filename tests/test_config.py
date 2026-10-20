@@ -1,6 +1,7 @@
 import pytest
 
 from manage.config import (
+    _EnvironWithFallback,
     _expand_vars,
     config_append,
     config_bool,
@@ -88,16 +89,26 @@ def test_expand_vars(value, variables, expected):
     assert _expand_vars(value, variables) == expected
 
 
-def test_expand_vars_removes_missing_variable_and_leading_separator():
-    actual = _expand_vars("%MISSING%\\Python", {})
+def test_expand_vars_fails_on_missing_variable():
+    with pytest.raises(LookupError):
+        _expand_vars("%MISSING%\\Python", {})
 
-    assert actual == "Python"
+
+def test_expand_vars_fails_on_empty_variable():
+    with pytest.raises(LookupError):
+        _expand_vars("%EMPTY%\\Python", {"EMPTY": ""})
 
 
-def test_expand_vars_removes_empty_variable_and_leading_separator():
-    actual = _expand_vars("%EMPTY%\\Python", {"EMPTY": ""})
-
-    assert actual == "Python"
+def test_environ_with_fallback():
+    env = _EnvironWithFallback({"AllUsersProfile": "test", "APPDATA": ""})
+    # Should be the value we provided, despite case
+    assert env.get("allusersprofile") == "test"
+    # Should be empty, since it was provided as empty
+    assert env.get("AppData", "default") == ""
+    # Should be set, even though it wasn't provided
+    assert env.get("WinDir", "default") not in (None, "", "default")
+    # Should be empty, since it's neither set nor has a fallback
+    assert env.get("PYTHON_MANAGER_DEFAULT", "default") == "default"
 
 
 @pytest.mark.parametrize(

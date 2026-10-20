@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <windows.h>
 #include <appmodel.h>
+#include <userenv.h>
 
 #include "helpers.h"
 
@@ -251,6 +252,33 @@ PyObject *get_processor_architecture(PyObject *, PyObject *, PyObject *) {
         case IMAGE_FILE_MACHINE_ARM64: return PyUnicode_FromString("-arm64");
     }
     return PyUnicode_FromString("-64");
+}
+
+PyObject *get_environment_block(PyObject *, PyObject *, PyObject *) {
+    HANDLE token;
+    wchar_t *env = NULL;
+
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &token)
+        || !CreateEnvironmentBlock((LPVOID *)&env, token, FALSE)) {
+        PyErr_SetFromWindowsErr(0);
+        return NULL;
+    }
+
+    // env is double null terminated, so read each string's length until we find
+    // the zero-length one. Our caller can do the split.
+    wchar_t *p = env;
+    size_t cch = wcslen(p);
+    while (p && cch) {
+        p += cch + 1;
+        cch = wcslen(p);
+    }
+
+    PyObject *r = PyUnicode_FromWideChar(env, p - env);
+
+    DestroyEnvironmentBlock(env);
+    CloseHandle(token);
+
+    return r;
 }
 
 }

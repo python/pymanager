@@ -256,7 +256,7 @@ def _expand_vars(v, env):
     return v2
 
 
-def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False):
+def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False, environ=None):
     for k, v in list(cfg.items()):
         if k.startswith("#"):
             continue
@@ -280,7 +280,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if "env" in opts and isinstance(v, str):
             try:
                 orig_v = v
-                v = _expand_vars(v, _EnvironWithFallback.default())
+                v = _expand_vars(v, environ or _EnvironWithFallback.default())
                 from_env = orig_v != v
             except TypeError:
                 pass
@@ -299,7 +299,9 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
             if not from_env:
                 v = relative_to / v
             else:
-                v = type(relative_to)(v).absolute()
+                v = type(relative_to)(v)
+                if not v.is_absolute():
+                    v = v.absolute()
         if v and "uri" in opts:
             if hasattr(v, "as_uri"):
                 v = v.as_uri()

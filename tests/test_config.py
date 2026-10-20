@@ -1,4 +1,7 @@
+import os
 import pytest
+
+from pathlib import Path, PurePath
 
 from manage.config import (
     _EnvironWithFallback,
@@ -8,6 +11,7 @@ from manage.config import (
     config_dict_merge,
     config_split,
     config_split_append,
+    resolve_config,
 )
 
 
@@ -212,3 +216,39 @@ def test_config_split_append_does_not_mutate_existing_list():
     assert actual == ["first", ["second", "third"]]
     assert existing == ["first"]
     assert actual is not existing
+
+
+@pytest.mark.parametrize(
+    ("cfg", "schema", "expect", "env"),
+    [
+        ({}, {"a": (int, None), "b": (int, None)}, {}, None),
+        ({"a": "1"}, {"a": (int, None)}, {"a": 1}, None),
+        ({"a": 1}, {"a": (str, None)}, {"a": "1"}, None),
+        ({"a": "abc"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/abc")}, None),
+        ({"a": "%X%"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/%X%")}, {"X": "abc"}),
+        ({"a": "%X%"}, {"a": (str, None, "path", "env")}, {"a": PurePath("X:/env/abc")}, {"X": "X:/env/abc"}),
+        ({"a": "%X%"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/%X%")}, None),
+    ],
+    ids=[
+        "empty",
+        "to_int",
+        "to_str",
+        "to_path",
+        "to_path_without_env",
+        "to_path_with_env",
+        "to_path_not_in_env",
+    ],
+)
+def test_config_resolve(cfg, schema, expect, env, monkeypatch):
+    resolve_config(cfg, "<test.cfg>", PurePath("X:/test/"), schema=schema, environ=env)
+    assert cfg == expect
+
+
+def test_config_resolve_env_fallback(monkeypatch, assert_log):
+    cfg = {"a": "%AppData%/Python"}
+    schema = {"a": (str, None, "path", "env")}
+    expect = {"a": Path(os.environ["AppData"]) / "Python"}
+    monkeypatch.delitem(os.environ, "AppData")
+    resolve_config(cfg, "<test.cfg>", Path(), schema=schema)
+    assert cfg == expect
+    assert_log(("Environment variable.*not found", ["AppData"]))

@@ -109,15 +109,17 @@ def _proxy_settings(info):
     if info.no_proxy:
         if info.no_proxy.lower() in ("1", "*", "y", "yes", "t", "true"):
             return _ProxySettings(mode=PROXY_MODE_DIRECT)
-        # TODO: Parse and filter based on info.no_proxy IF we can be sure it's
-        # secure, preferably by delegating responsibility for parsing to the OS.
-        # Claiming to support proper whitelisting of domains is very likely to
-        # attract reports of bypasses, none of which we would treat as a
-        # vulnerability (due to non-default configuration settings), but they
-        # historically create more noise than they're worth. Let's just avoid
-        # breaking into jail until we're sure we can do it right.
-        LOGGER.warn("Values for NO_PROXY other than 1, *, y[es] and t[rue] are "
-            "not supported. Other proxy settings will be used.")
+        if info.no_proxy.lower() not in ("0", "n", "no", "f", "false"):
+            # TODO: Parse and filter based on info.no_proxy IF we can be sure it's
+            # secure, preferably by delegating responsibility for parsing to the OS.
+            # Claiming to support proper whitelisting of domains is very likely to
+            # attract reports of bypasses, none of which we would treat as a
+            # vulnerability (due to non-default configuration settings), but they
+            # historically create more noise than they're worth. Let's just avoid
+            # breaking into jail until we're sure we can do it right.
+            LOGGER.warn("Values for NO_PROXY other than 1, *, y[es], t[rue], "
+                "or the equivalent false values are not supported. "
+                "Other proxy settings will be used.")
 
     if not info.http_proxy and not info.https_proxy:
         return _ProxySettings()

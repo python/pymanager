@@ -369,14 +369,18 @@ class BaseCommand:
     default_platform = None
     automatic_install = True
     include_unmanaged = True
-    http_proxy = None
-    https_proxy = None
-    no_proxy = None
     virtual_env = None
     shebang_can_run_anything = True
     shebang_can_run_anything_silently = False
     shebang_templates = {}
     welcome_on_update = False
+
+    # These variables are mainly for capturing optional environment variables.
+    http_proxy = None
+    https_proxy = None
+    no_proxy = None
+    username = None
+    password = None
 
     log_file = None
     _create_log_file = True

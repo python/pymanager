@@ -237,6 +237,8 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
                 LOGGER.warn("Invalid configuration key %s in %s", k, source)
             continue
 
+        _, merge, *opts = subschema
+
         try:
             into = into_cfg[k]
         except KeyError:
@@ -251,7 +253,6 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
             into_cfg[k] = v
             continue
 
-        _, merge, *opts = subschema
         if merge and not overwrite:
             v = merge(into, v)
         if v != into:

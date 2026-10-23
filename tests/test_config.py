@@ -1,12 +1,17 @@
+import os
 import pytest
 
+from pathlib import Path, PurePath
+
 from manage.config import (
+    _EnvironWithFallback,
     _expand_vars,
     config_append,
     config_bool,
     config_dict_merge,
     config_split,
     config_split_append,
+    resolve_config,
 )
 
 
@@ -88,16 +93,26 @@ def test_expand_vars(value, variables, expected):
     assert _expand_vars(value, variables) == expected
 
 
-def test_expand_vars_removes_missing_variable_and_leading_separator():
-    actual = _expand_vars("%MISSING%\\Python", {})
+def test_expand_vars_fails_on_missing_variable():
+    with pytest.raises(LookupError):
+        _expand_vars("%MISSING%\\Python", {})
 
-    assert actual == "Python"
+
+def test_expand_vars_fails_on_empty_variable():
+    with pytest.raises(LookupError):
+        _expand_vars("%EMPTY%\\Python", {"EMPTY": ""})
 
 
-def test_expand_vars_removes_empty_variable_and_leading_separator():
-    actual = _expand_vars("%EMPTY%\\Python", {"EMPTY": ""})
-
-    assert actual == "Python"
+def test_environ_with_fallback():
+    env = _EnvironWithFallback({"AllUsersProfile": "test", "APPDATA": ""})
+    # Should be the value we provided, despite case
+    assert env.get("allusersprofile") == "test"
+    # Should be empty, since it was provided as empty
+    assert env.get("AppData", "default") == ""
+    # Should be set, even though it wasn't provided
+    assert env.get("WinDir", "default") not in (None, "", "default")
+    # Should be empty, since it's neither set nor has a fallback
+    assert env.get("PYTHON_MANAGER_DEFAULT", "default") == "default"
 
 
 @pytest.mark.parametrize(
@@ -201,3 +216,39 @@ def test_config_split_append_does_not_mutate_existing_list():
     assert actual == ["first", ["second", "third"]]
     assert existing == ["first"]
     assert actual is not existing
+
+
+@pytest.mark.parametrize(
+    ("cfg", "schema", "expect", "env"),
+    [
+        ({}, {"a": (int, None), "b": (int, None)}, {}, None),
+        ({"a": "1"}, {"a": (int, None)}, {"a": 1}, None),
+        ({"a": 1}, {"a": (str, None)}, {"a": "1"}, None),
+        ({"a": "abc"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/abc")}, None),
+        ({"a": "%X%"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/%X%")}, {"X": "abc"}),
+        ({"a": "%X%"}, {"a": (str, None, "path", "env")}, {"a": PurePath("X:/env/abc")}, {"X": "X:/env/abc"}),
+        ({"a": "%X%"}, {"a": (str, None, "path")}, {"a": PurePath("X:/test/%X%")}, None),
+    ],
+    ids=[
+        "empty",
+        "to_int",
+        "to_str",
+        "to_path",
+        "to_path_without_env",
+        "to_path_with_env",
+        "to_path_not_in_env",
+    ],
+)
+def test_config_resolve(cfg, schema, expect, env, monkeypatch):
+    resolve_config(cfg, "<test.cfg>", PurePath("X:/test/"), schema=schema, environ=env)
+    assert cfg == expect
+
+
+def test_config_resolve_env_fallback(assert_log):
+    cfg = {"a": "%AppData%/Python"}
+    schema = {"a": (str, None, "path", "env")}
+    expect = {"a": Path(os.environ["AppData"]) / "Python"}
+    env = _EnvironWithFallback({k: v for k, v in os.environ.items() if k.lower() != "appdata"})
+    resolve_config(cfg, "<test.cfg>", Path(), schema=schema, environ=env)
+    assert cfg == expect
+    assert_log(("Environment variable.*not found", ["AppData"]))

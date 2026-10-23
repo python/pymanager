@@ -15,7 +15,7 @@
 
     "http_proxy": "%HTTP_PROXY%",
     "https_proxy": "%HTTPS_PROXY%",
-    "no_proxy": "%NO_PROXY",
+    "no_proxy": "%NO_PROXY%",
 
     "username": "%PYMANAGER_USERNAME%",
     "password": "%PYMANAGER_PASSWORD%",

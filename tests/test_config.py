@@ -244,11 +244,11 @@ def test_config_resolve(cfg, schema, expect, env, monkeypatch):
     assert cfg == expect
 
 
-def test_config_resolve_env_fallback(monkeypatch, assert_log):
+def test_config_resolve_env_fallback(assert_log):
     cfg = {"a": "%AppData%/Python"}
     schema = {"a": (str, None, "path", "env")}
     expect = {"a": Path(os.environ["AppData"]) / "Python"}
-    monkeypatch.delitem(os.environ, "AppData")
-    resolve_config(cfg, "<test.cfg>", Path(), schema=schema)
+    env = _EnvironWithFallback({k: v for k, v in os.environ.items() if k.lower() != "appdata"})
+    resolve_config(cfg, "<test.cfg>", Path(), schema=schema, environ=env)
     assert cfg == expect
     assert_log(("Environment variable.*not found", ["AppData"]))

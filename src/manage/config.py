@@ -217,8 +217,9 @@ class _EnvironWithFallback(dict):
             from _native import get_environment_block
             self._fallback = {}
             for var in get_environment_block().split("\0"):
-                k2, _, v2 = var.partition("=")
-                self._fallback[k2.upper()] = v2
+                k2, sep, v2 = var.partition("=")
+                if k2 and sep and v2:
+                    self._fallback[k2.upper()] = v2
         return self._fallback.get(k)
 
     def get(self, key, default=None):

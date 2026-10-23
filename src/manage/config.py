@@ -316,7 +316,10 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         cfg[k] = v
 
 
-def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=False):
+def merge_config(into_cfg, from_cfg, schema, *, key_so_far="", source="<unknown>", overwrite=False):
+    if key_so_far and not key_so_far.endswith("."):
+        key_so_far = f"{key_so_far}."
+
     for k, v in from_cfg.items():
         if k.startswith("#"):
             continue
@@ -325,19 +328,20 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
             subschema = schema[k]
         except LookupError:
             # No schema information, so let's just replace
-            LOGGER.warn("Unknown configuration key %s in %s", k, source)
+            LOGGER.warn("Unknown configuration key %s in %s", key_so_far + k, source)
             into_cfg[k] = v
             continue
 
         if isinstance(subschema, dict):
             into = into_cfg.setdefault(k, {})
             if isinstance(into, dict) and isinstance(v, dict):
-                LOGGER.debug("Recursively updating config %s", k)
-                merge_config(into, v, subschema, source=source, overwrite=overwrite)
+                LOGGER.debug("Recursively updating config %s", key_so_far + k)
+                merge_config(into, v, subschema, key_so_far=f"{key_so_far}{k}.",
+                             source=source, overwrite=overwrite)
             else:
                 # Source isn't recursing, so let's ignore
                 # Should have been validated earlier
-                LOGGER.warn("Invalid configuration key %s in %s", k, source)
+                LOGGER.warn("Invalid configuration key %s in %s", key_so_far + k, source)
             continue
 
         _, merge, *opts = subschema
@@ -345,25 +349,17 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
         try:
             into = into_cfg[k]
         except KeyError:
-            # No existing value, so just assign
-            if "sensitive" in opts:
-                LOGGER.debug("Setting config %s", k)
-            elif "uri" in opts:
-                from .urlutils import sanitise_url
-                LOGGER.debug("Setting config %s to %r", k, sanitise_url(v))
-            else:
-                LOGGER.debug("Setting config %s to %r", k, v)
-            into_cfg[k] = v
-            continue
+            into = None
+        else:
+            if merge and not overwrite:
+                v = merge(into, v)
 
-        if merge and not overwrite:
-            v = merge(into, v)
         if v != into:
             if "sensitive" in opts:
-                LOGGER.debug("Updating config %s", k)
+                LOGGER.debug("Updating config %s", key_so_far + k)
             elif "uri" in opts:
                 from .urlutils import sanitise_url
-                LOGGER.debug("Updating config %s to %r", k, sanitise_url(v))
+                LOGGER.debug("Updating config %s to %r", key_so_far + k, sanitise_url(v))
             else:
-                LOGGER.debug("Updating config %s to %r", k, v)
+                LOGGER.debug("Updating config %s to %r", key_so_far + k, v)
             into_cfg[k] = v

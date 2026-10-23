@@ -107,7 +107,7 @@ class PurePath:
 
     def is_absolute(self):
         drive, root, tail = os.path.splitroot(self._p)
-        return drive and root
+        return bool(drive and root)
 
     def with_name(self, name):
         return type(self)(os.path.join(self._parent, name))

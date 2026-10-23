@@ -49,3 +49,10 @@ def test_path_relative_to():
 
     assert relative_to(p, r"C:\A\B\C\D") is p
     assert relative_to(p, None) is p
+
+
+def test_path_is_absolute():
+    assert Path(r"C:\A\B\C\python.exe").is_absolute()
+    assert not Path(r"\A\B\C\python.exe").is_absolute()
+    assert not Path(r"C:A\B\C\python.exe").is_absolute()
+    assert not Path(r"A\B\C\python.exe").is_absolute()

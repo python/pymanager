@@ -150,18 +150,117 @@ def load_registry_config(key_path, schema):
     return cfg
 
 
+class _EnvironWithFallback(dict):
+    # Key names must be uppercase
+    # These are the keys that are filled in from a default environment if they
+    # are missing in the current process environment. This ensures that a
+    # broken environment doesn't lead to an invalid loaded configuration. It
+    # only applies to configuration files, and does not change the environment.
+    # A launched Python process will probably also fail without some of these,
+    # at which point the caller still has to fix their setup.
+    FALLBACK_KEYS = {
+        "ALLUSERSPROFILE",
+        "APPDATA",
+        "COMMONPROGRAMFILES",
+        "COMMONPROGRAMFILES(X86)",
+        "COMMONPROGRAMW6432",
+        "COMPUTERNAME",
+        "COMSPEC",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LOCALAPPDATA",
+        "LOGONSERVER",
+        "NUMBER_OF_PROCESSORS",
+        "OS",
+        "PATH",
+        "PATHEXT",
+        "PROCESSOR_ARCHITECTURE",
+        "PROCESSOR_IDENTIFIER",
+        "PROCESSOR_LEVEL",
+        "PROCESSOR_REVISION",
+        "PROGRAMDATA",
+        "PROGRAMFILES",
+        "PROGRAMFILES(X86)",
+        "PROGRAMW6432",
+        "PUBLIC",
+        "SESSIONNAME",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "USERDNSDOMAIN",
+        "USERDOMAIN",
+        "USERDOMAIN_ROAMINGPROFILE",
+        "USERNAME",
+        "USERPROFILE",
+        "WINDIR",
+    }
+
+    _default = None
+
+    @classmethod
+    def default(cls):
+        if cls._default is None:
+            cls._default = cls()
+        return cls._default
+
+    def __init__(self, d=os.environ):
+        self._fallback = None
+        for k, v in (d or {}).items():
+            self[k.upper()] = v
+
+    def _get_fallback(self, k):
+        assert k.isupper()
+        if k not in self.FALLBACK_KEYS:
+            return None
+        if self._fallback is None:
+            from _native import get_environment_block
+            self._fallback = {}
+            for var in get_environment_block().split("\0"):
+                k2, sep, v2 = var.partition("=")
+                if k2 and sep and v2:
+                    self._fallback[k2.upper()] = v2
+        return self._fallback.get(k)
+
+    def get(self, key, default=None):
+        k = key.upper()
+        try:
+            return self[k]
+        except KeyError:
+            pass
+
+        v = self._get_fallback(k)
+        if v:
+            LOGGER.warn("Environment variable %%%s%% was not found and so "
+                        "a default was loaded. This usually indicates an "
+                        "issue in your launch conditions and could lead to "
+                        "later failures. Suppress this warning by ensuring "
+                        "system environment variables remain set, or by "
+                        "changing your configuration file to not rely on "
+                        "them.", key)
+
+        return v or default
+
+
+
 def _expand_vars(v, env):
     import re
     def _sub(m):
         v2 = env.get(m.group(1))
         if v2:
             return v2 + (m.group(2) or "")
+        if m.group(2):
+            # Empty values before a path separator are not allowed
+            raise LookupError(m.group(1))
         return ""
     v2 = re.sub(r"%(.*?)%([\\/])?", _sub, v)
     return v2
 
 
-def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False):
+def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False, environ=None):
+    if environ is None:
+        environ = _EnvironWithFallback.default()
+
     for k, v in list(cfg.items()):
         if k.startswith("#"):
             continue
@@ -177,7 +276,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if isinstance(subschema, dict):
             if not isinstance(v, dict):
                 raise InvalidConfigurationError(source, key_so_far + k, v)
-            resolve_config(v, source, relative_to, f"{key_so_far}{k}.", subschema)
+            resolve_config(v, source, relative_to, f"{key_so_far}{k}.", subschema, environ=environ)
             continue
 
         kind, merge, *opts = subschema
@@ -185,10 +284,12 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if "env" in opts and isinstance(v, str):
             try:
                 orig_v = v
-                v = _expand_vars(v, os.environ)
+                v = _expand_vars(v, environ)
                 from_env = orig_v != v
             except TypeError:
                 pass
+            except LookupError as ex:
+                raise InvalidConfigurationError(source, key_so_far + k, f'%{ex}%') from ex
             if not v:
                 del cfg[k]
                 continue
@@ -202,7 +303,9 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
             if not from_env:
                 v = relative_to / v
             else:
-                v = type(relative_to)(v).absolute()
+                v = type(relative_to)(v)
+                if not v.is_absolute():
+                    v = v.absolute()
         if v and "uri" in opts:
             if hasattr(v, "as_uri"):
                 v = v.as_uri()

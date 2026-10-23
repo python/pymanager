@@ -257,6 +257,9 @@ def _expand_vars(v, env):
 
 
 def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_unknown=False, environ=None):
+    if environ is None:
+        environ = _EnvironWithFallback.default()
+
     for k, v in list(cfg.items()):
         if k.startswith("#"):
             continue
@@ -272,7 +275,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if isinstance(subschema, dict):
             if not isinstance(v, dict):
                 raise InvalidConfigurationError(source, key_so_far + k, v)
-            resolve_config(v, source, relative_to, f"{key_so_far}{k}.", subschema)
+            resolve_config(v, source, relative_to, f"{key_so_far}{k}.", subschema, environ=environ)
             continue
 
         kind, merge, *opts = subschema
@@ -280,7 +283,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if "env" in opts and isinstance(v, str):
             try:
                 orig_v = v
-                v = _expand_vars(v, environ or _EnvironWithFallback.default())
+                v = _expand_vars(v, environ)
                 from_env = orig_v != v
             except TypeError:
                 pass

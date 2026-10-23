@@ -51,7 +51,16 @@ class InvalidInstallError(Exception):
 
 
 class InvalidConfigurationError(ValueError):
-    def __init__(self, file=None, argument=None, value=None):
+    def __init__(self, file=None, argument=None, value=None, opts=None):
+        if value and opts:
+            if "sensitive" in opts:
+                value = "*" * len(value)
+            elif "uri" in opts:
+                try:
+                    from .urlutils import sanitise_url
+                    value = sanitise_url(value)
+                except Exception:
+                    value = ""
         if value:
             msg = f"Invalid configuration value {value!r} for key {argument} in {file}"
         elif argument:

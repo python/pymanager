@@ -820,6 +820,7 @@ class IndexDownloader:
                 "GET",
                 {"Accept": "application/json"},
                 on_auth_request=self.on_auth,
+                proxy_info=self.cmd,
             )
         except FileNotFoundError: # includes 404
             (LOGGER.verbose if self.quiet else LOGGER.error)(
@@ -870,6 +871,7 @@ class IndexDownloader:
                     "GET",
                     {"Accept": "application/octet-stream"},
                     on_auth_request=self.on_auth,
+                    proxy_info=self.cmd,
                 )
                 self._cache[url + ".cat"] = cat
             except OSError as ex:

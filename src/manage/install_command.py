@@ -142,6 +142,7 @@ def download_package(cmd, install, dest, cache, *, on_progress=None, urlretrieve
         on_progress=on_progress,
         on_auth_request=_find_creds,
         on_cancel=lambda: cmd.ask_yn("Abort download?"),
+        proxy_info=cmd,
     )
     LOGGER.debug("Downloaded to %s", dest)
     return dest

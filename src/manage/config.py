@@ -217,12 +217,6 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
     for k, v in from_cfg.items():
         if k.startswith("#"):
             continue
-        try:
-            into = into_cfg[k]
-        except LookupError:
-            LOGGER.debug("Setting config %s to %r", k, v)
-            into_cfg[k] = v
-            continue
 
         try:
             subschema = schema[k]
@@ -233,6 +227,7 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
             continue
 
         if isinstance(subschema, dict):
+            into = into_cfg.setdefault(k, {})
             if isinstance(into, dict) and isinstance(v, dict):
                 LOGGER.debug("Recursively updating config %s", k)
                 merge_config(into, v, subschema, source=source, overwrite=overwrite)
@@ -240,6 +235,20 @@ def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=Fa
                 # Source isn't recursing, so let's ignore
                 # Should have been validated earlier
                 LOGGER.warn("Invalid configuration key %s in %s", k, source)
+            continue
+
+        try:
+            into = into_cfg[k]
+        except KeyError:
+            # No existing value, so just assign
+            if "sensitive" in opts:
+                LOGGER.debug("Setting config %s", k)
+            elif "uri" in opts:
+                from .urlutils import sanitise_url
+                LOGGER.debug("Setting config %s to %r", k, sanitise_url(v))
+            else:
+                LOGGER.debug("Setting config %s to %r", k, v)
+            into_cfg[k] = v
             continue
 
         _, merge, *opts = subschema

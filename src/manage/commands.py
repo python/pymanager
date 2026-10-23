@@ -259,15 +259,15 @@ CONFIG_SCHEMA = {
     # Overrides for the OS proxy configuration, typically set to '%HTTP_PROXY%'
     # by default to pick up environment settings, but can be overridden to empty
     # to disable use of the process environment.
-    "http_proxy": (str, None, "env", "uri"),
-    "https_proxy": (str, None, "env", "uri"),
-    "no_proxy": (str, None, "env"),
+    "http_proxy": (str, None, "env", "sensitive"),
+    "https_proxy": (str, None, "env", "sensitive"),
+    "no_proxy": (str, None, "env", "sensitive"),
 
     # Global auth for accessing sources, typically set to '%PYMANAGER_USERNAME%'
     # and '%PYMANAGER_PASSWORD%'. These should really have been
     # '%PYTHON_MANAGER_USERNAME%' rather than '%PYMANAGER' - the latter is meant
     # for debugging/hidden options, not user-visible ones.
-    "username": (str, None, "env"),
+    "username": (str, None, "env", "sensitive"),
     "password": (str, None, "env", "sensitive"),
 
     "list": {

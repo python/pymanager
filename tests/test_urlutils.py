@@ -7,14 +7,8 @@ import _native
 import manage.urlutils as UU
 
 
-@pytest.fixture
-def clean_proxy_env(monkeypatch):
-    for name in ("NO_PROXY", "HTTP_PROXY", "HTTPS_PROXY"):
-        monkeypatch.delenv(name, raising=False)
-
-
-def test_proxy_settings_auto(clean_proxy_env):
-    settings = UU._proxy_settings_from_env()
+def test_proxy_settings_auto():
+    settings = UU._proxy_settings(None)
     assert settings.mode == UU.PROXY_MODE_AUTO
     assert settings.proxy_list is None
     assert settings.powershell_proxy is None
@@ -22,27 +16,62 @@ def test_proxy_settings_auto(clean_proxy_env):
     assert settings.password is None
 
 
-def test_proxy_settings_no_proxy(clean_proxy_env, monkeypatch):
-    monkeypatch.setenv("NO_PROXY", "example.com")
-    monkeypatch.setenv("HTTP_PROXY", "http://proxy.example:8080")
+# These values disable proxy connections for all endpoints
+@pytest.mark.parametrize("v", ["1", "*", "y", "Y", "yes", "t", "TRUE"])
+def test_proxy_settings_no_proxy(assert_log, v):
+    class env:
+        no_proxy = v
+        http_proxy = "http://proxy.example:8080"
+        https_proxy = None
 
-    settings = UU._proxy_settings_from_env()
+    settings = UU._proxy_settings(env)
+    assert_log(assert_log.end_of_log())
     assert settings.mode == UU.PROXY_MODE_DIRECT
     assert settings.proxy_list is None
     assert settings.powershell_proxy is None
 
 
-def test_proxy_settings_override(clean_proxy_env, monkeypatch):
-    monkeypatch.setenv(
-        "HTTP_PROXY",
-        "http://http%40user:http%40password@http-proxy.example:8080/path",
-    )
-    monkeypatch.setenv(
-        "HTTPS_PROXY",
-        "https://https%40user:https%40password@https-proxy.example:8443/path",
-    )
+# These values enable proxy connections for all endpoints, just like leaving
+# NO_PROXY empty, and do not produce a warning.
+@pytest.mark.parametrize("v", ["0", "n", "N", "no", "f", "FALSE"])
+def test_proxy_settings_no_proxy_false(assert_log, v):
+    class env:
+        no_proxy = v
+        http_proxy = "http://proxy.example:8080"
+        https_proxy = None
 
-    settings = UU._proxy_settings_from_env()
+    settings = UU._proxy_settings(env)
+    assert_log(assert_log.end_of_log())
+    assert settings.mode == UU.PROXY_MODE_OVERRIDE
+    assert settings.proxy_list == "http=http://proxy.example:8080"
+    assert settings.powershell_proxy == "http://proxy.example:8080"
+
+
+# These values are ignored and produce a warning. In the future, they may become
+# a list of hosts for which the other proxy settings should be bypassed.
+# For now, clearing the variables and relying on the OS configuration is best if
+# some hosts need a direct connection.
+@pytest.mark.parametrize("v", ["x", "example.com"])
+def test_proxy_settings_no_proxy_url(assert_log, v):
+    class env:
+        no_proxy = v
+        http_proxy = "http://proxy.example:8080"
+        https_proxy = None
+
+    settings = UU._proxy_settings(env)
+    assert_log("Values for NO_PROXY.+are not supported.+")
+    assert settings.mode == UU.PROXY_MODE_OVERRIDE
+    assert settings.proxy_list == "http=http://proxy.example:8080"
+    assert settings.powershell_proxy == "http://proxy.example:8080"
+
+
+def test_proxy_settings_override():
+    class env:
+        no_proxy = None
+        http_proxy = "http://http%40user:http%40password@http-proxy.example:8080/path"
+        https_proxy = "https://https%40user:https%40password@https-proxy.example:8443/path"
+
+    settings = UU._proxy_settings(env)
     assert settings.mode == UU.PROXY_MODE_OVERRIDE
     assert settings.proxy_list == (
         "http=http://http-proxy.example:8080 "
@@ -55,14 +84,13 @@ def test_proxy_settings_override(clean_proxy_env, monkeypatch):
     assert "https@password" not in settings.proxy_list
 
 
-def test_proxy_settings_http_credentials_fallback(clean_proxy_env, monkeypatch):
-    monkeypatch.setenv(
-        "HTTP_PROXY",
-        "proxy%40user:proxy%40password@proxy.example:8080",
-    )
-    monkeypatch.setenv("HTTPS_PROXY", "https://secure-proxy.example:8443")
+def test_proxy_settings_http_credentials_fallback():
+    class env:
+        no_proxy = None
+        http_proxy = "proxy%40user:proxy%40password@proxy.example:8080"
+        https_proxy = "https://secure-proxy.example:8443"
 
-    settings = UU._proxy_settings_from_env()
+    settings = UU._proxy_settings(env)
     assert settings.proxy_list == (
         "http=http://proxy.example:8080 "
         "https=https://secure-proxy.example:8443"
@@ -72,29 +100,41 @@ def test_proxy_settings_http_credentials_fallback(clean_proxy_env, monkeypatch):
     assert settings.password == "proxy@password"
 
 
-def test_winhttp_proxy_env(clean_proxy_env, monkeypatch, localserver):
-    monkeypatch.setenv("HTTP_PROXY", localserver)
-    request = UU._Request("http://proxy-target.invalid/through-proxy")
+def test_winhttp_proxy_env(localserver):
+    class env:
+        no_proxy = None
+        http_proxy = localserver
+        https_proxy = None
+
+    request = UU._Request("http://proxy-target.invalid/through-proxy", proxy_info=env)
 
     assert UU._winhttp_urlopen(request) == b"Proxy OK"
 
 
-def test_winhttp_proxy_env_auth(clean_proxy_env, monkeypatch, localserver):
-    proxy = localserver.replace(
-        "http://",
-        "http://proxy-user:proxy-password@",
-    )
-    monkeypatch.setenv("HTTP_PROXY", proxy)
-    request = UU._Request("http://proxy-target.invalid/through-auth-proxy")
+def test_winhttp_proxy_env_auth(localserver):
+    class env:
+        no_proxy = None
+        http_proxy = localserver.replace(
+            "http://",
+            "http://proxy-user:proxy-password@",
+        )
+        https_proxy = None
+
+    request = UU._Request("http://proxy-target.invalid/through-auth-proxy", proxy_info=env)
 
     assert UU._winhttp_urlopen(request) == b"Proxy Basic proxy-user:proxy-password"
 
 
-def test_powershell_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_path):
-    monkeypatch.setenv("HTTPS_PROXY", localserver)
+def test_powershell_proxy_env(localserver, tmp_path):
+    class env:
+        no_proxy = None
+        http_proxy = None
+        https_proxy = localserver
+
     request = UU._Request(
         "http://proxy-target.invalid/through-proxy",
         outfile=tmp_path / "proxy.txt",
+        proxy_info=env,
     )
 
     UU._powershell_urlretrieve(request)
@@ -102,20 +142,18 @@ def test_powershell_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_pat
     assert request.outfile.read_bytes() == b"Proxy OK"
 
 
-def test_powershell_proxy_env_auth(
-    clean_proxy_env,
-    monkeypatch,
-    localserver,
-    tmp_path,
-):
-    proxy = localserver.replace(
-        "http://",
-        "http://proxy-user:proxy-password@",
-    )
-    monkeypatch.setenv("HTTPS_PROXY", proxy)
+def test_powershell_proxy_env_auth(localserver, tmp_path):
+    class env:
+        no_proxy = None
+        http_proxy = None
+        https_proxy = localserver.replace(
+            "http://",
+            "http://proxy-user:proxy-password@",
+        )
     request = UU._Request(
         "http://proxy-target.invalid/through-auth-proxy",
         outfile=tmp_path / "proxy-auth.txt",
+        proxy_info=env,
     )
 
     UU._powershell_urlretrieve(request)
@@ -123,17 +161,16 @@ def test_powershell_proxy_env_auth(
     assert request.outfile.read_bytes() == b"Proxy Basic proxy-user:proxy-password"
 
 
-def test_powershell_no_proxy_env(
-    clean_proxy_env,
-    monkeypatch,
-    localserver,
-    tmp_path,
-):
-    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
-    monkeypatch.setenv("NO_PROXY", "anything")
+def test_powershell_no_proxy_env(localserver, tmp_path):
+    class env:
+        no_proxy = "*"
+        http_proxy = "http://127.0.0.1:1"
+        https_proxy = None
+
     request = UU._Request(
         localserver + "/1kb",
         outfile=tmp_path / "direct.txt",
+        proxy_info=env,
     )
 
     UU._powershell_urlretrieve(request)
@@ -141,11 +178,16 @@ def test_powershell_no_proxy_env(
     assert len(request.outfile.read_bytes()) == 1024
 
 
-def test_bits_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_path):
-    monkeypatch.setenv("HTTP_PROXY", localserver)
+def test_bits_proxy_env(localserver, tmp_path):
+    class env:
+        no_proxy = None
+        http_proxy = localserver
+        https_proxy = None
+
     request = UU._Request(
         "http://proxy-target.invalid/through-proxy",
         outfile=tmp_path / "proxy.txt",
+        proxy_info=env,
     )
 
     UU._bits_urlretrieve(request)
@@ -153,15 +195,19 @@ def test_bits_proxy_env(clean_proxy_env, monkeypatch, localserver, tmp_path):
     assert request.outfile.read_bytes() == b"Proxy OK"
 
 
-def test_bits_proxy_env_auth(clean_proxy_env, monkeypatch, localserver, tmp_path):
-    proxy = localserver.replace(
-        "http://",
-        "http://proxy-user:proxy-password@",
-    )
-    monkeypatch.setenv("HTTP_PROXY", proxy)
+def test_bits_proxy_env_auth(localserver, tmp_path):
+    class env:
+        no_proxy = None
+        http_proxy = localserver.replace(
+            "http://",
+            "http://proxy-user:proxy-password@",
+        )
+        https_proxy = None
+
     request = UU._Request(
         "http://proxy-target.invalid/through-auth-proxy",
         outfile=tmp_path / "proxy-auth.txt",
+        proxy_info=env,
     )
 
     UU._bits_urlretrieve(request)
@@ -169,25 +215,27 @@ def test_bits_proxy_env_auth(clean_proxy_env, monkeypatch, localserver, tmp_path
     assert request.outfile.read_bytes() == b"Proxy Basic proxy-user:proxy-password"
 
 
-def test_winhttp_no_proxy_env(clean_proxy_env, monkeypatch, localserver):
-    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
-    monkeypatch.setenv("NO_PROXY", "anything")
-    request = UU._Request(localserver + "/1kb")
+def test_winhttp_no_proxy_env(localserver):
+    class env:
+        no_proxy = "1"
+        http_proxy = "http://127.0.0.1:1"
+        https_proxy = None
+
+    request = UU._Request(localserver + "/1kb", proxy_info=env)
 
     assert UU._winhttp_urlopen(request)
 
 
-def test_bits_no_proxy_env(
-    clean_proxy_env,
-    monkeypatch,
-    localserver,
-    tmp_path,
-):
-    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
-    monkeypatch.setenv("NO_PROXY", "anything")
+def test_bits_no_proxy_env(localserver, tmp_path):
+    class env:
+        no_proxy = "1"
+        http_proxy = "http://127.0.0.1:1"
+        https_proxy = None
+
     request = UU._Request(
         localserver + "/1kb",
         outfile=tmp_path / "direct.txt",
+        proxy_info=env,
     )
 
     UU._bits_urlretrieve(request)

@@ -102,21 +102,34 @@ def _parse_proxy(value):
     return proxy, credentials
 
 
-def _proxy_settings_from_env():
-    if os.getenv("NO_PROXY"):
-        return _ProxySettings(mode=PROXY_MODE_DIRECT)
+def _proxy_settings(info):
+    if not info:
+        return _ProxySettings()
 
-    http_value = os.getenv("HTTP_PROXY")
-    https_value = os.getenv("HTTPS_PROXY")
-    if not http_value and not https_value:
+    if info.no_proxy:
+        if info.no_proxy.lower() in ("1", "*", "y", "yes", "t", "true"):
+            return _ProxySettings(mode=PROXY_MODE_DIRECT)
+        if info.no_proxy.lower() not in ("0", "n", "no", "f", "false"):
+            # TODO: Parse and filter based on info.no_proxy IF we can be sure it's
+            # secure, preferably by delegating responsibility for parsing to the OS.
+            # Claiming to support proper whitelisting of domains is very likely to
+            # attract reports of bypasses, none of which we would treat as a
+            # vulnerability (due to non-default configuration settings), but they
+            # historically create more noise than they're worth. Let's just avoid
+            # breaking into jail until we're sure we can do it right.
+            LOGGER.warn("Values for NO_PROXY other than 1, *, y[es], t[rue], "
+                "or the equivalent false values are not supported. "
+                "Other proxy settings will be used.")
+
+    if not info.http_proxy and not info.https_proxy:
         return _ProxySettings()
 
     http_proxy = http_credentials = None
     https_proxy = https_credentials = None
-    if http_value:
-        http_proxy, http_credentials = _parse_proxy(http_value)
-    if https_value:
-        https_proxy, https_credentials = _parse_proxy(https_value)
+    if info.http_proxy:
+        http_proxy, http_credentials = _parse_proxy(info.http_proxy)
+    if info.https_proxy:
+        https_proxy, https_credentials = _parse_proxy(info.https_proxy)
 
     proxy_list = " ".join(
         value for value in (
@@ -134,12 +147,19 @@ def _proxy_settings_from_env():
     )
 
 
+class _EnvProxyInfo:
+    """Default value for proxy_info arguments from environment variables."""
+    no_proxy = os.getenv("NO_PROXY")
+    http_proxy = os.getenv("HTTP_PROXY")
+    https_proxy = os.getenv("HTTPS_PROXY")
+
+
 class NoInternetError(Exception):
     pass
 
 
 class _Request:
-    def __init__(self, url, method="GET", headers={}, outfile=None):
+    def __init__(self, url, method="GET", headers={}, outfile=None, proxy_info=None):
         self.url = url
         self.method = method.upper()
         self.headers = dict(headers)
@@ -147,7 +167,7 @@ class _Request:
         self.username = None
         self.password = None
         self.outfile = Path(outfile) if outfile else None
-        self.proxy_settings = _proxy_settings_from_env()
+        self.proxy_settings = _proxy_settings(proxy_info)
         self._on_progress = None
         self._on_auth_request = None
         self._on_cancel = None
@@ -488,7 +508,8 @@ $r = Invoke-WebRequest -Uri $url -UseBasicParsing `
                 raise
 
 
-def urlopen(url, method="GET", headers={}, on_progress=None, on_auth_request=None):
+def urlopen(url, method="GET", headers={}, on_progress=None,
+            on_auth_request=None, proxy_info=_EnvProxyInfo):
     scheme, sep, path = url.partition("://")
     if not sep:
         scheme = "file"
@@ -500,7 +521,7 @@ def urlopen(url, method="GET", headers={}, on_progress=None, on_auth_request=Non
         with open(file_url_to_path(url), "rb") as f:
             return f.read()
 
-    request = _Request(url, method=method, headers=headers)
+    request = _Request(url, method=method, headers=headers, proxy_info=proxy_info)
     request._on_progress = on_progress
     request._on_auth_request = on_auth_request
 
@@ -561,7 +582,8 @@ def urlopen(url, method="GET", headers={}, on_progress=None, on_auth_request=Non
 
 
 def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024,
-                on_progress=None, on_auth_request=None, on_cancel=None):
+                on_progress=None, on_auth_request=None, on_cancel=None,
+                proxy_info=_EnvProxyInfo):
     scheme, sep, path = url.partition("://")
     if not sep:
         scheme = "file"
@@ -588,7 +610,7 @@ def urlretrieve(url, outfile, method="GET", headers={}, chunksize=64 * 1024,
             on_progress(100)
         return
 
-    request = _Request(url, method=method, headers=headers)
+    request = _Request(url, method=method, headers=headers, proxy_info=proxy_info)
     request.outfile = Path(outfile)
     request.chunksize = chunksize
     request._on_progress = on_progress
@@ -798,6 +820,7 @@ class IndexDownloader:
                 "GET",
                 {"Accept": "application/json"},
                 on_auth_request=self.on_auth,
+                proxy_info=self.cmd,
             )
         except FileNotFoundError: # includes 404
             (LOGGER.verbose if self.quiet else LOGGER.error)(
@@ -848,6 +871,7 @@ class IndexDownloader:
                     "GET",
                     {"Accept": "application/octet-stream"},
                     on_auth_request=self.on_auth,
+                    proxy_info=self.cmd,
                 )
                 self._cache[url + ".cat"] = cat
             except OSError as ex:

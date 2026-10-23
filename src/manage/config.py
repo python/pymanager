@@ -275,13 +275,13 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
 
         if isinstance(subschema, dict):
             if not isinstance(v, dict):
-                raise InvalidConfigurationError(source, key_so_far + k, v)
+                raise InvalidConfigurationError(source, key_so_far + k)
             resolve_config(v, source, relative_to, f"{key_so_far}{k}.", subschema, environ=environ)
             continue
 
         kind, merge, *opts = subschema
         from_env = False
-        if "env" in opts and isinstance(v, str):
+        if "env" in opts and v and isinstance(v, str):
             try:
                 orig_v = v
                 v = _expand_vars(v, environ)
@@ -296,7 +296,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         try:
             v = kind(v)
         except (TypeError, ValueError):
-            raise InvalidConfigurationError(source, key_so_far + k, v)
+            raise InvalidConfigurationError(source, key_so_far + k, v, opts)
         if v and "path" in opts and not _is_valid_url(v):
             # Paths from the config file are relative to the config file.
             # Paths from the environment are relative to the current working dir
@@ -312,44 +312,54 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
             else:
                 v = str(v)
             if not _is_valid_url(v):
-                raise InvalidConfigurationError(source, key_so_far + k, v)
+                raise InvalidConfigurationError(source, key_so_far + k, v, opts)
         cfg[k] = v
 
 
-def merge_config(into_cfg, from_cfg, schema, *, source="<unknown>", overwrite=False):
+def merge_config(into_cfg, from_cfg, schema, *, key_so_far="", source="<unknown>", overwrite=False):
+    if key_so_far and not key_so_far.endswith("."):
+        key_so_far = f"{key_so_far}."
+
     for k, v in from_cfg.items():
         if k.startswith("#"):
-            continue
-        try:
-            into = into_cfg[k]
-        except LookupError:
-            LOGGER.debug("Setting config %s to %r", k, v)
-            into_cfg[k] = v
             continue
 
         try:
             subschema = schema[k]
         except LookupError:
             # No schema information, so let's just replace
-            LOGGER.warn("Unknown configuration key %s in %s", k, source)
+            LOGGER.warn("Unknown configuration key %s in %s", key_so_far + k, source)
             into_cfg[k] = v
             continue
 
         if isinstance(subschema, dict):
+            into = into_cfg.setdefault(k, {})
             if isinstance(into, dict) and isinstance(v, dict):
-                LOGGER.debug("Recursively updating config %s", k)
-                merge_config(into, v, subschema, source=source, overwrite=overwrite)
+                LOGGER.debug("Recursively updating config %s", key_so_far + k)
+                merge_config(into, v, subschema, key_so_far=f"{key_so_far}{k}.",
+                             source=source, overwrite=overwrite)
             else:
                 # Source isn't recursing, so let's ignore
                 # Should have been validated earlier
-                LOGGER.warn("Invalid configuration key %s in %s", k, source)
+                LOGGER.warn("Invalid configuration key %s in %s", key_so_far + k, source)
             continue
 
-        _, merge, *_ = subschema
-        if not merge or overwrite:
-            LOGGER.debug("Updating config %s from %r to %r", k, into, v)
-            into_cfg[k] = v
+        _, merge, *opts = subschema
+
+        try:
+            into = into_cfg[k]
+        except KeyError:
+            into = None
         else:
-            v2 = merge(into, v)
-            LOGGER.debug("Updating config %s from %r to %r", k, into, v2)
-            into_cfg[k] = v2
+            if merge and not overwrite:
+                v = merge(into, v)
+
+        if v != into:
+            if "sensitive" in opts:
+                LOGGER.debug("Updating config %s", key_so_far + k)
+            elif "uri" in opts:
+                from .urlutils import sanitise_url
+                LOGGER.debug("Updating config %s to %r", key_so_far + k, sanitise_url(v))
+            else:
+                LOGGER.debug("Updating config %s to %r", key_so_far + k, v)
+            into_cfg[k] = v

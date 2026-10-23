@@ -11,6 +11,7 @@ from manage.config import (
     config_dict_merge,
     config_split,
     config_split_append,
+    merge_config,
     resolve_config,
 )
 
@@ -252,3 +253,57 @@ def test_config_resolve_env_fallback(assert_log):
     resolve_config(cfg, "<test.cfg>", Path(), schema=schema, environ=env)
     assert cfg == expect
     assert_log(("Environment variable.*not found", ["AppData"]))
+
+
+@pytest.mark.parametrize(
+    ("cfg", "schema", "expect"),
+    [
+        ({"a": "abc"}, {"a": (str, None, "sensitive")}, ["a"]),
+        # No redaction without "sensitive"
+        ({"a": "abc"}, {"a": (str, None)}, ["a", "abc"]),
+        ({"a": "http://example.com/"}, {"a": (str, None, "uri")}, ["a", "http://example.com/"]),
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None, "uri")}, ["a", "http://example.com/"]),
+        ({"a": "NOT A URI"}, {"a": (str, None, "uri")}, ["a", "NOT A URI"]),
+        # No redaction without "uri"
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None)}, ["a", "http://user:pass@example.com/"]),
+    ],
+    ids=[
+        "sensitive-str",
+        "str",
+        "uri",
+        "uri-with-creds",
+        "bad-uri",
+        "str-with-creds",
+    ],
+)
+def test_config_redact_single(cfg, schema, expect, assert_log):
+    into = {}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+
+    into = {k: None for k in into}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+
+    assert_log(("Updating config.+", expect), ("Updating config.+", expect))
+
+def test_config_redact_nested(assert_log):
+    cfg = {
+        "str": dict(a="abc", x="xyz"),
+        "uri": dict(a="http://example.com/", x="http://user:pass@example.com/"),
+    }
+    schema = {
+        "str": dict(a=(str, None), x=(str, None, "sensitive")),
+        "uri": dict(a=(str, None, "uri"), x=(str, None, "uri")),
+    }
+    into = {}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+    assert_log(
+        ("Recursively updating.+", ["str"]),
+        ("Updating config.+to.+", ["str.a", "abc"]),
+        ("Updating config.+", ["str.x"]),
+        ("Recursively updating.+", ["uri"]),
+        ("Updating config.+to.+", ["uri.a", "http://example.com/"]),
+        ("Updating config.+to.+", ["uri.x", "http://example.com/"]),
+    )

@@ -255,12 +255,13 @@ PyObject *get_processor_architecture(PyObject *, PyObject *, PyObject *) {
 }
 
 PyObject *get_environment_block(PyObject *, PyObject *, PyObject *) {
-    HANDLE token;
+    HANDLE token = NULL;
     wchar_t *env = NULL;
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &token)
         || !CreateEnvironmentBlock((LPVOID *)&env, token, FALSE)) {
         PyErr_SetFromWindowsErr(0);
+        if (token) CloseHandle(token);
         return NULL;
     }
 

@@ -161,8 +161,8 @@ class _EnvironWithFallback(dict):
     FALLBACK_KEYS = {
         "ALLUSERSPROFILE",
         "APPDATA",
-        "COMMONPROGRAMSFILES",
-        "COMMONPROGRAMSFILES(X86)",
+        "COMMONPROGRAMFILES",
+        "COMMONPROGRAMFILES(X86)",
         "COMMONPROGRAMW6432",
         "COMPUTERNAME",
         "COMSPEC",
@@ -219,7 +219,7 @@ class _EnvironWithFallback(dict):
             for var in get_environment_block().split("\0"):
                 k2, _, v2 = var.partition("=")
                 self._fallback[k2.upper()] = v2
-        return self._fallback[k]
+        return self._fallback.get(k)
 
     def get(self, key, default=None):
         k = key.upper()

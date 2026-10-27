@@ -1,6 +1,6 @@
 from .exceptions import InvalidFeedError
 from .logging import LOGGER
-from .tagutils import tag_or_range, install_matches_any
+from .tagutils import CompanyTag, tag_or_range, install_matches_any
 from .verutils import Version
 
 SCHEMA = {
@@ -195,6 +195,37 @@ def _patch(source_url, v):
     return _SCHEMA_PATCHES.get(v.get("schema"), lambda _, v: v)(source_url, v)
 
 
+def _tag_prefers_prerelease(tag):
+    """True when *tag* asks for a prerelease, such as '3-dev' or '3.16.0a1'.
+
+    Tag sorting splits '-dev' and 'a1' off the numeric version, so the version
+    component alone is not a prerelease. The suffix is what the request means.
+    """
+    if not isinstance(tag, str):
+        return False
+    stripped = tag.strip()
+    if not stripped or stripped.lstrip(" =")[:1] in "<>!":
+        return False
+    try:
+        parsed = tag_or_range(stripped)
+    except ValueError:
+        return False
+    if not isinstance(parsed, CompanyTag):
+        return False
+    for part in parsed._sortkey:
+        text = str(part).casefold()
+        if text == "dev":
+            return True
+        # Free-threaded tags keep the 't' ABI marker on the suffix ('a1t').
+        if len(text) > 1 and text.endswith("t"):
+            text = text[:-1]
+        if len(text) >= 2 and text.startswith("rc") and text[2:].isdigit():
+            return True
+        if text[:1] in "abc" and text[1:].isdigit():
+            return True
+    return False
+
+
 class Index:
     def __init__(self, source_url, d):
         try:
@@ -232,6 +263,12 @@ class Index:
                     yield i
 
     def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=False):
+        # Final releases publish the same '-dev' tags as prereleases, so a
+        # request such as '3-dev' matches an older final on the first pass and
+        # the prerelease fallback never runs. A tag that is itself a
+        # prerelease has to include prereleases while scanning newest-first.
+        if not prefer_prerelease and _tag_prefers_prerelease(tag):
+            prefer_prerelease = True
         tag_list = [tag] if tag else []
         LOGGER.debug("Finding %s to install", tag_list)
         for i in self.find_all(tag_list, loose_company=loose_company, with_prerelease=prefer_prerelease):

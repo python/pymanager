@@ -170,6 +170,64 @@ def test_install_lookup():
     assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.11.3"
 
 
+def _feed_package(sort, tag, install_for):
+    data = fake_install_data(sort, sort_version=sort)
+    data["tag"] = tag
+    data["install-for"] = list(install_for)
+    return data
+
+
+def test_find_to_install_dev_tag_prefers_prerelease():
+    # gh-428: finals publish the same '-dev' tags as prereleases, so '3-dev'
+    # used to stop at 3.15.0. '3.16-dev' already worked because no final
+    # matched that tag and the prerelease fallback ran.
+    def listed(full, minor):
+        major = minor.partition(".")[0]
+        return [
+            full, minor, major,
+            f"{minor}-dev", f"{major}-dev",
+            f"{full}-64", f"{minor}-64", f"{major}-64",
+            f"{minor}-dev-64", f"{major}-dev-64",
+        ]
+
+    only_major = iu.Index("https://localhost/", {
+        "versions": [
+            _feed_package(
+                "3.16.0a1", "3.16-dev",
+                listed("3.16.0a1", "3.16"),
+            ),
+            _feed_package(
+                "3.15.0", "3.15",
+                listed("3.15.0", "3.15"),
+            ),
+        ],
+    })
+    assert str(only_major.find_to_install("3-dev")["sort-version"]) == "3.16.0a1"
+    assert str(only_major.find_to_install(r"PythonCore\3-dev")["sort-version"]) == "3.16.0a1"
+    assert str(only_major.find_to_install("3-dev-64")["sort-version"]) == "3.16.0a1"
+    assert str(only_major.find_to_install("3.16-dev")["sort-version"]) == "3.16.0a1"
+    assert str(only_major.find_to_install("3")["sort-version"]) == "3.15.0"
+    assert str(only_major.find_to_install("3.15-dev")["sort-version"]) == "3.15.0"
+
+    # A newer prerelease of an already-final minor must win for '-dev' only.
+    same_minor = iu.Index("https://localhost/", {
+        "versions": [
+            _feed_package(
+                "3.16.1a1", "3.16-dev",
+                listed("3.16.1a1", "3.16"),
+            ),
+            _feed_package(
+                "3.16.0", "3.16",
+                listed("3.16.0", "3.16"),
+            ),
+        ],
+    })
+    assert str(same_minor.find_to_install("3-dev")["sort-version"]) == "3.16.1a1"
+    assert str(same_minor.find_to_install("3.16-dev")["sort-version"]) == "3.16.1a1"
+    assert str(same_minor.find_to_install("3")["sort-version"]) == "3.16.0"
+    assert str(same_minor.find_to_install("3.16")["sort-version"]) == "3.16.0"
+
+
 def test_select_package():
     from manage.install_command import select_package
 

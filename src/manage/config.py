@@ -243,16 +243,29 @@ class _EnvironWithFallback(dict):
 
 
 
-def _expand_vars(v, env):
+def _expand_vars(k, v, env):
     import re
     def _sub(m):
+        # Double %% turns into literal %
+        if not m.group(1):
+            return "%"
         v2 = env.get(m.group(1))
         if v2:
             return v2 + (m.group(2) or "")
+        # Extra warning for undefined environment variables that are not shaped
+        # like identifiers (typical, but not strictly required).
+        if not m.group(1).isidentifier():
+            LOGGER.warn("The environment variable %%%s%% in configuration "
+                        "setting %s looks unusual. Ensure you have defined "
+                        "your configuration file correctly. This value may "
+                        "require literal percents to be escaped as %%%%.",
+                        m.group(1), k)
         if m.group(2):
             # Empty values before a path separator are not allowed
             raise LookupError(m.group(1))
         return ""
+    # Ignore URL encoded characters. If you really want your environment
+    # variable to start with two digits, you'll just have to change it.
     v2 = re.sub(r"%(.*?)%([\\/])?", _sub, v)
     return v2
 
@@ -284,7 +297,7 @@ def resolve_config(cfg, source, relative_to, key_so_far="", schema=None, error_u
         if "env" in opts and v and isinstance(v, str):
             try:
                 orig_v = v
-                v = _expand_vars(v, environ)
+                v = _expand_vars(key_so_far + k, v, environ)
                 from_env = orig_v != v
             except TypeError:
                 pass
@@ -363,3 +376,32 @@ def merge_config(into_cfg, from_cfg, schema, *, key_so_far="", source="<unknown>
             else:
                 LOGGER.debug("Updating config %s to %r", key_so_far + k, v)
             into_cfg[k] = v
+
+
+def sanitise_config(config, schema):
+    clean = {}
+    for k, v in config.items():
+        subschema = schema.get(k)
+        if not subschema:
+            LOGGER.debug("Omitting %s from config output as it is not "
+                         "in the schema", k)
+            continue
+        if isinstance(subschema, dict):
+            if not isinstance(v, dict):
+                LOGGER.debug("Omitting %s from config output as the schema "
+                             "wants an object and the config has a value.", k)
+                continue
+            clean[k] = sanitise_config(v, subschema)
+            continue
+        kind, _, *opts = subschema
+        if "sensitive" in opts:
+            LOGGER.debug("Omitting %s from config output as it is "
+                         "marked sensitive.", k)
+            continue
+        if kind:
+            v = kind(v)
+        if "uri" in opts:
+            from .urlutils import sanitise_url
+            v = sanitise_url(v)
+        clean[k] = v
+    return clean

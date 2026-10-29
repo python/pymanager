@@ -11,7 +11,9 @@ from manage.config import (
     config_dict_merge,
     config_split,
     config_split_append,
+    merge_config,
     resolve_config,
+    sanitise_config,
 )
 
 
@@ -90,17 +92,46 @@ def test_config_bool_any_t_prefixed_string_is_true():
     ],
 )
 def test_expand_vars(value, variables, expected):
-    assert _expand_vars(value, variables) == expected
+    assert _expand_vars("key", value, variables) == expected
 
 
 def test_expand_vars_fails_on_missing_variable():
     with pytest.raises(LookupError):
-        _expand_vars("%MISSING%\\Python", {})
+        _expand_vars("key", "%MISSING%\\Python", {})
 
 
 def test_expand_vars_fails_on_empty_variable():
     with pytest.raises(LookupError):
-        _expand_vars("%EMPTY%\\Python", {"EMPTY": ""})
+        _expand_vars("key", "%EMPTY%\\Python", {"EMPTY": ""})
+
+
+def test_expand_vars_warn_on_env(assert_log):
+    assert "" == _expand_vars("key", "%Weird Looking Env Variable%", {})
+    assert_log(
+        (".*environment variable.*looks unusual.*", ["Weird Looking Env Variable", "key"]),
+    )
+
+
+def test_expand_vars_warn_on_url_encoded(assert_log):
+    # No warning on single % char
+    v = "http://example.com/path%20name/"
+    assert v == _expand_vars("key", v, {})
+    assert_log()
+
+    # Multiple % will lead to a weird looking variable name that isn't defined
+    v = "http://example.com/path%20name%2f/"
+    # ... the result will blank it out ...
+    expect = "http://example.com/path2f/"
+    assert expect == _expand_vars("key", v, {})
+    # ... and a warning will be shown
+    assert_log(
+        (".*environment variable.*looks unusual.*", ["20name", "key"]),
+    )
+
+
+def test_expand_vars_percent_escaped_url_encoded():
+    assert "http://example.com/path%20name/" == _expand_vars("key", "http://example.com/path%%20name/", {})
+    assert "http://example.com/path%20name%2f/" == _expand_vars("key", "http://example.com/path%%20name%%2f/", {})
 
 
 def test_environ_with_fallback():
@@ -252,3 +283,99 @@ def test_config_resolve_env_fallback(assert_log):
     resolve_config(cfg, "<test.cfg>", Path(), schema=schema, environ=env)
     assert cfg == expect
     assert_log(("Environment variable.*not found", ["AppData"]))
+
+
+@pytest.mark.parametrize(
+    ("cfg", "schema", "expect"),
+    [
+        ({"a": "abc"}, {"a": (str, None, "sensitive")}, ["a"]),
+        # No redaction without "sensitive"
+        ({"a": "abc"}, {"a": (str, None)}, ["a", "abc"]),
+        ({"a": "http://example.com/"}, {"a": (str, None, "uri")}, ["a", "http://example.com/"]),
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None, "uri")}, ["a", "http://example.com/"]),
+        ({"a": "NOT A URI"}, {"a": (str, None, "uri")}, ["a", "NOT A URI"]),
+        # No redaction without "uri"
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None)}, ["a", "http://user:pass@example.com/"]),
+    ],
+    ids=[
+        "sensitive-str",
+        "str",
+        "uri",
+        "uri-with-creds",
+        "bad-uri",
+        "str-with-creds",
+    ],
+)
+def test_config_redact_single(cfg, schema, expect, assert_log):
+    into = {}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+
+    into = {k: None for k in into}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+
+    assert_log(("Updating config.+", expect), ("Updating config.+", expect))
+
+def test_config_redact_nested(assert_log):
+    cfg = {
+        "str": dict(a="abc", x="xyz"),
+        "uri": dict(a="http://example.com/", x="http://user:pass@example.com/"),
+    }
+    schema = {
+        "str": dict(a=(str, None), x=(str, None, "sensitive")),
+        "uri": dict(a=(str, None, "uri"), x=(str, None, "uri")),
+    }
+    into = {}
+    merge_config(into, cfg, schema)
+    assert into == cfg
+    assert_log(
+        ("Recursively updating.+", ["str"]),
+        ("Updating config.+to.+", ["str.a", "abc"]),
+        ("Updating config.+", ["str.x"]),
+        ("Recursively updating.+", ["uri"]),
+        ("Updating config.+to.+", ["uri.a", "http://example.com/"]),
+        ("Updating config.+to.+", ["uri.x", "http://example.com/"]),
+    )
+
+
+@pytest.mark.parametrize(
+    ("cfg", "schema", "expect"),
+    [
+        ({"a": "abc"}, {"a": (str, None, "sensitive")}, {}),
+        # No redaction without "sensitive"
+        ({"a": "abc"}, {"a": (str, None)}, {"a": "abc"}),
+        ({"a": "http://example.com/"}, {"a": (str, None, "uri")}, {"a": "http://example.com/"}),
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None, "uri")}, {"a": "http://example.com/"}),
+        ({"a": "NOT A URI"}, {"a": (str, None, "uri")}, {"a": "NOT A URI"}),
+        # No redaction without "uri"
+        ({"a": "http://user:pass@example.com/"}, {"a": (str, None)}, {"a": "http://user:pass@example.com/"}),
+    ],
+    ids=[
+        "sensitive-str",
+        "str",
+        "uri",
+        "uri-with-creds",
+        "bad-uri",
+        "str-with-creds",
+    ],
+)
+def test_config_sanitise_single(cfg, schema, expect, assert_log):
+    actual = sanitise_config(cfg, schema)
+    assert actual == expect
+
+def test_config_sanitise_nested(assert_log):
+    cfg = {
+        "str": dict(a="abc", x="xyz"),
+        "uri": dict(a="http://example.com/", x="http://user:pass@example.com/"),
+    }
+    expect = {
+        "str": dict(a="abc"),
+        "uri": dict(a="http://example.com/", x="http://example.com/"),
+    }
+    schema = {
+        "str": dict(a=(str, None), x=(str, None, "sensitive")),
+        "uri": dict(a=(str, None, "uri"), x=(str, None, "uri")),
+    }
+    actual = sanitise_config(cfg, schema)
+    assert actual == expect

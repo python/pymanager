@@ -15,7 +15,6 @@ from .pathutils import Path, PurePath
 from .tagutils import install_matches_any, tag_or_range
 from .urlutils import (
     sanitise_url,
-    urlopen as _urlopen,
     urlretrieve as _urlretrieve,
     IndexDownloader,
 )
@@ -48,7 +47,7 @@ def _expand_versions_by_tag(versions):
                 yield {**v, "tag": t}
 
 
-def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by_id=False, allow_pre=True):
+def select_package(index_downloader, tag, platform=None, *, by_id=False, allow_pre=True):
     """Finds suitable package from index.json that looks like:
     {"versions": [
       {"id": ..., "company": ..., "tag": ..., "url": ..., "hash": {"sha256": hexdigest}},
@@ -96,7 +95,7 @@ def select_package(index_downloader, tag, platform=None, *, urlopen=_urlopen, by
     raise RuntimeError("End of select_package reached")
 
 
-def download_package(cmd, install, dest, cache, *, on_progress=None, urlopen=_urlopen, urlretrieve=_urlretrieve):
+def download_package(cmd, install, dest, cache, *, on_progress=None, urlretrieve=_urlretrieve):
     LOGGER.debug("Starting download package %s to %s", sanitise_url(install["url"]), dest)
 
     if not cmd.force and dest.is_file():
@@ -130,7 +129,7 @@ def download_package(cmd, install, dest, cache, *, on_progress=None, urlopen=_ur
         if auth:
             LOGGER.debug("Found credentials in URL or configured source.")
             return auth
-        auth = os.getenv("PYMANAGER_USERNAME", ""), os.getenv("PYMANAGER_PASSWORD", "")
+        auth = cmd.username, (cmd.password or "")
         if auth[0]:
             LOGGER.debug("Found credentials in environment.")
             return auth
@@ -143,6 +142,7 @@ def download_package(cmd, install, dest, cache, *, on_progress=None, urlopen=_ur
         on_progress=on_progress,
         on_auth_request=_find_creds,
         on_cancel=lambda: cmd.ask_yn("Abort download?"),
+        proxy_info=cmd,
     )
     LOGGER.debug("Downloaded to %s", dest)
     return dest

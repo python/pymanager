@@ -225,9 +225,16 @@ def list_formats(cmd, installs):
         LOGGER.print(f"{k:<{max_key_width}} {doc}", always=True)
 
 
-def list_config(cmd, installs):
+def list_config(cmd, installs, schema=None):
     "List the current config"
-    LOGGER.print(json.dumps(cmd.config, default=str), always=True)
+    from .config import sanitise_config
+    if schema is None:
+        from .commands import CONFIG_SCHEMA as schema
+
+    LOGGER.print(
+        json.dumps(sanitise_config(cmd.config, schema), default=str),
+        always=True
+    )
 
 
 def format_legacy(cmd, installs, paths=False):

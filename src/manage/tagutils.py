@@ -67,6 +67,13 @@ class _AscendingText:
             return not self.s
         return self.s.startswith(other.s)
 
+    def endswith(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if not other.s:
+            return True
+        return self.s.endswith(other.s)
+
     def __hash__(self):
         return hash(self.s)
 
@@ -213,6 +220,12 @@ class CompanyTag:
     def satisfied_by(self, tag):
         return tag.match(self)
 
+    @property
+    def prefers_prerelease(self, dev_text=_AscendingText("dev")):
+        if self._sortkey and self._sortkey[-1] == dev_text:
+            return True
+        return False
+
     def __str__(self):
         if self.is_core:
             return f"{self.tag}{self.platform}"
@@ -340,6 +353,10 @@ class TagRange:
     def __repr__(self):
         return "<TagRange({})>".format(", ".join(repr(r) for r in self.ranges))
 
+    @property
+    def prefers_prerelease(self):
+        return any(r.prefers_prerelease for r in self.ranges)
+
     def satisfied_by(self, tag):
         return all(r(tag) for r in self.ranges)
 
@@ -358,6 +375,10 @@ class TagRange:
             else:
                 assert isinstance(tag, CompanyTag)
                 self.tag = tag
+
+        @property
+        def prefers_prerelease(self):
+            return self.tag.prefers_prerelease
 
         def __repr__(self):
             return f"{self.OP}{self.tag}"
@@ -404,6 +425,9 @@ class TagRange:
         def __call__(self, other):
             return not other.matches_bound(self.tag)
 
+        @property
+        def prefers_prerelease(self):
+            return False
 
 def tag_or_range(tag):
     if not isinstance(tag, str):

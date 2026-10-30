@@ -354,15 +354,19 @@ def execute(cmd):
         if first_exc:
             raise SystemExit(1) from first_exc
         if cmd.one:
-            # Pick the first non-prerelease that'll install for our platform
             best = [i for i in installs
                     if any(t.endswith(plat) for t in i.get("install-for", []))]
-            for i in best:
-                if not i["sort-version"].is_prerelease:
-                    installs = [i]
-                    break
-            else:
+            if any(t.prefers_prerelease for t in tags):
+                # First result will be the latest prerelease (or release)
                 installs = best[:1] or installs
+            else:
+                # Pick the first non-prerelease that'll install for our platform
+                for i in best:
+                    if not i["sort-version"].is_prerelease:
+                        installs = [i]
+                        break
+                else:
+                    installs = best[:1] or installs
     elif cmd.install_dir:
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)

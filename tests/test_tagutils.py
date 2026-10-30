@@ -1,6 +1,6 @@
 import pytest
 
-from manage.tagutils import CompanyTag, TagRange
+from manage.tagutils import CompanyTag, TagRange, tag_or_range
 
 
 @pytest.mark.parametrize("tag_str", [
@@ -40,6 +40,24 @@ def test_tag_match():
     assert CompanyTag("PythonCore\\4.56").match(CompanyTag("", ""))
     assert CompanyTag("PythonCore\\3.13").match(CompanyTag("", "3"))
     assert not CompanyTag("PythonCore\\4.56").match(CompanyTag("", "3"))
+
+
+def test_prefer_prerelease():
+    assert not tag_or_range("3").prefers_prerelease
+    assert not tag_or_range("3-64").prefers_prerelease
+    assert not tag_or_range("3.13").prefers_prerelease
+    assert tag_or_range("3-dev").prefers_prerelease
+    assert tag_or_range("3.13-DEV").prefers_prerelease
+    assert tag_or_range("3.13-dev-64").prefers_prerelease
+
+    assert not tag_or_range(">3").prefers_prerelease
+    assert not tag_or_range("<3-64").prefers_prerelease
+    assert not tag_or_range("==3.13").prefers_prerelease
+    assert not tag_or_range("!=3.13").prefers_prerelease
+    assert not tag_or_range("!=3.13-dev").prefers_prerelease
+    assert tag_or_range(">3-dev").prefers_prerelease
+    assert tag_or_range("<3.13-DEV").prefers_prerelease
+    assert tag_or_range("==3.13-dev-64").prefers_prerelease
 
 
 def test_tag_platform_match():

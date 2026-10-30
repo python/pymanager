@@ -231,9 +231,11 @@ class Index:
                         seen_ids.add(i["id"].casefold())
                     yield i
 
-    def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=False):
+    def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=None):
         tag_list = [tag] if tag else []
         LOGGER.debug("Finding %s to install", tag_list)
+        if prefer_prerelease is None:
+            prefer_prerelease = any(t.prefers_prerelease for t in tag_list)
         for i in self.find_all(tag_list, loose_company=loose_company, with_prerelease=prefer_prerelease):
             return {**i, "source": self.source_url}
         if not loose_company:

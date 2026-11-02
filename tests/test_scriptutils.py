@@ -279,6 +279,26 @@ def test_quote_args(args, expect):
     assert args == split_args(expect), expect
 
 
+# Examples from "Parsing C command-line arguments" in the Microsoft C runtime
+# documentation, plus quotes that begin or end partway through an argument.
+@pytest.mark.parametrize("arg_string, expect", [pytest.param(*a, id=a[0]) for a in [
+    ('"a b c" d e', ['a b c', 'd', 'e']),
+    ('"ab\\"c" "\\\\" d', ['ab"c', '\\', 'd']),
+    ('a\\\\\\b d"e f"g h', ['a\\\\\\b', 'de fg', 'h']),
+    ('a\\\\\\"b c d', ['a\\"b', 'c', 'd']),
+    ('a\\\\\\\\"b c" d e', ['a\\\\b c', 'd', 'e']),
+    ('a"b"" c d', ['ab" c d']),
+    ('--opt="a b" -E', ['--opt=a b', '-E']),
+    ('-W"ignore"', ['-Wignore']),
+    ('"a b"c d', ['a bc', 'd']),
+    ('-X  utf8', ['-X', 'utf8']),
+    ('x "" y', ['x', '', 'y']),
+    ('a\tb', ['a', 'b']),
+]])
+def test_split_args(arg_string, expect):
+    assert expect == split_args(arg_string)
+
+
 @pytest.mark.parametrize("line, expect_id, expect_line", [pytest.param(*a, id=a[0]) for a in [
     ("#!/usr/bin/python", "Test1", None),
     ("#!/usr/bin/python -Es", "Test1", None),

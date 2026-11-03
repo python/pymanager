@@ -18,6 +18,11 @@ class Version:
     # Versions with more fields than this will be truncated.
     MAX_FIELDS = 8
 
+    def __new__(self, s):
+        if isinstance(s, Version):
+            return s
+        return object.__new__(self)
+
     def __init__(self, s):
         import re
         if isinstance(s, Version):

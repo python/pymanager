@@ -51,6 +51,40 @@ def test_get_default_install_prerelease(patched_installs2):
     assert m[0][0]["id"] == "PythonCore-3.0a1-32"
 
 
+def test_get_default_install_prerelease_dev(patched_installs3):
+    inst = list(installs._get_installs("<none>"))
+    # Installs contains 3.0 for -64, and 3.0a1 for -32, -64 and -arm64
+
+    # Passing "-V:3" should always prefer a final release, rather than a
+    # prerelease, even if the platform isn't the default.
+    m = installs.get_matching_install_tags(inst, "3", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0-64"
+    
+    m = installs.get_matching_install_tags(inst, "3", None, "-64", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0-64"
+
+    # Passing "-V:3-dev" should prefer a prerelease for the default platform,
+    # even if a final release for a different platform exists.
+    m = installs.get_matching_install_tags(inst, "3-dev", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0a1-32"
+
+    m = installs.get_matching_install_tags(inst, "3-dev", None, "-64", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.1a1-64"
+
+    # Sanity check that explicit platforms always choose something matching
+    m = installs.get_matching_install_tags(inst, "3-32", None, "-32", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0a1-32"
+    
+    m = installs.get_matching_install_tags(inst, "3-64", None, "-64", single_tag=True)
+    assert m and m[0]
+    assert m[0][0]["id"] == "PythonCore-3.0-64"
+    
+
 def test_get_install_to_run(patched_installs):
     i = installs.get_install_to_run("<none>", None, "1.0")
     assert i["id"] == "PythonCore-1.0"

@@ -17,6 +17,14 @@ def _make_sort_key(install):
     )
 
 
+def _make_sort_key_ignore_pre(install):
+    # Alternate sort key for "-dev" that treats prerelease as equal to release
+    return (
+        CompanyTag(install.get("company"), install.get("tag")),
+        Version(install["sort-version"]),
+    )
+
+
 def _get_installs(install_dir):
     for d in Path(install_dir).iterdir():
         p = d / "__install__.json"
@@ -258,8 +266,6 @@ def get_matching_install_tags(
                 else:
                     matches.append((i, t))
                     matched_any = True
-            if single_tag and matched_any:
-                break
         if LOGGER.would_log_to_console(DEBUG):
             # Don't bother listing all installs unless the user has asked
             # for console output.
@@ -298,6 +304,8 @@ def get_matching_install_tags(
     # If none or only prereleases, keep them all
     if default_platform:
         default_platform = default_platform.casefold()
+        # Remember whether all source versions were prereleases, so we don't
+        # reset our results if all post-filter versions are prereleases.
         all_pre = all(Version(i["sort-version"]).is_prerelease for i, t in best)
         best2 = best
         best = [(i, t) for i, t in best
@@ -305,12 +313,23 @@ def get_matching_install_tags(
                 or t["tag"].casefold().endswith(default_platform)]
         LOGGER.debug("default_platform '%s' matched %s %s", default_platform,
                      len(best), "install" if len(best) == 1 else "installs")
-        if (
-            not best or
-            (not all_pre and all(Version(i["sort-version"]).is_prerelease for i, t in best))
-        ):
+        if not best:
+            LOGGER.debug("Reusing unfiltered list because all candidates were "
+                         "excluded")
+            best = best2
+        elif (not all_pre
+              and (not tag or not tag.prefers_prerelease)
+              and all(Version(i["sort-version"]).is_prerelease for i, t in best)):
             LOGGER.debug("Reusing unfiltered list")
             best = best2
+
+    if best and single_tag:
+        if tag.prefers_prerelease:
+            best2 = sorted(best, key=lambda i_t: _make_sort_key_ignore_pre(i_t[0]))
+            for i_t in best2:
+                if Version(i_t[0]["sort-version"]).is_prerelease:
+                    return [i_t]
+        return best[:1]
 
     return best
 
@@ -358,14 +377,10 @@ def get_install_to_run(
     )
 
     if tag and tag.prefers_prerelease:
-        for i, t in best:
-            try:
-                if Version(i["sort-version"]).is_prerelease:
-                    return _patch_install_to_run(i, t)
-            except ValueError as ex:
-                LOGGER.debug("Failed to parse %s to check for prerelease",
-                             i["sort-version"])
-
+        best2 = sorted(best, key=lambda i_t: _make_sort_key_ignore_pre(i_t[0]))
+        for i, t in best2:
+            if Version(i["sort-version"]).is_prerelease:
+                return _patch_install_to_run(i, t)
     if best:
         return _patch_install_to_run(*best[0])
 

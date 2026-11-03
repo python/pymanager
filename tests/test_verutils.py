@@ -3,6 +3,15 @@ import pytest
 from manage.verutils import Version
 
 
+def test_version_identity():
+    v1 = Version("1.0")
+    v2 = Version(v1)
+    v3 = Version("1.0")
+    assert v1 is v2
+    assert v1 is not v3
+    assert v1 == v3
+
+
 @pytest.mark.parametrize("ver_str", [
     "3", "3.1", "3.10", "3.1.2", "3.1.2.3",
     "3a1", "3.1a1", "3.1.2a2", "3.1.2-a2", "3.1.a.4",

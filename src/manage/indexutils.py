@@ -232,7 +232,7 @@ class Index:
                     yield i
 
     def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=None):
-        tag_list = [tag] if tag else []
+        tag_list = [tag_or_range(tag)] if tag else []
         LOGGER.debug("Finding %s to install", tag_list)
         if prefer_prerelease is None:
             prefer_prerelease = any(t.prefers_prerelease for t in tag_list)

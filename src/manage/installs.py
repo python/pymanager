@@ -357,7 +357,7 @@ def get_install_to_run(
         default_platform=default_platform,
     )
 
-    if tag.prefers_prerelease:
+    if tag and tag.prefers_prerelease:
         for i, t in best:
             try:
                 if Version(i["sort-version"]).is_prerelease:

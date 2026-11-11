@@ -4,12 +4,15 @@ import re
 from itertools import zip_longest
 
 from manage import list_command
+from manage.exceptions import NoInstallFoundError
 from manage.indexutils import Index
+from manage.tagutils import CompanyTag
+from manage.verutils import Version
 
 FAKE_INSTALLS = [
-    {"company": "Company2", "tag": "1.0", "sort-version": "1.0"},
-    {"company": "Company1", "tag": "2.0", "sort-version": "2.0"},
-    {"company": "Company1", "tag": "1.0", "sort-version": "1.0", "default": True},
+    {"company": "Company2", "tag": "1.0", "sort-version": "1.0", "run-for": [{"tag": "1.0"}, {"tag": "1"}]},
+    {"company": "Company1", "tag": "2.0", "sort-version": "2.0", "run-for": [{"tag": "2.0"}, {"tag": "2"}]},
+    {"company": "Company1", "tag": "1.0", "sort-version": "1.0", "run-for": [{"tag": "1.0"}, {"tag": "1"}], "default": True},
 ]
 
 FAKE_INDEX = {
@@ -52,6 +55,21 @@ class ListCapture:
         assert include_unmanaged == self.unmanaged
         return self.installs
 
+    def get_install_to_run(self, tag=None, script=None, *, windowed=False):
+        installs = []
+        for i in self.installs:
+            for t in i["run-for"]:
+                # Using tag.company to "ignore" company here - it's not the
+                # real logic
+                ct = CompanyTag(tag.company, t["tag"])
+                if tag == ct:
+                    installs.append(i)
+        if not installs:
+            raise NoInstallFoundError
+        for i in installs:
+            if i.get("default"):
+                return i
+        return min(installs, key=lambda i: Version(i["sort-version"]))
 
 @pytest.fixture
 def list_cmd():
@@ -212,7 +230,13 @@ def test_format_table_empty(assert_log):
 
 
 def test_format_csv(assert_log):
-    list_command.format_csv(None, FAKE_INSTALLS)
+    list_command.format_csv(None, [
+        {
+            **d,
+            "run-for": [],
+        }
+        for d in FAKE_INSTALLS
+    ])
     # CSV format only contains columns that are present, so this doesn't look
     # as complete as for normal installs, but it's fine for the test.
     assert_log(
@@ -227,6 +251,7 @@ def test_format_csv_complex(assert_log):
     data = [
         {
             **d,
+            "run-for": [],
             "alias": [dict(name=f"n{i}.{j}", target=f"t{i}.{j}") for j in range(i + 1)]
         }
         for i, d in enumerate(FAKE_INSTALLS)

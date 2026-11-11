@@ -1,7 +1,8 @@
 import json
 
 from . import logging
-from .exceptions import ArgumentError
+from .exceptions import ArgumentError, NoInstallFoundError
+from .verutils import Version
 
 LOGGER = logging.LOGGER
 
@@ -367,6 +368,27 @@ def execute(cmd):
                         break
                 else:
                     installs = best[:1] or installs
+    elif cmd.install_dir and cmd.one:
+        best = None
+        best_ver = None
+        for t in tags:
+            try:
+                install = cmd.get_install_to_run(t)
+            except NoInstallFoundError:
+                continue
+            ver = Version(install["sort-version"])
+            if not best:
+                best = install
+                best_ver = ver
+            else:
+                if ver > best_ver:
+                    if t.prefers_prerelease or not ver.is_prerelease or best_ver.is_prerelease:
+                        best = install
+                        best_ver = ver
+        if best:
+            installs = [best]
+        else:
+            installs = []
     elif cmd.install_dir:
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)
@@ -386,8 +408,6 @@ def execute(cmd):
     else:
         raise ArgumentError("Configuration file does not specify install directory.")
 
-    if cmd.one:
-        installs = [i for i in installs if i.get("default")][:1] or installs[:1]
     formatter(cmd, installs)
 
     LOGGER.debug("END list_command.execute")

@@ -72,23 +72,51 @@ class Version:
             return self.s.casefold() == other.casefold()
         if not isinstance(other, type(self)):
             return False
-        if self.sortkey == other.sortkey:
-            return True
-        if prefix_match is not None and prefix_match or self.prefix_match:
-            if (self.sortkey[-3] <= other.sortkey[-3]
-                and self.sortkey[:self.sortkey[-3]] == other.sortkey[:self.sortkey[-3]]):
-                return True
-        elif other_prefix_match is not None and other_prefix_match or other.prefix_match:
-            if (self.sortkey[-3] >= other.sortkey[-3]
-                and self.sortkey[:other.sortkey[-3]] == other.sortkey[:other.sortkey[-3]]):
-                return True
-        if prerelease_match is not None and prerelease_match or self.prerelease_match:
-            if self.sortkey[:-3] == other.sortkey[:-3]:
-                return True
-        return False
+        k1 = self.sortkey[:-3]
+        k2 = other.sortkey[:-3]
+        assert len(k1) == len(k2)
+        n1 = self.sortkey[-3]
+        n2 = other.sortkey[-3]
+        pre1 = self.sortkey[-2:]
+        pre2 = other.sortkey[-2:]
+        if prefix_match is None:
+            prefix_match = self.prefix_match
+        if other_prefix_match is None:
+            other_prefix_match = other.prefix_match
+
+        if prefix_match and other_prefix_match:
+            # Use the shorter sort key to match
+            n1 = n2 = min(n1, n2)
+        elif prefix_match:
+            # Use our length
+            if n1 > n2:
+                # Prefix is longer, so fail
+                return False
+            n2 = n1
+        elif other_prefix_match:
+            # Use other length
+            if n2 > n1:
+                # Prefix is longer, so fail
+                return False
+            n1 = n2
+        else:
+            # Use full length
+            n1 = n2 = len(k1)
+            if not (self.prerelease_match if prerelease_match is None else prerelease_match):
+                # Prerelease values must match
+                if pre1 != pre2:
+                    return False
+        return k1[:n1] == k2[:n2]
 
     def startswith(self, other):
-        return self._are_equal(other, other_prefix_match=True)
+        if not isinstance(other, type(self)):
+            other = type(self)(other)
+        if self._are_equal(other, other_prefix_match=True, prerelease_match=True):
+            # We've prefix-matched ignoring prerelease, now we check the
+            # prerelease is equal or higher.
+            if self.sortkey[-2:] >= other.sortkey[-2:]:
+                return True
+        return False
 
     def above_lower_bound(self, other):
         if other is None:

@@ -25,7 +25,8 @@ def test_company_tag(tag_str):
 def test_tag_equality():
     assert CompanyTag("3.13") == CompanyTag("PythonCore\\3.13")
     assert CompanyTag("3.13") != CompanyTag("Company\\3.13")
-    assert CompanyTag("3.13.0") != CompanyTag("3.13")
+    assert CompanyTag("3.13.0") == CompanyTag("3.13")
+    assert CompanyTag("3.13.1") != CompanyTag("3.13")
 
 
 def test_tag_match():
@@ -124,6 +125,23 @@ def test_simple_tag_range():
     assert TagRange("~=3.10").satisfied_by(CompanyTag("3.10.1"))
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.9"))
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.11"))
+
+
+def test_tag_range_exclude():
+    assert TagRange("!=3.10").satisfied_by(CompanyTag("3.11"))
+    assert TagRange("!=3.10").satisfied_by(CompanyTag("3.9"))
+    assert not TagRange("!=3.10").satisfied_by(CompanyTag("3.10"))
+    assert not TagRange("!=3.10").satisfied_by(CompanyTag("3.10.0"))
+    assert not TagRange("!=3.10").satisfied_by(CompanyTag("3.10.1"))
+
+
+def test_tag_range_prerelease():
+    assert not TagRange(">=3.10").satisfied_by(CompanyTag("3.10.0a1"))
+    assert TagRange(">=3.10a0").satisfied_by(CompanyTag("3.10.0a1"))
+    assert TagRange(">=3.10dev").satisfied_by(CompanyTag("3.10.0a1"))
+    assert not TagRange(">=3.10a2").satisfied_by(CompanyTag("3.10.0a1"))
+    assert TagRange(">=3.10a2").satisfied_by(CompanyTag("3.10.0"))
+    assert not TagRange("<3.10a2").satisfied_by(CompanyTag("3.10.0"))
 
 
 def test_tag_range_platforms():

@@ -74,6 +74,20 @@ class _AscendingText:
             return True
         return self.s.endswith(other.s)
 
+    def above_lower_bound(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if not other.s:
+            return False
+        return self.s > other.s
+
+    def below_upper_bound(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if not other.s:
+            return False
+        return self.s < other.s
+
     def __hash__(self):
         return hash(self.s)
 
@@ -100,6 +114,9 @@ class _AscendingText:
 
     def __ge__(self, other):
         return not (self < other)
+
+    def __bool__(self):
+        return bool(self.s)
 
     def __repr__(self):
         return repr(self.s)
@@ -165,7 +182,7 @@ def _sort_tag(tag):
         return ()
 
     for bit in tag.split("-"):
-        m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", bit)
+        m = re.match(r"^(\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(.*)$", bit)
         if m:
             key.append(_DescendingVersion(m.group(1)))
             key.append(_AscendingText(m.group(2)))
@@ -222,8 +239,11 @@ class CompanyTag:
 
     @property
     def prefers_prerelease(self, dev_text=_AscendingText("dev")):
-        if self._sortkey and self._sortkey[-1] == dev_text:
-            return True
+        if self._sortkey:
+            if self._sortkey[-1] == dev_text:
+                return True
+            if any(i.is_prerelease for i in self._sortkey if isinstance(i, Version)):
+                return True
         return False
 
     def __str__(self):
@@ -272,11 +292,9 @@ class CompanyTag:
             return False
         if len(self._sortkey) < len(other._sortkey):
             return False
+        print(self._sortkey, other._sortkey)
         for x, y in zip(self._sortkey, other._sortkey):
-            if isinstance(x, Version):
-                if not x.startswith(y):
-                    return False
-            elif x != y:
+            if not x.startswith(y):
                 return False
         return True
 
@@ -291,13 +309,21 @@ class CompanyTag:
             return False
         if len(self._sortkey) < len(other._sortkey):
             return False
-        for x, y in zip(self._sortkey, other._sortkey):
-            if isinstance(x, Version):
-                if not x.above_lower_bound(y):
-                    return False
-            elif x != y:
+        # A blank field at the end of our sortkey should be treated as above a
+        # non-blank field from the bound, so we trim it off before comparing and
+        # flip our fallback result.
+        result_if_all_match = False
+        paired = list(zip(self._sortkey, other._sortkey))
+        if paired and not paired[-1][0] and paired[-1][1]:
+            paired.pop()
+            result_if_all_match = True
+
+        for x, y in paired:
+            if x.above_lower_bound(y):
+                return True
+            if x.below_upper_bound(y):
                 return False
-        return True
+        return result_if_all_match
 
     def __lt__(self, other):
         if not isinstance(other, type(self)):
@@ -322,12 +348,13 @@ class CompanyTag:
         if len(self._sortkey) > len(other._sortkey):
             return False
         for x, y in zip(self._sortkey, other._sortkey):
-            if isinstance(x, Version):
-                if not x.below_upper_bound(y):
-                    return False
-            elif x != y:
+            if y and not x:
+                continue
+            if x.above_lower_bound(y):
                 return False
-        return True
+            if x.below_upper_bound(y):
+                return True
+        return False
 
     def __ge__(self, other):
         return self > other or self == other
@@ -442,13 +469,24 @@ def tag_or_range(tag):
     return CompanyTag(tag)
 
 
-def install_matches_any(install, tags_or_ranges, *, loose_company=False):
+def install_matches_any(
+    install,
+    tags_or_ranges,
+    *,
+    loose_company=False,
+    for_install=True,
+    for_run=False,
+):
     if not tags_or_ranges:
         return True
 
     own_tag = CompanyTag(install["company"], install["tag"], loose_company=loose_company)
-    install_tags = [CompanyTag(install["company"], t, loose_company=loose_company)
-                    for t in install.get("install-for", ())]
+    if for_run:
+        install_tags = [CompanyTag(install["company"], t["tag"], loose_company=loose_company)
+                        for t in install.get("run-for", ())]
+    elif for_install:
+        install_tags = [CompanyTag(install["company"], t, loose_company=loose_company)
+                        for t in install.get("install-for", ())]
     if not install_tags:
         install_tags.append(own_tag)
 

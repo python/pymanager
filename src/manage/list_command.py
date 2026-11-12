@@ -377,9 +377,16 @@ def execute(cmd):
 
         if tags:
             LOGGER.debug("Filtering to following items")
+            resort = False
             for t in tags:
                 LOGGER.debug("* %r", t)
-            installs = [i for i in installs if install_matches_any(i, tags, loose_company=True)]
+                if t.prefers_prerelease:
+                    resort = True
+            installs = [i for i in installs
+                        if install_matches_any(i, tags, loose_company=True, for_run=True)]
+            if resort:
+                from .installs import make_sort_key_ignore_pre
+                installs.sort(key=make_sort_key_ignore_pre)
 
         if not cmd.unmanaged:
             # Just in case any leak through (e.g. active venv)
@@ -390,14 +397,14 @@ def execute(cmd):
             # Then return the max by sort-version
             from .installs import get_install_to_run, make_sort_key_ignore_pre
             best = []
-            for t in tags:
+            for t in (tags or [None]):
                 try:
                     best.append(get_install_to_run(
                         cmd.install_dir,
                         cmd.default_tag,
                         t,
                         default_platform=cmd.default_platform,
-                        installs=installs
+                        installs=installs,
                     ))
                 except NoInstallFoundError:
                     continue

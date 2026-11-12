@@ -17,7 +17,7 @@ def _make_sort_key(install):
     )
 
 
-def _make_sort_key_ignore_pre(install):
+def make_sort_key_ignore_pre(install):
     # Alternate sort key for "-dev" that treats prerelease as equal to release
     return (
         CompanyTag(install.get("company"), install.get("tag")),
@@ -324,8 +324,8 @@ def get_matching_install_tags(
             best = best2
 
     if best and single_tag:
-        if tag.prefers_prerelease:
-            best2 = sorted(best, key=lambda i_t: _make_sort_key_ignore_pre(i_t[0]))
+        if tag and tag.prefers_prerelease:
+            best2 = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
             for i_t in best2:
                 if Version(i_t[0]["sort-version"]).is_prerelease:
                     return [i_t]
@@ -342,14 +342,17 @@ def get_install_to_run(
     windowed=False,
     virtual_env=None,
     default_platform=None,
+    *,
+    installs=None,
 ):
     """Returns the first install matching 'tag'.
     """
-    installs = get_installs(
-        install_dir,
-        include_unmanaged=include_unmanaged,
-        virtual_env=virtual_env,
-    )
+    if installs is None:
+        installs = get_installs(
+            install_dir,
+            include_unmanaged=include_unmanaged,
+            virtual_env=virtual_env,
+        )
 
     if not installs:
         raise NoInstallsError
@@ -377,7 +380,7 @@ def get_install_to_run(
     )
 
     if tag and tag.prefers_prerelease:
-        best2 = sorted(best, key=lambda i_t: _make_sort_key_ignore_pre(i_t[0]))
+        best2 = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
         for i, t in best2:
             if Version(i["sort-version"]).is_prerelease:
                 return _patch_install_to_run(i, t)

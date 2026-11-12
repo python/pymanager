@@ -368,27 +368,6 @@ def execute(cmd):
                         break
                 else:
                     installs = best[:1] or installs
-    elif cmd.install_dir and cmd.one:
-        best = None
-        best_ver = None
-        for t in tags:
-            try:
-                install = cmd.get_install_to_run(t)
-            except NoInstallFoundError:
-                continue
-            ver = Version(install["sort-version"])
-            if not best:
-                best = install
-                best_ver = ver
-            else:
-                if ver > best_ver:
-                    if t.prefers_prerelease or not ver.is_prerelease or best_ver.is_prerelease:
-                        best = install
-                        best_ver = ver
-        if best:
-            installs = [best]
-        else:
-            installs = []
     elif cmd.install_dir:
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)
@@ -405,6 +384,24 @@ def execute(cmd):
         if not cmd.unmanaged:
             # Just in case any leak through (e.g. active venv)
             installs = [i for i in installs if not i.get("unmanaged")]
+
+        if cmd.one and installs:
+            # Use the filtered list and select the best option for each tag.
+            # Then return the max by sort-version
+            from .installs import get_install_to_run, make_sort_key_ignore_pre
+            best = []
+            for t in tags:
+                try:
+                    best.append(get_install_to_run(
+                        cmd.install_dir,
+                        cmd.default_tag,
+                        t,
+                        default_platform=cmd.default_platform,
+                        installs=installs
+                    ))
+                except NoInstallFoundError:
+                    continue
+            installs = sorted(best, key=make_sort_key_ignore_pre)[:1]
     else:
         raise ArgumentError("Configuration file does not specify install directory.")
 

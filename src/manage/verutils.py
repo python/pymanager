@@ -18,10 +18,10 @@ class Version:
     # Versions with more fields than this will be truncated.
     MAX_FIELDS = 8
 
-    def __new__(self, s):
-        if isinstance(s, Version):
+    def __new__(cls, s):
+        if isinstance(s, cls):
             return s
-        return object.__new__(self)
+        return object.__new__(cls)
 
     def __init__(self, s):
         import re
@@ -53,6 +53,8 @@ class Version:
             dev,
             int(m.group("serial") or 0)
         )
+        # Omit len(bits) for our hash value
+        self._hash = hash(self.sortkey[:-3] + self.sortkey[-2:])
         self.prefix_match = dev == self.TEXT_MAP["*"]
         self.prerelease_match = dev == self.TEXT_MAP["dev"]
 
@@ -63,7 +65,7 @@ class Version:
         return self.s
 
     def __hash__(self):
-        return hash(self.sortkey)
+        return self._hash
 
     def _are_equal(self, other, prefix_match=None, other_prefix_match=None, prerelease_match=None):
         if other is None:
@@ -102,27 +104,27 @@ class Version:
         else:
             # Use full length
             n1 = n2 = len(k1)
+            # Check prerelease fields when not doing a prefix match
             if not (self.prerelease_match if prerelease_match is None else prerelease_match):
                 # Prerelease values must match
                 if pre1 != pre2:
                     return False
+
         return k1[:n1] == k2[:n2]
 
     def startswith(self, other):
         if not isinstance(other, type(self)):
             other = type(self)(other)
-        if self._are_equal(other, other_prefix_match=True, prerelease_match=True):
-            # We've prefix-matched ignoring prerelease, now we check the
-            # prerelease is equal or higher.
-            if self.sortkey[-2:] >= other.sortkey[-2:]:
-                return True
-        return False
+        return self._are_equal(other, other_prefix_match=True, prerelease_match=False)
 
     def above_lower_bound(self, other):
         if other is None:
             return True
         if self.sortkey[:other.sortkey[-3]] > other.sortkey[:other.sortkey[-3]]:
             return True
+        # We can also be above the bound by matching it and being a later prerelease
+        if self._are_equal(other, prerelease_match=True):
+            return self.sortkey[-2:] > other.sortkey[-2:]
         return False
 
     def below_upper_bound(self, other):

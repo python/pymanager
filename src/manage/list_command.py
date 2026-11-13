@@ -1,8 +1,7 @@
 import json
 
 from . import logging
-from .exceptions import ArgumentError, NoInstallFoundError
-from .verutils import Version
+from .exceptions import ArgumentError, NoInstallFoundError, NoInstallsError
 
 LOGGER = logging.LOGGER
 
@@ -406,9 +405,9 @@ def execute(cmd):
                         default_platform=cmd.default_platform,
                         installs=installs,
                     ))
-                except NoInstallFoundError:
+                except (NoInstallFoundError, NoInstallsError):
                     continue
-            installs = sorted(best, key=make_sort_key_ignore_pre)[:1]
+            installs = sorted(best or installs, key=make_sort_key_ignore_pre)[:1]
     else:
         raise ArgumentError("Configuration file does not specify install directory.")
 

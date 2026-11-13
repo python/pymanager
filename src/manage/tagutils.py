@@ -182,7 +182,9 @@ def _sort_tag(tag):
         return ()
 
     for bit in tag.split("-"):
-        m = re.match(r"^(\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(.*)$", bit)
+        # Note that tags are not versions, but dotted numbers sort like versions
+        # We don't parse or handle prerelease fields, for example.
+        m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", bit)
         if m:
             key.append(_DescendingVersion(m.group(1)))
             key.append(_AscendingText(m.group(2)))
@@ -192,6 +194,8 @@ def _sort_tag(tag):
 
 
 class CompanyTag:
+    prefers_prerelease = False
+
     def __init__(self, company_or_tag, tag=None, *, loose_company=True):
         if isinstance(company_or_tag, str):
             if tag is not None:
@@ -204,6 +208,7 @@ class CompanyTag:
             self._company = company_or_tag
         self.tag, self.platform = split_platform(tag)
         self._sortkey = _sort_tag(self.tag)
+        self.prefers_prerelease = any(t == _AscendingText("dev") for t in self._sortkey)
 
     @property
     def company(self):
@@ -236,15 +241,6 @@ class CompanyTag:
 
     def satisfied_by(self, tag):
         return tag.match(self)
-
-    @property
-    def prefers_prerelease(self, dev_text=_AscendingText("dev")):
-        if self._sortkey:
-            if self._sortkey[-1] == dev_text:
-                return True
-            if any(i.is_prerelease for i in self._sortkey if isinstance(i, Version)):
-                return True
-        return False
 
     def __str__(self):
         if self.is_core:
@@ -292,7 +288,6 @@ class CompanyTag:
             return False
         if len(self._sortkey) < len(other._sortkey):
             return False
-        print(self._sortkey, other._sortkey)
         for x, y in zip(self._sortkey, other._sortkey):
             if not x.startswith(y):
                 return False

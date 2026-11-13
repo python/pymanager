@@ -42,6 +42,13 @@ def test_tag_match():
     assert CompanyTag("PythonCore\\3.13").match(CompanyTag("", "3"))
     assert not CompanyTag("PythonCore\\4.56").match(CompanyTag("", "3"))
 
+    assert CompanyTag("3.14T-extra").match(CompanyTag("3.14t"))
+    assert not CompanyTag("3.14test").match(CompanyTag("3.14t"))
+    assert not CompanyTag("3.14t").match(CompanyTag("3.14test"))
+    assert CompanyTag("3.14-EMBED-extra").match(CompanyTag("3.14-embed"))
+    assert not CompanyTag("3.14-embed").match(CompanyTag("3.14-emb"))
+    assert CompanyTag("CompanyName\\3.14").match(CompanyTag("Company\\3.14"))
+
 
 def test_tag_prerelease_match():
     assert CompanyTag("3.14rc1t").match(CompanyTag("3.14rc1t"))

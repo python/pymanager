@@ -55,6 +55,8 @@ def test_version_prerelease_order():
     assert Version("3.14.0-a2") > "3.14.0-a1"
     assert Version("3.14.0-a1") == "3.14.0-a1"
     assert Version("3.14.0-b1") > "3.14.0-a1"
+    assert Version("3.14.0-a1") < "3.14"
+    assert Version("3.14-a1") < "3.14.0"
 
 
 @pytest.mark.parametrize("ver_str", ["3.14.0", "3.14.0-a1", "3.14.20-dev", "3.14.0.0.0.0"])

@@ -3,7 +3,7 @@ import json
 from .exceptions import NoInstallFoundError, NoInstallsError
 from .logging import DEBUG, LOGGER
 from .pathutils import Path
-from .tagutils import CompanyTag, tag_or_range, companies_match, split_platform
+from .tagutils import CompanyTag, tag_or_range, companies_match, split_platform, DescendingVersion
 from .verutils import Version
 
 
@@ -15,7 +15,7 @@ def _make_sort_key(install):
         # Order by descending tags
         CompanyTag(install.get("company"), install.get("tag")),
         # Disambiguate by sort version where necessary
-        Version(install["sort-version"]),
+        DescendingVersion(install["sort-version"]),
     )
 
 
@@ -23,7 +23,7 @@ def make_sort_key_ignore_pre(install):
     # Alternate sort key for "-dev" that treats prerelease as equal to release
     return (
         CompanyTag(install.get("company"), install.get("tag")),
-        Version(install["sort-version"]),
+        DescendingVersion(install["sort-version"]),
     )
 
 
@@ -330,10 +330,7 @@ def get_matching_install_tags(
 
     if best and single_tag:
         if tag and tag.prefers_prerelease:
-            best2 = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
-            for i_t in best2:
-                if Version(i_t[0]["sort-version"]).is_prerelease:
-                    return [i_t]
+            best = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
         return best[:1]
 
     return best
@@ -382,14 +379,9 @@ def get_install_to_run(
         tag,
         windowed=windowed,
         default_platform=default_platform,
+        single_tag=True,
     )
 
-    assert not isinstance(tag, str) # should have been through tag_or_range()
-    if tag and tag.prefers_prerelease:
-        best2 = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
-        for i, t in best2:
-            if Version(i["sort-version"]).is_prerelease:
-                return _patch_install_to_run(i, t)
     if best:
         return _patch_install_to_run(*best[0])
 

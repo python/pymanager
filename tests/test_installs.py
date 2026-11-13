@@ -24,6 +24,11 @@ def test_get_installs_in_order(patched_installs):
         "PythonCore-3.0a1-32",
     ]
 
+    older = {**ii[0], "id": "older", "sort-version": "2.0"}
+    newer = {**ii[0], "id": "newer", "sort-version": "2.0.1"}
+    for key in (installs._make_sort_key, installs.make_sort_key_ignore_pre):
+        assert [i["id"] for i in sorted([older, newer], key=key)] == ["newer", "older"]
+
 
 def test_get_default_install(patched_installs):
     assert installs.get_install_to_run("<none>", "1.0", "")["id"] == "PythonCore-1.0"
@@ -74,6 +79,9 @@ def test_get_default_install_prerelease_dev(patched_installs3):
     m = installs.get_matching_install_tags(inst, "3-dev", None, "-64", single_tag=True)
     assert m and m[0]
     assert m[0][0]["id"] == "PythonCore-3.1a1-64"
+    i = installs.get_install_to_run("<none>", None, "3-dev", default_platform="-64",
+                                    installs=inst)
+    assert i["id"] == "PythonCore-3.1a1-64"
 
     # Sanity check that explicit platforms always choose something matching
     m = installs.get_matching_install_tags(inst, "3-32", None, "-32", single_tag=True)
@@ -83,7 +91,26 @@ def test_get_default_install_prerelease_dev(patched_installs3):
     m = installs.get_matching_install_tags(inst, "3-64", None, "-64", single_tag=True)
     assert m and m[0]
     assert m[0][0]["id"] == "PythonCore-3.0-64"
-    
+
+    stable = next(i for i in inst if i["id"] == "PythonCore-3.0-64")
+    stable = {**stable, "id": "PythonCore-3.2-64", "tag": "3.2-64",
+              "sort-version": "3.2",
+              "run-for": [t for t in stable["run-for"] if t["tag"] == "3-dev-64"]}
+    inst.append(stable)
+    m = installs.get_matching_install_tags(inst, "3-dev", None, "-64", single_tag=True)
+    assert m[0][0]["id"] == "PythonCore-3.2-64"
+    i = installs.get_install_to_run("<none>", None, "3-dev", default_platform="-64",
+                                    installs=inst)
+    assert i["id"] == "PythonCore-3.2-64"
+
+    prerelease = {**stable, "id": "PythonCore-3.2b1-64", "sort-version": "3.2.0b1"}
+    inst.append(prerelease)
+    m = installs.get_matching_install_tags(inst, "3-dev", None, "-64", single_tag=True)
+    assert m[0][0]["id"] == "PythonCore-3.2-64"
+    i = installs.get_install_to_run("<none>", None, "3-dev", default_platform="-64",
+                                    installs=inst)
+    assert i["id"] == "PythonCore-3.2-64"
+
 
 def test_get_install_to_run(patched_installs):
     i = installs.get_install_to_run("<none>", None, "1.0")

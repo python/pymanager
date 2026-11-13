@@ -49,12 +49,12 @@ class Version:
         self.sortkey = (
             *bits[:self.MAX_FIELDS],
             *([0] * (self.MAX_FIELDS - len(bits))),
-            len(bits),  # for sort stability
             dev,
-            int(m.group("serial") or 0)
+            int(m.group("serial") or 0),
+            len(bits),  # for sort stability
         )
         # Omit len(bits) for our hash value
-        self._hash = hash(self.sortkey[:-3] + self.sortkey[-2:])
+        self._hash = hash(self.sortkey[:-1])
         self.prefix_match = dev == self.TEXT_MAP["*"]
         self.prerelease_match = dev == self.TEXT_MAP["dev"]
 
@@ -77,10 +77,10 @@ class Version:
         k1 = self.sortkey[:-3]
         k2 = other.sortkey[:-3]
         assert len(k1) == len(k2)
-        n1 = self.sortkey[-3]
-        n2 = other.sortkey[-3]
-        pre1 = self.sortkey[-2:]
-        pre2 = other.sortkey[-2:]
+        n1 = self.sortkey[-1]
+        n2 = other.sortkey[-1]
+        pre1 = self.sortkey[-3:-1]
+        pre2 = other.sortkey[-3:-1]
         if prefix_match is None:
             prefix_match = self.prefix_match
         if other_prefix_match is None:
@@ -120,17 +120,17 @@ class Version:
     def above_lower_bound(self, other):
         if other is None:
             return True
-        if self.sortkey[:other.sortkey[-3]] > other.sortkey[:other.sortkey[-3]]:
+        if self.sortkey[:other.sortkey[-1]] > other.sortkey[:other.sortkey[-1]]:
             return True
         # We can also be above the bound by matching it and being a later prerelease
         if self._are_equal(other, prerelease_match=True):
-            return self.sortkey[-2:] > other.sortkey[-2:]
+            return self.sortkey[-3:-1] > other.sortkey[-3:-1]
         return False
 
     def below_upper_bound(self, other):
         if other is None:
             return True
-        if self.sortkey[:other.sortkey[-3]] < other.sortkey[:other.sortkey[-3]]:
+        if self.sortkey[:other.sortkey[-1]] < other.sortkey[:other.sortkey[-1]]:
             return True
         return False
 
@@ -159,15 +159,15 @@ class Version:
 
     @property
     def is_prerelease(self):
-        return self.sortkey[-2] < self.TEXT_MAP[""]
+        return self.sortkey[-3] < self.TEXT_MAP[""]
 
     def to_python_style(self, n=3, with_dev=True):
         v = ".".join(str(i) for i in self.sortkey[:min(n, self.MAX_FIELDS)])
         if with_dev:
             try:
-                dev = self._TEXT_UNMAP[self.sortkey[-2]]
+                dev = self._TEXT_UNMAP[self.sortkey[-3]]
                 if dev:
-                    v += f"{dev}{self.sortkey[-1]}"
+                    v += f"{dev}{self.sortkey[-2]}"
             except LookupError:
                 pass
         return v

@@ -18,7 +18,7 @@ Tags are matched using the following logic:
   all be equal, and the company parts should be equal (case-insensitive)
 * to match, the company part should be a prefix
 * versions are numeric and zero-padded to the same length, so '01.2'=='1.2.0.0'
-* text is casefold()'d before comparison
+* text is casefold()'d and must match exactly
 * requested tags only have to match the leading segments of offerred tags, that
   is, if a user requests "a-b" and a package offers "a-b-c", it can match
 * company parts are casefold()'d and prefix matched; in accordance with PEP 514,
@@ -115,11 +115,7 @@ class _AscendingText:
         return type(self) is type(other) and self.s == other.s
 
     def startswith(self, other):
-        if not isinstance(other, type(self)):
-            return False
-        if not other.s:
-            return not self.s
-        return self.s.startswith(other.s)
+        return self == other
 
     def above_lower_bound(self, other):
         if not isinstance(other, type(self)):
@@ -172,7 +168,7 @@ class _AscendingText:
         return self.s
 
 
-class _DescendingVersion(Version):
+class DescendingVersion(Version):
     def compatible_with_bound(self, other):
         return type(self) is type(other)
 
@@ -182,15 +178,15 @@ class _DescendingVersion(Version):
                 other = type(self)(other)
             else:
                 return False
-        return self.sortkey[-2:] == other.sortkey[-2:] and super().startswith(other)
+        return self.sortkey[-3:-1] == other.sortkey[-3:-1] and super().startswith(other)
 
     def _bound_keys(self, other):
-        if not isinstance(other, type(self)) or self.sortkey[-3] < other.sortkey[-3]:
+        if not isinstance(other, type(self)) or self.sortkey[-1] < other.sortkey[-1]:
             return None
-        n = min(other.sortkey[-3], self.MAX_FIELDS)
+        n = min(other.sortkey[-1], self.MAX_FIELDS)
         return (
-            (self.sortkey[:n], self.sortkey[-2:]),
-            (other.sortkey[:n], other.sortkey[-2:]),
+            (self.sortkey[:n], self.sortkey[-3:-1]),
+            (other.sortkey[:n], other.sortkey[-3:-1]),
         )
 
     def above_lower_bound(self, other):
@@ -262,7 +258,7 @@ def _sort_tag(tag):
     for bit in tag.split("-"):
         m = re.match(r"^(\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(.*)$", bit, re.I)
         if m:
-            key.append(_DescendingVersion(m.group(1)))
+            key.append(DescendingVersion(m.group(1)))
             key.append(_AscendingText(m.group(2)))
         else:
             key.append(_AscendingText(bit))

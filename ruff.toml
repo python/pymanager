@@ -4,6 +4,7 @@
 # check for actual incorrect code.
 ignore = [
     "B006",
+    "B008",
     "BLE001",
     "C401",
     "C408",
@@ -12,6 +13,7 @@ ignore = [
     "I001",
     "PIE808",
     "PLC",
+    "PLR0206",
     "PLR1730",
     "RUF012",
     "RUF015",

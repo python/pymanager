@@ -4,18 +4,33 @@ import re
 from itertools import zip_longest
 
 from manage import list_command
+from manage.exceptions import NoInstallFoundError
 from manage.indexutils import Index
+from manage.pathutils import Path
+from manage.tagutils import CompanyTag
+from manage.verutils import Version
 
 FAKE_INSTALLS = [
-    {"company": "Company2", "tag": "1.0", "sort-version": "1.0"},
-    {"company": "Company1", "tag": "2.0", "sort-version": "2.0"},
-    {"company": "Company1", "tag": "1.0", "sort-version": "1.0", "default": True},
+    {
+        **d,
+        "id": f"{d['company']}/{d['tag']}",
+        "run-for": [{"tag": t, "target": "target.exe"} for t in [
+             d["tag"], d["tag"].partition(".")[0],
+        ]],
+        "prefix": Path("."),
+    }
+    for d in [
+        # Pre-sorted by ascending company/descending tag
+        {"company": "Company1", "tag": "2.0", "sort-version": "2.0"},
+        {"company": "Company1", "tag": "1.0", "sort-version": "1.0", "default": True},
+        {"company": "Company2", "tag": "1.0", "sort-version": "1.0"},
+    ]
 ]
 
 FAKE_INDEX = {
     "versions": [
         {
-            **{k: v for k, v in i.items() if k not in ("default",)},
+            **{k: v for k, v in i.items() if k not in ("default", "prefix")},
             "schema": 1,
             "id": f"{i['company']}-{i['tag']}",
             "install-for": [i["tag"]],
@@ -31,6 +46,7 @@ class ListCapture:
         self.captured = []
         self.source = None
         self.install_dir = "<none>"
+        self.default_tag = "3"
         self.default_platform = "-64"
         self.format = "test"
         self.formatter_callable = None
@@ -52,7 +68,6 @@ class ListCapture:
         assert include_unmanaged == self.unmanaged
         return self.installs
 
-
 @pytest.fixture
 def list_cmd():
     try:
@@ -64,9 +79,9 @@ def list_cmd():
 def test_list(list_cmd):
     # list_command does not sort its entries - get_installs() does that
     assert list_cmd() == [
-        "Company2/1.0",
         "Company1/2.0",
         "Company1/1.0",
+        "Company2/1.0",
     ]
     # unmanaged doesn't affect our result (because we shim the function that
     # does the check), but it'll at least ensure it gets passed through.
@@ -75,18 +90,22 @@ def test_list(list_cmd):
 
 def test_list_filter(list_cmd):
     assert list_cmd("2.0") == ["Company1/2.0"]
-    assert list_cmd("1.0") == ["Company2/1.0", "Company1/1.0"]
+    assert list_cmd("1.0") == ["Company1/1.0", "Company2/1.0"]
     assert list_cmd("Company1/") == ["Company1/2.0", "Company1/1.0"]
     assert list_cmd("Company1\\") == ["Company1/2.0", "Company1/1.0"]
-    assert list_cmd("Company\\") == ["Company2/1.0", "Company1/2.0", "Company1/1.0"]
+    assert list_cmd("Company\\") == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
 
     assert list_cmd(">1") == ["Company1/2.0"]
-    assert list_cmd(">=1") == ["Company2/1.0", "Company1/2.0", "Company1/1.0"]
-    assert list_cmd("<=2") == ["Company2/1.0", "Company1/2.0", "Company1/1.0"]
-    assert list_cmd("<2") == ["Company2/1.0", "Company1/1.0"]
+    assert list_cmd(">=1") == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
+    assert list_cmd("<=2") == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
+    assert list_cmd("<2") == ["Company1/1.0", "Company2/1.0"]
 
-    assert list_cmd("1", "2") == ["Company2/1.0", "Company1/2.0", "Company1/1.0"]
-    assert list_cmd("Company1\\1", "Company2\\1") == ["Company2/1.0", "Company1/1.0"]
+    assert list_cmd("1", "2") == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
+    assert list_cmd("Company1\\1", "Company2\\1") == ["Company1/1.0", "Company2/1.0"]
+
+    list_cmd.installs = [{**FAKE_INSTALLS[0], "tag": "9.0", "install-for": ["8.0"]}]
+    assert list_cmd(">=2,<3") == ["Company1/9.0"]
+    assert list_cmd(">=8,<9") == []
 
 
 def test_list_one(list_cmd):
@@ -95,27 +114,68 @@ def test_list_one(list_cmd):
     assert list_cmd("1", one=True) == ["Company1/1.0"]
 
 
-def from_index(*filters):
+def from_index(*filters, index=FAKE_INDEX):
     return [
         f"{i['company']}/{i['tag']}"
-        for i in list_command._get_installs_from_index([Index("./index.json", FAKE_INDEX)], filters)
+        for i in list_command._get_installs_from_index([Index("./index.json", index)], filters)
     ]
 
 
 def test_list_online():
     assert from_index("Company1\\2.0") == ["Company1/2.0"]
-    assert from_index("Company2\\", "Company1\\1") == ["Company2/1.0", "Company1/1.0"]
-    assert from_index() == ["Company1/2.0", "Company2/1.0", "Company1/1.0"]
+    assert from_index("Company2\\", "Company1\\1") == ["Company1/1.0", "Company2/1.0"]
+    assert from_index() == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
+    assert from_index(index={"versions": list(reversed(FAKE_INDEX["versions"]))}) == [
+        "Company2/1.0", "Company1/1.0", "Company1/2.0",
+    ]
+
+
+def test_list_online_one_platform_case(list_cmd, monkeypatch):
+    from manage import urlutils
+
+    index = Index("https://example.com/index.json", {"versions": [
+        {"schema": 1, "id": f"pythoncore-3.14{plat}", "company": "PythonCore",
+         "tag": f"3.14{plat}", "sort-version": "3.14", "install-for": [f"3.14{plat}"]}
+        for plat in ("-64", "-ARM64")
+    ]})
+
+    class FakeDownloader:
+        def __init__(self, *args):
+            pass
+
+        def __iter__(self):
+            return iter([index])
+
+    monkeypatch.setattr(urlutils, "IndexDownloader", FakeDownloader)
+    list_cmd.fallback_source = None
+    list_cmd.fallback_source_only = False
+    assert list_cmd(source="https://example.com", one=True, default_platform="-arm64") == [
+        "PythonCore/3.14-ARM64",
+    ]
+    assert list_cmd(default_platform="-aRm64") == ["PythonCore/3.14-ARM64"]
+    assert list_cmd("3.14-arm64", default_platform="-64") == ["PythonCore/3.14-ARM64"]
+    assert list_cmd("3.14-ArM64") == ["PythonCore/3.14-ARM64"]
 
 
 def test_format_table(assert_log):
     list_command.format_table(None, FAKE_INSTALLS)
     assert_log(
         (r"!B!Tag\s+Name\s+Managed By\s+Version\s+Alias\s*!W!", ()),
-        (r"Company2\\1\.0\s+Company2\s+1\.0", ()),
         (r"Company1\\2\.0\s+Company1\s+2\.0", ()),
         (r"!G!Company1\\1\.0\s+\*\s+Company1\s+1\.0\s*!W!", ()),
+        (r"Company2\\1\.0\s+Company2\s+1\.0", ()),
     )
+
+
+def test_format_tag_platform_case():
+    import types
+
+    cmd = types.SimpleNamespace(default_platform="-arm64")
+    install = {"company": "PythonCore", "tag": "3.14-ARM64"}
+    assert list_command._format_tag_with_co(cmd, install) == "3.14[-ARM64]"
+    cmd.default_platform = "-ARM64"
+    install["tag"] = "3.14-arm64"
+    assert list_command._format_tag_with_co(cmd, install) == "3.14[-arm64]"
 
 
 def test_format_table_aliases(assert_log):
@@ -212,14 +272,20 @@ def test_format_table_empty(assert_log):
 
 
 def test_format_csv(assert_log):
-    list_command.format_csv(None, FAKE_INSTALLS)
+    list_command.format_csv(None, [
+        {
+            **d,
+            "run-for": [],
+        }
+        for d in FAKE_INSTALLS
+    ])
     # CSV format only contains columns that are present, so this doesn't look
     # as complete as for normal installs, but it's fine for the test.
     assert_log(
-        "company,tag,sort-version,default",
-        "Company2,1.0,1.0,",
-        "Company1,2.0,2.0,",
-        "Company1,1.0,1.0,True",
+        "company,tag,sort-version,id,prefix,default",
+        "Company1,2.0,2.0,Company1/2.0,,",
+        "Company1,1.0,1.0,Company1/1.0,,True",
+        "Company2,1.0,1.0,Company2/1.0,,",
     )
 
 
@@ -227,19 +293,20 @@ def test_format_csv_complex(assert_log):
     data = [
         {
             **d,
+            "run-for": [],
             "alias": [dict(name=f"n{i}.{j}", target=f"t{i}.{j}") for j in range(i + 1)]
         }
         for i, d in enumerate(FAKE_INSTALLS)
     ]
     list_command.format_csv(None, data)
     assert_log(
-        "company,tag,sort-version,alias.name,alias.target.default",
-        "Company2,1.0,1.0,n0.0,t0.0,",
-        "Company1,2.0,2.0,n1.0,t1.0,",
-        "Company1,2.0,2.0,n1.1,t1.1,",
-        "Company1,1.0,1.0,n2.0,t2.0,True",
-        "Company1,1.0,1.0,n2.1,t2.1,True",
-        "Company1,1.0,1.0,n2.2,t2.2,True",
+        "company,tag,sort-version,id,prefix,alias.name,alias.target.default",
+        "Company1,2.0,2.0,Company1/2.0,,n0.0,t0.0,",
+        "Company1,1.0,1.0,Company1/1.0,,n1.0,t1.0,True",
+        "Company1,1.0,1.0,Company1/1.0,,n1.1,t1.1,True",
+        "Company2,1.0,1.0,Company2/1.0,,n2.0,t2.0,",
+        "Company2,1.0,1.0,Company2/1.0,,n2.1,t2.1,",
+        "Company2,1.0,1.0,Company2/1.0,,n2.2,t2.2,",
     )
 
 

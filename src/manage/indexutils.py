@@ -204,8 +204,8 @@ class Index:
             raise InvalidFeedError(feed_url=source_url) from ex
         self.source_url = source_url
         self.next_url = validated.get("next")
-        versions = [_patch(source_url, v) for v in validated["versions"]]
-        self.versions = sorted(versions, key=lambda v: v["sort-version"], reverse=True)
+        # Feed order is retained intentionally for package selection.
+        self.versions = [_patch(source_url, v) for v in validated["versions"]]
 
     def __repr__(self):
         return "<Index({!r}, next={!r}, versions=[...{} entries])>".format(
@@ -231,9 +231,11 @@ class Index:
                         seen_ids.add(i["id"].casefold())
                     yield i
 
-    def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=False):
-        tag_list = [tag] if tag else []
+    def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=None):
+        tag_list = [tag_or_range(tag)] if tag else []
         LOGGER.debug("Finding %s to install", tag_list)
+        if prefer_prerelease is None:
+            prefer_prerelease = any(t.prefers_prerelease for t in tag_list)
         for i in self.find_all(tag_list, loose_company=loose_company, with_prerelease=prefer_prerelease):
             return {**i, "source": self.source_url}
         if not loose_company:

@@ -163,11 +163,32 @@ def test_install_lookup():
     assert index.find_to_install("cpy/3")["tag"] == "3.13.1"
     assert index.find_to_install("3.12")["tag"] == "3.12.2"
 
-    assert index.find_to_install("!=3.13")["tag"] == "3.12.2"
-    assert index.find_to_install("<=3.12")["tag"] == "3.12.2"
-    assert index.find_to_install("<3.12")["tag"] == "3.11.3"
-    assert index.find_to_install("<3.12,!=3.11")["tag"] == "3.10.4"
-    assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.11.3"
+    # The generic "3" tag can satisfy upper bounds and exclusions.
+    assert index.find_to_install("!=3.13")["tag"] == "3.13.1"
+    assert index.find_to_install("<=3.12")["tag"] == "3.13.1"
+    assert index.find_to_install("<3.12")["tag"] == "3.13.1"
+    assert index.find_to_install("<3.12,!=3.11")["tag"] == "3.13.1"
+    assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.13.1"
+
+    # Every clause must match the same offered tag.
+    assert index.find_to_install(">=3.10,!=3.13")["tag"] == "3.12.2"
+    assert index.find_to_install(">=3.10,<=3.12")["tag"] == "3.12.2"
+    assert index.find_to_install(">=3.10,<3.12")["tag"] == "3.11.3"
+    assert index.find_to_install(">=3.10,<3.12,!=3.11")["tag"] == "3.10.4"
+    assert index.find_to_install(">=3.10,<3.12,!=3.10")["tag"] == "3.11.3"
+
+
+def test_install_lookup_feed_order():
+    from manage.install_command import select_package
+
+    index = iu.Index("https://localhost/", {
+        "versions": [
+            {**fake_install_data(v), "id": "PythonCore-3.13"}
+            for v in ("3.13.1", "3.13.3", "3.13.2")
+        ],
+    })
+    assert index.find_to_install("3.13")["tag"] == "3.13.1"
+    assert select_package([index], "PythonCore-3.13", by_id=True)["tag"] == "3.13.1"
 
 
 def test_select_package():

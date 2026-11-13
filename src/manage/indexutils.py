@@ -204,8 +204,8 @@ class Index:
             raise InvalidFeedError(feed_url=source_url) from ex
         self.source_url = source_url
         self.next_url = validated.get("next")
-        versions = [_patch(source_url, v) for v in validated["versions"]]
-        self.versions = sorted(versions, key=lambda v: v["sort-version"], reverse=True)
+        # Feed order is retained intentionally for package selection.
+        self.versions = [_patch(source_url, v) for v in validated["versions"]]
 
     def __repr__(self):
         return "<Index({!r}, next={!r}, versions=[...{} entries])>".format(

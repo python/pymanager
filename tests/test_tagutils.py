@@ -1,6 +1,6 @@
 import pytest
 
-from manage.tagutils import CompanyTag, TagRange, tag_or_range
+from manage.tagutils import CompanyTag, TagRange, tag_or_range, install_matches_any
 
 
 @pytest.mark.parametrize("tag_str", [
@@ -155,6 +155,35 @@ def test_simple_tag_range():
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.9"))
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.11"))
 
+    assert TagRange(">3.14.1").satisfied_by(CompanyTag("3.15"))
+    assert TagRange("<3.14.1").satisfied_by(CompanyTag("3.13"))
+    assert not TagRange(">3.14.1").satisfied_by(CompanyTag("3.14"))
+    assert TagRange(">=3.14.0").satisfied_by(CompanyTag("3.14"))
+    assert TagRange("<=3.14.0").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange(">3.14.0").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange("<3.14.0").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange("!=3.14.0").satisfied_by(CompanyTag("3.14"))
+
+
+@pytest.mark.parametrize("spec, tag, expected", [
+    (">=3.13", "3.13.4", True),
+    (">=3.13", "3.14", True),
+    (">3.13", "3.14", True),
+    (">3.13", "3.13.4", False),
+    (">=3.13t", "3.14t", True),
+    (">=3.13", "3.14t", False),
+    (">=3.13", "3.14-abc", True),
+    (">=3.13", "3.14abc", False),
+    (">3.13-abc-123", "3.14", True),
+    (">3.13-abc-123", "3.13-abc-124", True),
+    (">3.13-abc-123", "3.13-def-123", False),
+    (">3.13-abc-123", "3.13def-123", False),
+    (">3.13-abc-123", "3.13-abc-123", False),
+    (">3.13-abc-123", "3.13-abc", False),
+])
+def test_tag_range_examples(spec, tag, expected):
+    assert TagRange(spec).satisfied_by(CompanyTag(tag)) == expected
+
 
 def test_tag_range_prereleases():
     assert TagRange(">3.14a9").satisfied_by(CompanyTag("3.14a10"))
@@ -165,6 +194,9 @@ def test_tag_range_prereleases():
     assert TagRange("<3.14").satisfied_by(CompanyTag("3.14rc1"))
     assert not TagRange(">=3.14").satisfied_by(CompanyTag("3.14rc1"))
     assert not TagRange("=3.14a1").satisfied_by(CompanyTag("3.14a2"))
+    assert TagRange(">3.14.0a1").satisfied_by(CompanyTag("3.14a2"))
+    assert TagRange("<3.14.0rc1").satisfied_by(CompanyTag("3.14b1"))
+    assert TagRange(">=3.14.0rc1").satisfied_by(CompanyTag("3.14rc1"))
 
 
 def test_tag_range_variants():
@@ -217,6 +249,40 @@ def test_tag_range_suffixes():
     assert TagRange(">=3.10").satisfied_by(CompanyTag("3.10-embed"))
     assert not TagRange(">=3.10-embed").satisfied_by(CompanyTag("3.10"))
     assert TagRange(">=3.10-embed").satisfied_by(CompanyTag("3.10-embed"))
+    assert not TagRange("<3.13-abc-1").satisfied_by(CompanyTag("4-abc-0"))
+    assert TagRange("<3.13-abc-1").satisfied_by(CompanyTag("3-abc-2"))
+    assert TagRange(">3.13-abc-123").satisfied_by(CompanyTag("4-abc-0"))
+    assert TagRange(">=3.0-abc-1").satisfied_by(CompanyTag("3-abc-1"))
+    assert TagRange(">3.13-abc-123").satisfied_by(CompanyTag("3.14-def-122"))
+    assert TagRange("<3.13-abc-123").satisfied_by(CompanyTag("3.12-def"))
+    assert not TagRange(">3.13-abc-123").satisfied_by(CompanyTag("3.14def-122"))
+    assert not TagRange("<3.13-abc-123").satisfied_by(CompanyTag("3.12def"))
+    assert not TagRange("<3.13-abc-123").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange(">=3.13-abc-123").satisfied_by(CompanyTag("3.13-abc"))
+    assert not TagRange("<=3.13-abc-123").satisfied_by(CompanyTag("3.13-abc"))
+
+
+@pytest.mark.parametrize("for_run", [False, True])
+def test_install_matches_any_ranges(for_run):
+    install = {
+        "company": "PythonCore",
+        "tag": "3.14t",
+        "install-for": ["3.14"],
+        "run-for": [{"tag": "3.14w"}],
+    }
+    assert install_matches_any(install, [TagRange(">=3.14")], for_run=for_run) == (not for_run)
+    assert install_matches_any(install, [TagRange(">=3.14w")], for_run=for_run) == for_run
+    assert not install_matches_any(install, [TagRange(">=3.14t")], for_run=for_run)
+
+    install["install-for"] = ["3.13", "3.15"]
+    install["run-for"] = [{"tag": "3.13"}, {"tag": "3.15"}]
+    assert not install_matches_any(install, [TagRange(">=3.14,<3.15")], for_run=for_run)
+
+    install["install-for"] = []
+    install["run-for"] = []
+    assert install_matches_any(install, [TagRange(">=3.14t")], for_run=for_run)
+    del install["install-for"], install["run-for"]
+    assert install_matches_any(install, [TagRange(">=3.14t")], for_run=for_run)
 
 
 def test_tag_range_company():

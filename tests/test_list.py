@@ -103,6 +103,10 @@ def test_list_filter(list_cmd):
     assert list_cmd("1", "2") == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
     assert list_cmd("Company1\\1", "Company2\\1") == ["Company1/1.0", "Company2/1.0"]
 
+    list_cmd.installs = [{**FAKE_INSTALLS[0], "tag": "9.0", "install-for": ["8.0"]}]
+    assert list_cmd(">=2,<3") == ["Company1/9.0"]
+    assert list_cmd(">=8,<9") == []
+
 
 def test_list_one(list_cmd):
     assert list_cmd("2", one=True) == ["Company1/2.0"]
@@ -110,10 +114,10 @@ def test_list_one(list_cmd):
     assert list_cmd("1", one=True) == ["Company1/1.0"]
 
 
-def from_index(*filters):
+def from_index(*filters, index=FAKE_INDEX):
     return [
         f"{i['company']}/{i['tag']}"
-        for i in list_command._get_installs_from_index([Index("./index.json", FAKE_INDEX)], filters)
+        for i in list_command._get_installs_from_index([Index("./index.json", index)], filters)
     ]
 
 
@@ -121,6 +125,9 @@ def test_list_online():
     assert from_index("Company1\\2.0") == ["Company1/2.0"]
     assert from_index("Company2\\", "Company1\\1") == ["Company1/1.0", "Company2/1.0"]
     assert from_index() == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
+    assert from_index(index={"versions": list(reversed(FAKE_INDEX["versions"]))}) == [
+        "Company2/1.0", "Company1/1.0", "Company1/2.0",
+    ]
 
 
 def test_list_online_one_platform_case(list_cmd, monkeypatch):

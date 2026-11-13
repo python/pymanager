@@ -361,7 +361,7 @@ def execute(cmd):
             best = [i for i in installs
                     if any(t.casefold().endswith(plat.casefold()) for t in i.get("install-for", []))]
             if any(t.prefers_prerelease for t in tags):
-                # First result will be the latest prerelease (or release)
+                # Prefer the first platform match in feed order.
                 installs = best[:1] or installs
             else:
                 # Pick the first non-prerelease that'll install for our platform

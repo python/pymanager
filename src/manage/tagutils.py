@@ -30,10 +30,14 @@ Tags are matched using the following logic:
 When sorting tags, later versions sort above earlier versions, and text sorts
 alphabetically.
 
-When comparing a tag against a constraint (e.g. '>=3.14t'), all text must be
-equal and all versions must follow the constraint. This means constraints are
-not complementary - 'x>=y' is not equivalent to 'not(x<y)', e.g. '3.14t'
-satisfies neither '>=3.14' nor '<3.14'.
+For ordered constraints (e.g. '>=3.14t'), hyphen-separated segments are compared
+from left to right. Text must match case-insensitively, including the text suffix
+of a version segment. Versions are compared at the constraint's numeric precision,
+zero-padding shorter versions. The first non-equal version determines the result,
+and remaining segments are ignored. Missing segments or mismatching text before
+that point fail the comparison.
+This means constraints are not complementary - 'x>=y' is not equivalent to
+'not(x<y)', e.g. '3.14t' satisfies neither '>=3.14' nor '<3.14'.
 
 The logic for choosing the "best" install largely lives in installs.py and it
 varies based on context. In brief:
@@ -117,6 +121,9 @@ class _AscendingText:
     def startswith(self, other):
         return self == other
 
+    def matches_bound(self, other):
+        return self == other
+
     def above_lower_bound(self, other):
         if not isinstance(other, type(self)):
             return False
@@ -181,13 +188,17 @@ class DescendingVersion(Version):
         return self.sortkey[-3:-1] == other.sortkey[-3:-1] and super().startswith(other)
 
     def _bound_keys(self, other):
-        if not isinstance(other, type(self)) or self.sortkey[-1] < other.sortkey[-1]:
+        if not isinstance(other, type(self)):
             return None
         n = min(other.sortkey[-1], self.MAX_FIELDS)
         return (
             (self.sortkey[:n], self.sortkey[-3:-1]),
             (other.sortkey[:n], other.sortkey[-3:-1]),
         )
+
+    def matches_bound(self, other):
+        keys = self._bound_keys(other)
+        return keys is not None and keys[0] == keys[1]
 
     def above_lower_bound(self, other):
         if other is None:
@@ -354,12 +365,19 @@ class CompanyTag:
             return False
         if other.platform not in (self.platform, ""):
             return False
-        if len(self._sortkey) < len(other._sortkey):
-            return False
-        return all(
-            x.compatible_with_bound(y)
-            for x, y in zip(self._sortkey, other._sortkey)
-        )
+        own_parts = iter(self._sortkey)
+        bound_parts = iter(other._sortkey)
+        for y in bound_parts:
+            x = next(own_parts, None)
+            if x is None or not x.compatible_with_bound(y):
+                return False
+            if isinstance(x, DescendingVersion):
+                # Check the segment's text suffix before comparing its version.
+                if not next(own_parts).compatible_with_bound(next(bound_parts)):
+                    return False
+                if not x.matches_bound(y):
+                    return True
+        return True
 
     def matches_bound(self, other):
         if other is None:
@@ -367,7 +385,7 @@ class CompanyTag:
         if not self._compatible_with_bound(other):
             return False
         for x, y in zip(self._sortkey, other._sortkey):
-            if not x.startswith(y):
+            if not x.matches_bound(y):
                 return False
         return True
 
@@ -530,7 +548,6 @@ def install_matches_any(
     if not tags_or_ranges:
         return True
 
-    own_tag = CompanyTag(install["company"], install["tag"], loose_company=loose_company)
     if for_run:
         install_tags = [CompanyTag(install["company"], t["tag"], loose_company=loose_company)
                         for t in install.get("run-for", ())]
@@ -538,17 +555,14 @@ def install_matches_any(
         install_tags = [CompanyTag(install["company"], t, loose_company=loose_company)
                         for t in install.get("install-for", ())]
     if not install_tags:
-        install_tags.append(own_tag)
+        install_tags.append(CompanyTag(install["company"], install["tag"],
+                                       loose_company=loose_company))
 
     for f in tags_or_ranges:
         if not f:
             if install.get("default"):
                 return True
             continue
-        if isinstance(f, TagRange):
-            if f.satisfied_by(own_tag):
-                return True
-        else:
-            if any(f.satisfied_by(t) for t in install_tags):
-                return True
+        if any(f.satisfied_by(t) for t in install_tags):
+            return True
     return False

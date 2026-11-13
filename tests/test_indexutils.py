@@ -163,12 +163,12 @@ def test_install_lookup():
     assert index.find_to_install("cpy/3")["tag"] == "3.13.1"
     assert index.find_to_install("3.12")["tag"] == "3.12.2"
 
-    # The generic "3" tag can satisfy upper bounds and exclusions.
-    assert index.find_to_install("!=3.13")["tag"] == "3.13.1"
-    assert index.find_to_install("<=3.12")["tag"] == "3.13.1"
-    assert index.find_to_install("<3.12")["tag"] == "3.13.1"
-    assert index.find_to_install("<3.12,!=3.11")["tag"] == "3.13.1"
-    assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.13.1"
+    # A generic "3" tag is ambiguous for upper bounds and exclusions.
+    assert index.find_to_install("!=3.13")["tag"] == "3.12.2"
+    assert index.find_to_install("<=3.12")["tag"] == "3.12.2"
+    assert index.find_to_install("<3.12")["tag"] == "3.11.3"
+    assert index.find_to_install("<3.12,!=3.11")["tag"] == "3.10.4"
+    assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.11.3"
 
     # Every clause must match the same offered tag.
     assert index.find_to_install(">=3.10,!=3.13")["tag"] == "3.12.2"

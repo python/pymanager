@@ -33,9 +33,12 @@ alphabetically.
 For ordered constraints (e.g. '>=3.14t'), hyphen-separated segments are compared
 from left to right. Text must match case-insensitively, including the text suffix
 of a version segment. Versions are compared at the constraint's numeric precision,
-zero-padding shorter versions. The first non-equal version determines the result,
-and remaining segments are ignored. Missing segments or mismatching text before
-that point fail the comparison.
+zero-padding shorter versions. If a tag has fewer numeric fields than the
+constraint and those fields match, the tag may represent versions on either side
+of the constraint. It therefore does not satisfy an upper bound or equality, and
+an exclusion fails when the tag could match the excluded version. The first
+non-equal version otherwise determines the result, and remaining segments are
+ignored. Missing segments or mismatching text before that point fail the comparison.
 This means constraints are not complementary - 'x>=y' is not equivalent to
 'not(x<y)', e.g. '3.14t' satisfies neither '>=3.14' nor '<3.14'.
 
@@ -220,6 +223,14 @@ class DescendingVersion:
             return False
         k1, k2 = Version.get_comparable_tuples(self.version, other.version)
         return k1 < k2
+
+    def is_shorter_prefix_of(self, other):
+        return (
+            isinstance(other, DescendingVersion)
+            and self.suffix == other.suffix
+            and other.version.startswith(self.version)
+            and self.version.sortkey[-1] < other.version.sortkey[-1]
+        )
 
     def __hash__(self):
         # Omit the field count, as with Version
@@ -429,6 +440,34 @@ class CompanyTag:
                 return False
         return True
 
+    def definitely_matches_bound(self, other):
+        return self.matches_bound(other) and not self._has_ambiguous_version_prefix(other)
+
+    def could_match_bound(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        if not self._company.startswith(other._company):
+            return False
+        if other.platform not in (self.platform, ""):
+            return False
+        if len(self._sortkey) < len(other._sortkey):
+            return False
+        for x, y in zip(self._sortkey, other._sortkey):
+            if x.matches_bound(y):
+                continue
+            if x.is_shorter_prefix_of(y):
+                continue
+            return False
+        return True
+
+    def _has_ambiguous_version_prefix(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        return any(
+            x.is_shorter_prefix_of(y)
+            for x, y in zip(self._sortkey, other._sortkey)
+        )
+
     def above_lower_bound(self, other):
         if other is None:
             return True
@@ -458,6 +497,8 @@ class CompanyTag:
         if not self._compatible_with_bound(other):
             return False
         for x, y in zip(self._sortkey, other._sortkey):
+            if x.is_shorter_prefix_of(y):
+                return False
             if x.above_lower_bound(y):
                 return False
             if x.below_upper_bound(y):
@@ -521,19 +562,19 @@ class TagRange:
     class RangeEqual(Range):
         OP = "="
         def __call__(self, other):
-            return other.matches_bound(self.tag)
+            return other.definitely_matches_bound(self.tag)
 
     class RangeEqualEqual(Range):
         # Same as =, but provided for people who type it out of habit
         OP = "=="
         def __call__(self, other):
-            return other.matches_bound(self.tag)
+            return other.definitely_matches_bound(self.tag)
 
     class RangeRoughlyEqual(Range):
         # Same as =, but provided for people who type it out of habit
         OP = "~="
         def __call__(self, other):
-            return other.matches_bound(self.tag)
+            return other.definitely_matches_bound(self.tag)
 
     class RangeGreaterEqual(Range):
         OP = ">="
@@ -548,7 +589,10 @@ class TagRange:
     class RangeLessEqual(Range):
         OP = "<="
         def __call__(self, other):
-            return other.matches_bound(self.tag) or other.below_upper_bound(self.tag)
+            return (
+                other.matches_bound(self.tag)
+                and not other._has_ambiguous_version_prefix(self.tag)
+            ) or other.below_upper_bound(self.tag)
 
     class RangeLess(Range):
         OP = "<"
@@ -558,7 +602,7 @@ class TagRange:
     class RangeExclude(Range):
         OP = "!="
         def __call__(self, other):
-            return not other.matches_bound(self.tag)
+            return not other.could_match_bound(self.tag)
 
         @property
         def prefers_prerelease(self):

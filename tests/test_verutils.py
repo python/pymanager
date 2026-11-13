@@ -28,7 +28,7 @@ def test_version(ver_str):
 
 def test_long_version(assert_log):
     v = "3.1.2.3.4.5.6.7.8.9"
-    v2 = "3.1.2.3.4.5.6.7"
+    v2 = ".".join(v.split(".")[:Version.MAX_FIELDS])
     version = Version(v)
     assert_log(
         (".*is too long.*", (v, v2)),

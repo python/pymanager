@@ -165,10 +165,22 @@ def test_simple_tag_range():
     assert TagRange("<3.14.1").satisfied_by(CompanyTag("3.13"))
     assert not TagRange(">3.14.1").satisfied_by(CompanyTag("3.14"))
     assert TagRange(">=3.14.0").satisfied_by(CompanyTag("3.14"))
-    assert TagRange("<=3.14.0").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange("<=3.14.0").satisfied_by(CompanyTag("3.14"))
     assert not TagRange(">3.14.0").satisfied_by(CompanyTag("3.14"))
     assert not TagRange("<3.14.0").satisfied_by(CompanyTag("3.14"))
     assert not TagRange("!=3.14.0").satisfied_by(CompanyTag("3.14"))
+
+
+def test_tag_range_ambiguous_version_prefix():
+    assert TagRange(">=3.0").satisfied_by(CompanyTag("3"))
+    assert TagRange("<4").satisfied_by(CompanyTag("3"))
+    assert not TagRange(">3.0").satisfied_by(CompanyTag("3"))
+    assert not TagRange("<=3.12").satisfied_by(CompanyTag("3"))
+    assert not TagRange("<3.12").satisfied_by(CompanyTag("3"))
+    assert not TagRange("==3.0").satisfied_by(CompanyTag("3"))
+    assert not TagRange("!=3.13").satisfied_by(CompanyTag("3"))
+    assert not TagRange("<3.13-abc-1").satisfied_by(CompanyTag("3-abc-2"))
+    assert TagRange(">3.14.1").satisfied_by(CompanyTag("3.15"))
 
 
 @pytest.mark.parametrize("spec, tag, expected", [
@@ -256,7 +268,7 @@ def test_tag_range_suffixes():
     assert not TagRange(">=3.10-embed").satisfied_by(CompanyTag("3.10"))
     assert TagRange(">=3.10-embed").satisfied_by(CompanyTag("3.10-embed"))
     assert not TagRange("<3.13-abc-1").satisfied_by(CompanyTag("4-abc-0"))
-    assert TagRange("<3.13-abc-1").satisfied_by(CompanyTag("3-abc-2"))
+    assert not TagRange("<3.13-abc-1").satisfied_by(CompanyTag("3-abc-2"))
     assert TagRange(">3.13-abc-123").satisfied_by(CompanyTag("4-abc-0"))
     assert TagRange(">=3.0-abc-1").satisfied_by(CompanyTag("3-abc-1"))
     assert TagRange(">3.13-abc-123").satisfied_by(CompanyTag("3.14-def-122"))

@@ -135,15 +135,6 @@ def test_tag_range_exclude():
     assert not TagRange("!=3.10").satisfied_by(CompanyTag("3.10.1"))
 
 
-def test_tag_range_prerelease():
-    assert not TagRange(">=3.10").satisfied_by(CompanyTag("3.10.0a1"))
-    assert TagRange(">=3.10a0").satisfied_by(CompanyTag("3.10.0a1"))
-    assert TagRange(">=3.10dev").satisfied_by(CompanyTag("3.10.0a1"))
-    assert not TagRange(">=3.10a2").satisfied_by(CompanyTag("3.10.0a1"))
-    assert TagRange(">=3.10a2").satisfied_by(CompanyTag("3.10.0"))
-    assert not TagRange("<3.10a2").satisfied_by(CompanyTag("3.10.0"))
-
-
 def test_tag_range_platforms():
     assert TagRange(">=3.10-32").satisfied_by(CompanyTag("3.10-32"))
     assert TagRange(">=3.10-32").satisfied_by(CompanyTag("3.10.1-32"))

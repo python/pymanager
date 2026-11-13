@@ -344,44 +344,50 @@ def split_args(arg_string, argv0=False):
     """Splits a single argument string into separate unquoted items.
 
 If argv0 is True, the first argument is parsed as if it is the executable name.
+
+Arguments are split using the same rules as the C runtime, so quotes may begin
+and end anywhere within an argument.
 """
     args = []
     if argv0 and arg_string[:1] == '"':
         a, _, arg_string = arg_string[1:].partition('"')
         args.append(a)
 
-    arg_buffer = None
-    quoted_arg = []
-    bits = arg_string.strip().split(' ')
-    while bits:
-        a = bits.pop(0)
-        pre, quot, post = a.partition('"')
-        if arg_buffer:
-            pre = arg_buffer + pre
-            arg_buffer = None
-        if not quot:
-            if quoted_arg:
-                quoted_arg.append(pre)
-                quoted_arg.append(' ')
+    arg = None
+    in_quotes = False
+    backslashes = 0
+    i = 0
+    while i < len(arg_string):
+        c = arg_string[i]
+        i += 1
+        if c == '\\':
+            backslashes += 1
+            continue
+        if c == '"':
+            # 2n backslashes + quote -> n backslashes and toggle quoting
+            # 2n+1 backslashes + quote -> n backslashes and a literal quote
+            arg = (arg or '') + '\\' * (backslashes // 2)
+            if backslashes % 2:
+                arg += '"'
+            elif in_quotes and arg_string[i:i + 1] == '"':
+                # A doubled quote inside quotes is a literal quote
+                arg += '"'
+                i += 1
             else:
-                args.append(pre.replace('\\\\', '\\'))
+                in_quotes = not in_quotes
+            backslashes = 0
             continue
-        if pre[-1:] == '\\' and (len(pre) - len(pre.rstrip('\\'))) % 2 == 1:
-            arg_buffer = pre[:-1] + quot
-            if post:
-                bits.insert(0, post)
+        if backslashes:
+            arg = (arg or '') + '\\' * backslashes
+            backslashes = 0
+        if c in ' \t' and not in_quotes:
+            if arg is not None:
+                args.append(arg)
+                arg = None
             continue
-        elif quoted_arg:
-            quoted_arg.append(pre)
-            args.append(''.join(quoted_arg).replace('\\\\', '\\'))
-            quoted_arg.clear()
-            continue
-
-        quoted_arg.append(pre)
-        if pre:
-            quoted_arg.append(quot)
-        if post:
-            bits.insert(0, post)
-    if quoted_arg:
-        args.append(''.join(quoted_arg))
+        arg = (arg or '') + c
+    if backslashes:
+        arg = (arg or '') + '\\' * backslashes
+    if arg is not None:
+        args.append(arg)
     return args

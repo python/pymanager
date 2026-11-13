@@ -101,6 +101,8 @@ def test_get_install_to_run_with_platform(patched_installs):
     i = installs.get_install_to_run("<none>", None, "2.0-arm64")
     assert i["id"] == "PythonCore-2.0-arm64"
     assert i["executable"].match("python.exe")
+    i = installs.get_install_to_run("<none>", None, "2.0-ARM64")
+    assert i["id"] == "PythonCore-2.0-arm64"
 
 
 def test_get_install_to_run_with_platform_windowed(patched_installs):
@@ -194,3 +196,6 @@ def test_install_alias_names():
     expectw = ["py[w]3[-64].exe", "xy[w]3[-64].exe"]
     assert expect == installs.get_install_alias_names(input, friendly=True, windowed=False, default_platform="-64")
     assert expectw == installs.get_install_alias_names(input, friendly=True, windowed=True, default_platform="-64")
+    assert ["py3[-arm64].exe"] == installs.get_install_alias_names(
+        [{"name": "py3-ARM64.exe"}], default_platform="-ARM64"
+    )

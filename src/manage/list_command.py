@@ -22,8 +22,9 @@ def _format_alias(cmd, i, seen):
 def _format_tag_with_co(cmd, i):
     t = i["tag"]
     # Show the default platform as optional when configured.
-    if cmd and cmd.default_platform and t.endswith(cmd.default_platform):
-        t = t.removesuffix(cmd.default_platform) + f"[{cmd.default_platform}]"
+    if cmd and cmd.default_platform and t.casefold().endswith(cmd.default_platform.casefold()):
+        n = len(cmd.default_platform)
+        t = f"{t[:-n]}[{t[-n:]}]"
     if i["company"].casefold() in ("PythonCore".casefold(), "---", ""):
         return t
     return rf"{i['company']}\{t}"
@@ -331,6 +332,9 @@ def execute(cmd):
     plat = plat or cmd.default_platform
 
     if cmd.source:
+        # When listing online packages, we filter by install-for tags to better
+        # match 'py install <tag>' behaviour
+
         from .indexutils import Index
         from .urlutils import IndexDownloader
         installs = []
@@ -355,7 +359,7 @@ def execute(cmd):
             raise SystemExit(1) from first_exc
         if cmd.one:
             best = [i for i in installs
-                    if any(t.endswith(plat) for t in i.get("install-for", []))]
+                    if any(t.casefold().endswith(plat.casefold()) for t in i.get("install-for", []))]
             if any(t.prefers_prerelease for t in tags):
                 # First result will be the latest prerelease (or release)
                 installs = best[:1] or installs
@@ -368,32 +372,30 @@ def execute(cmd):
                 else:
                     installs = best[:1] or installs
     elif cmd.install_dir:
+        # When listing installed runtimes, we filter based on their run-for tags
+        # to represent 'py exec -V:<tag>' behaviour.
+
         try:
             installs = cmd.get_installs(include_unmanaged=cmd.unmanaged)
         except OSError:
             LOGGER.debug("Unable to read installs", exc_info=True)
             installs = []
 
-        if tags:
-            LOGGER.debug("Filtering to following items")
-            resort = False
-            for t in tags:
-                LOGGER.debug("* %r", t)
-                if t.prefers_prerelease:
-                    resort = True
+        if tags and installs:
+            LOGGER.debug("Filtering to following items: %r", tags)
             installs = [i for i in installs
                         if install_matches_any(i, tags, loose_company=True, for_run=True)]
-            if resort:
+            if any(t.prefers_prerelease for t in tags):
                 from .installs import make_sort_key_ignore_pre
                 installs.sort(key=make_sort_key_ignore_pre)
 
-        if not cmd.unmanaged:
+        if not cmd.unmanaged and installs:
             # Just in case any leak through (e.g. active venv)
             installs = [i for i in installs if not i.get("unmanaged")]
 
         if cmd.one and installs:
             # Use the filtered list and select the best option for each tag.
-            # Then return the max by sort-version
+            # Then return the best of those including prereleases
             from .installs import get_install_to_run, make_sort_key_ignore_pre
             best = []
             for t in (tags or [None]):

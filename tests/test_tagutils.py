@@ -43,6 +43,15 @@ def test_tag_match():
     assert not CompanyTag("PythonCore\\4.56").match(CompanyTag("", "3"))
 
 
+def test_tag_prerelease_match():
+    assert CompanyTag("3.14rc1t").match(CompanyTag("3.14rc1t"))
+    assert CompanyTag("3.14RC1T").match(CompanyTag("3.14rc1t"))
+    assert not CompanyTag("3.14rc1t").match(CompanyTag("3.14rc2t"))
+    assert not CompanyTag("3.14rc1t").match(CompanyTag("3.14t"))
+    assert not CompanyTag("3.14rc1t").match(CompanyTag("3.14rc1"))
+    assert not CompanyTag("3.14").match(CompanyTag("3.14rc1"))
+
+
 def test_prefer_prerelease():
     assert not tag_or_range("3").prefers_prerelease
     assert not tag_or_range("3-64").prefers_prerelease
@@ -66,6 +75,19 @@ def test_tag_platform_match():
     assert CompanyTag("3.10-64").match(CompanyTag("3.10-64"))
     assert not CompanyTag("3.10").match(CompanyTag("3.10-64"))
     assert not CompanyTag("3.10-arm64").match(CompanyTag("3.10-64"))
+
+
+def test_tag_platform_case():
+    assert CompanyTag("3.10-ARM64") == CompanyTag("3.10-arm64")
+    assert CompanyTag("3.10-ArM64").match(CompanyTag("3.10-arm64"))
+    assert CompanyTag("3.10-arm64").match(CompanyTag("3.10-ARM64"))
+    assert CompanyTag("3.10-ARM64").match(CompanyTag("3.10"))
+    assert not CompanyTag("3.10").match(CompanyTag("3.10-ARM64"))
+    assert not CompanyTag("3.10-ARM64").match(CompanyTag("3.10-64"))
+    assert CompanyTag("3.10-32") < CompanyTag("3.10-ARM64")
+    assert TagRange(">=3.10-ARM64").satisfied_by(CompanyTag("3.11-arm64"))
+    assert TagRange(">=3.10-arm64").satisfied_by(CompanyTag("3.11-ArM64"))
+    assert not TagRange(">=3.10-ARM64").satisfied_by(CompanyTag("3.11-64"))
 
 
 def test_tag_order():
@@ -125,6 +147,47 @@ def test_simple_tag_range():
     assert TagRange("~=3.10").satisfied_by(CompanyTag("3.10.1"))
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.9"))
     assert not TagRange("~=3.10").satisfied_by(CompanyTag("3.11"))
+
+
+def test_tag_range_prereleases():
+    assert TagRange(">3.14a9").satisfied_by(CompanyTag("3.14a10"))
+    assert TagRange("<3.14a10").satisfied_by(CompanyTag("3.14a9"))
+    assert TagRange(">3.14a10").satisfied_by(CompanyTag("3.14b1"))
+    assert TagRange(">3.14b1").satisfied_by(CompanyTag("3.14rc1"))
+    assert TagRange(">3.14rc1").satisfied_by(CompanyTag("3.14"))
+    assert TagRange("<3.14").satisfied_by(CompanyTag("3.14rc1"))
+    assert not TagRange(">=3.14").satisfied_by(CompanyTag("3.14rc1"))
+    assert not TagRange("=3.14a1").satisfied_by(CompanyTag("3.14a2"))
+
+
+def test_tag_range_variants():
+    assert TagRange(">=3.13t").satisfied_by(CompanyTag("3.14t"))
+    assert TagRange("<3.14t").satisfied_by(CompanyTag("3.13t"))
+    assert not TagRange(">3.13d").satisfied_by(CompanyTag("3.13"))
+    assert not TagRange(">1.1.1w").satisfied_by(CompanyTag("1.1.1"))
+    assert not TagRange(">2024b").satisfied_by(CompanyTag("2024"))
+    assert TagRange(">2024b1").satisfied_by(CompanyTag("2024"))
+    assert not TagRange("=3.13d").satisfied_by(CompanyTag("3.13debug"))
+
+    assert not TagRange(">3.13t").satisfied_by(CompanyTag("3.13-embed"))
+    assert not TagRange(">3.13t-embed").satisfied_by(CompanyTag("3.13-embed"))
+    assert TagRange("<3.14").satisfied_by(CompanyTag("3.13-embed"))
+
+
+@pytest.mark.parametrize("op", ["<", "<=", ">", ">="])
+def test_tag_range_different_variants(op):
+    assert not TagRange(f"{op}3.13t").satisfied_by(CompanyTag("3.13"))
+    assert not TagRange(f"{op}3.13").satisfied_by(CompanyTag("3.14t"))
+    assert not TagRange(f"{op}3.13").satisfied_by(CompanyTag("3.12t"))
+
+
+def test_tag_range_prerelease_variants():
+    assert TagRange(">3.14a9t").satisfied_by(CompanyTag("3.14a10t"))
+    assert TagRange(">3.14a10t").satisfied_by(CompanyTag("3.14rc1t"))
+    assert TagRange(">3.14rc1t").satisfied_by(CompanyTag("3.14t"))
+    assert TagRange("<3.14t").satisfied_by(CompanyTag("3.14rc1t"))
+    assert not TagRange(">3.14rc1t").satisfied_by(CompanyTag("3.14"))
+    assert not TagRange(">=3.13a1t").satisfied_by(CompanyTag("3.14a1d"))
 
 
 def test_tag_range_exclude():

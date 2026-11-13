@@ -14,6 +14,8 @@ def _make_sort_key(install):
         0 if not Version(install["sort-version"]).is_prerelease else 1,
         # Order by descending tags
         CompanyTag(install.get("company"), install.get("tag")),
+        # Disambiguate by sort version where necessary
+        Version(install["sort-version"]),
     )
 
 
@@ -194,6 +196,8 @@ def get_install_alias_names(aliases, friendly=True, windowed=True, default_platf
         aliases = [a for a in aliases if not a.get("windowed")]
     if not friendly:
         return sorted(a["name"] for a in aliases)
+    if default_platform:
+        default_platform = default_platform.casefold()
 
     seen = {}
     has_w = {}
@@ -225,11 +229,11 @@ def _patch_install_to_run(i, run_for):
 
 
 def get_matching_install_tags(
-    installs,
-    tag,
-    windowed=None,
-    default_platform=None,
-    single_tag=False,
+    installs, # previously loaded from disk
+    tag, # provided by user
+    windowed=None, # inferred from context (e.g. launched via pyw.exe)
+    default_platform=None, # from config
+    single_tag=False, # "get the single best result for this tag"
 ):
     exact_matches = []
     core_matches = []
@@ -320,7 +324,8 @@ def get_matching_install_tags(
         elif (not all_pre
               and (not tag or not tag.prefers_prerelease)
               and all(Version(i["sort-version"]).is_prerelease for i, t in best)):
-            LOGGER.debug("Reusing unfiltered list")
+            LOGGER.debug("Reusing unfiltered list because all candidates were "
+                         "prereleases")
             best = best2
 
     if best and single_tag:
@@ -379,6 +384,7 @@ def get_install_to_run(
         default_platform=default_platform,
     )
 
+    assert not isinstance(tag, str) # should have been through tag_or_range()
     if tag and tag.prefers_prerelease:
         best2 = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
         for i, t in best2:

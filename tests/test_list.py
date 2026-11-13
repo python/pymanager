@@ -123,6 +123,33 @@ def test_list_online():
     assert from_index() == ["Company1/2.0", "Company1/1.0", "Company2/1.0"]
 
 
+def test_list_online_one_platform_case(list_cmd, monkeypatch):
+    from manage import urlutils
+
+    index = Index("https://example.com/index.json", {"versions": [
+        {"schema": 1, "id": f"pythoncore-3.14{plat}", "company": "PythonCore",
+         "tag": f"3.14{plat}", "sort-version": "3.14", "install-for": [f"3.14{plat}"]}
+        for plat in ("-64", "-ARM64")
+    ]})
+
+    class FakeDownloader:
+        def __init__(self, *args):
+            pass
+
+        def __iter__(self):
+            return iter([index])
+
+    monkeypatch.setattr(urlutils, "IndexDownloader", FakeDownloader)
+    list_cmd.fallback_source = None
+    list_cmd.fallback_source_only = False
+    assert list_cmd(source="https://example.com", one=True, default_platform="-arm64") == [
+        "PythonCore/3.14-ARM64",
+    ]
+    assert list_cmd(default_platform="-aRm64") == ["PythonCore/3.14-ARM64"]
+    assert list_cmd("3.14-arm64", default_platform="-64") == ["PythonCore/3.14-ARM64"]
+    assert list_cmd("3.14-ArM64") == ["PythonCore/3.14-ARM64"]
+
+
 def test_format_table(assert_log):
     list_command.format_table(None, FAKE_INSTALLS)
     assert_log(
@@ -131,6 +158,17 @@ def test_format_table(assert_log):
         (r"!G!Company1\\1\.0\s+\*\s+Company1\s+1\.0\s*!W!", ()),
         (r"Company2\\1\.0\s+Company2\s+1\.0", ()),
     )
+
+
+def test_format_tag_platform_case():
+    import types
+
+    cmd = types.SimpleNamespace(default_platform="-arm64")
+    install = {"company": "PythonCore", "tag": "3.14-ARM64"}
+    assert list_command._format_tag_with_co(cmd, install) == "3.14[-ARM64]"
+    cmd.default_platform = "-ARM64"
+    install["tag"] = "3.14-arm64"
+    assert list_command._format_tag_with_co(cmd, install) == "3.14[-arm64]"
 
 
 def test_format_table_aliases(assert_log):

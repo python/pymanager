@@ -1,5 +1,56 @@
 from .verutils import Version
 
+"""
+Tags are our primary mechanism for letting users select an install.
+
+At the simplest level, installs offer a list of tags, and if the user requests
+one of those tags, the "best" install offering that tag is selected.
+
+Tags are matched using the following logic:
+* split at the last forward/backslash into company and tag parts
+* if the tag part ends with a known platform tag, capture it and remove it
+* split the tag part into segments at each hyphen
+* if a segment starts with some kind of version number, the version number is
+  parsed (including standard a#/b#/rc# prerelease suffixes) and the remainder is
+  treated as text
+* otherwise, treat the entire segment as text
+* to be equal, two tags must have the same number of segments and they must
+  all be equal, and the company parts should be equal (case-insensitive)
+* to match, the company part should be a prefix
+* versions are numeric and zero-padded to the same length, so '01.2'=='1.2.0.0'
+* text is casefold()'d before comparison
+* requested tags only have to match the leading segments of offerred tags, that
+  is, if a user requests "a-b" and a package offers "a-b-c", it can match
+* company parts are casefold()'d and prefix matched; in accordance with PEP 514,
+  an empty company is treated as "PythonCore"
+* platform tags are casefold()'d and must fully match. The default platform is
+  handled by querying first with the default platform unconditionally appended,
+  and retrying without if no matches are found.
+
+When sorting tags, later versions sort above earlier versions, and text sorts
+alphabetically.
+
+When comparing a tag against a constraint (e.g. '>=3.14t'), all text must be
+equal and all versions must follow the constraint. This means constraints are
+not complementary - 'x>=y' is not equivalent to 'not(x<y)', e.g. '3.14t'
+satisfies neither '>=3.14' nor '<3.14'.
+
+The logic for choosing the "best" install largely lives in installs.py and it
+varies based on context. In brief:
+* packages in an index are assumed to be ordered, and so the first one offering
+  a matching 'install-for' tag is selected. It is up to the index to order
+  entries according to their own policy
+* installed packages are grouped by prerelease/non-prerelease 'sort-version',
+  and then ordered by their primary 'tag' (and then 'sort-version' if needed).
+  All prereleases follow the non-prereleases. The first package offering a
+  matching 'run-for' tag after ordering is selected to launch/list/uninstall
+* if the request tag has a text segment 'dev', then the grouping above is
+  skipped, allowing prereleases to be selected over non-prereleases (note that
+  the package must offer a tag containing 'dev' to be considered in this case)
+* if a windowed launch is requested, installs that do not specifically offer one
+  are skipped initially, but may be selected later if no runtime with windowed
+  support is found
+"""
 
 # These suffixes on a tag get special treatment when it comes to ordering
 # and matching. Must be a tuple in ascending sort order
@@ -60,19 +111,15 @@ class _AscendingText:
     def __init__(self, s):
         self.s = s.casefold()
 
+    def compatible_with_bound(self, other):
+        return type(self) is type(other) and self.s == other.s
+
     def startswith(self, other):
         if not isinstance(other, type(self)):
             return False
         if not other.s:
             return not self.s
         return self.s.startswith(other.s)
-
-    def endswith(self, other):
-        if not isinstance(other, type(self)):
-            return False
-        if not other.s:
-            return True
-        return self.s.endswith(other.s)
 
     def above_lower_bound(self, other):
         if not isinstance(other, type(self)):
@@ -126,6 +173,38 @@ class _AscendingText:
 
 
 class _DescendingVersion(Version):
+    def compatible_with_bound(self, other):
+        return type(self) is type(other)
+
+    def startswith(self, other):
+        if not isinstance(other, type(self)):
+            if isinstance(other, str):
+                other = type(self)(other)
+            else:
+                return False
+        return self.sortkey[-2:] == other.sortkey[-2:] and super().startswith(other)
+
+    def _bound_keys(self, other):
+        if not isinstance(other, type(self)) or self.sortkey[-3] < other.sortkey[-3]:
+            return None
+        n = min(other.sortkey[-3], self.MAX_FIELDS)
+        return (
+            (self.sortkey[:n], self.sortkey[-2:]),
+            (other.sortkey[:n], other.sortkey[-2:]),
+        )
+
+    def above_lower_bound(self, other):
+        if other is None:
+            return True
+        keys = self._bound_keys(other)
+        return keys is not None and keys[0] > keys[1]
+
+    def below_upper_bound(self, other):
+        if other is None:
+            return True
+        keys = self._bound_keys(other)
+        return keys is not None and keys[0] < keys[1]
+
     def __gt__(self, other):
         if other is None:
             return True
@@ -148,10 +227,9 @@ class _DescendingVersion(Version):
 
 
 def split_platform(tag):
-    if tag.endswith(SUPPORTED_PLATFORM_SUFFIXES):
-        for t in SUPPORTED_PLATFORM_SUFFIXES:
-            if tag.endswith(t):
-                return tag[:-len(t)], t
+    for t in SUPPORTED_PLATFORM_SUFFIXES:
+        if tag[-len(t):].casefold() == t:
+            return tag[:-len(t)], t
     return tag, ""
 
 
@@ -182,9 +260,7 @@ def _sort_tag(tag):
         return ()
 
     for bit in tag.split("-"):
-        # Note that tags are not versions, but dotted numbers sort like versions
-        # We don't parse or handle prerelease fields, for example.
-        m = re.match(r"^(\d+(?:\.\d+)*)(.*)$", bit)
+        m = re.match(r"^(\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(.*)$", bit, re.I)
         if m:
             key.append(_DescendingVersion(m.group(1)))
             key.append(_AscendingText(m.group(2)))
@@ -194,8 +270,6 @@ def _sort_tag(tag):
 
 
 class CompanyTag:
-    prefers_prerelease = False
-
     def __init__(self, company_or_tag, tag=None, *, loose_company=True):
         if isinstance(company_or_tag, str):
             if tag is not None:
@@ -277,9 +351,7 @@ class CompanyTag:
             return _platform_gt(self.platform, other.platform)
         return False
 
-    def matches_bound(self, other):
-        if other is None:
-            return True
+    def _compatible_with_bound(self, other):
         if not isinstance(other, type(self)):
             return False
         if not self._company.startswith(other._company):
@@ -287,6 +359,16 @@ class CompanyTag:
         if other.platform not in (self.platform, ""):
             return False
         if len(self._sortkey) < len(other._sortkey):
+            return False
+        return all(
+            x.compatible_with_bound(y)
+            for x, y in zip(self._sortkey, other._sortkey)
+        )
+
+    def matches_bound(self, other):
+        if other is None:
+            return True
+        if not self._compatible_with_bound(other):
             return False
         for x, y in zip(self._sortkey, other._sortkey):
             if not x.startswith(y):
@@ -296,29 +378,14 @@ class CompanyTag:
     def above_lower_bound(self, other):
         if other is None:
             return True
-        if not isinstance(other, type(self)):
+        if not self._compatible_with_bound(other):
             return False
-        if not self._company.startswith(other._company):
-            return False
-        if other.platform not in (self.platform, ""):
-            return False
-        if len(self._sortkey) < len(other._sortkey):
-            return False
-        # A blank field at the end of our sortkey should be treated as above a
-        # non-blank field from the bound, so we trim it off before comparing and
-        # flip our fallback result.
-        result_if_all_match = False
-        paired = list(zip(self._sortkey, other._sortkey))
-        if paired and not paired[-1][0] and paired[-1][1]:
-            paired.pop()
-            result_if_all_match = True
-
-        for x, y in paired:
+        for x, y in zip(self._sortkey, other._sortkey):
             if x.above_lower_bound(y):
                 return True
             if x.below_upper_bound(y):
                 return False
-        return result_if_all_match
+        return False
 
     def __lt__(self, other):
         if not isinstance(other, type(self)):
@@ -334,17 +401,9 @@ class CompanyTag:
     def below_upper_bound(self, other):
         if other is None:
             return True
-        if not isinstance(other, type(self)):
-            return False
-        if not self._company.startswith(other._company):
-            return False
-        if other.platform not in (self.platform, ""):
-            return False
-        if len(self._sortkey) > len(other._sortkey):
+        if not self._compatible_with_bound(other):
             return False
         for x, y in zip(self._sortkey, other._sortkey):
-            if y and not x:
-                continue
             if x.above_lower_bound(y):
                 return False
             if x.below_upper_bound(y):

@@ -175,62 +175,108 @@ class _AscendingText:
         return self.s
 
 
-class DescendingVersion(Version):
+class DescendingVersion:
+    """A version number with an optional text suffix, ordered descending.
+
+    The suffix is the text immediately following the version in the same tag
+    segment, e.g. 't' in '3.14t'. It must match exactly for any comparison.
+    """
+    def __init__(self, s, suffix=""):
+        if isinstance(s, DescendingVersion):
+            self.version = s.version
+            self.suffix = suffix.casefold() if suffix else s.suffix
+        else:
+            self.version = Version(s)
+            self.suffix = suffix.casefold()
+
     def compatible_with_bound(self, other):
-        return type(self) is type(other)
+        return isinstance(other, DescendingVersion) and self.suffix == other.suffix
 
     def startswith(self, other):
-        if not isinstance(other, type(self)):
-            if isinstance(other, str):
-                other = type(self)(other)
-            else:
-                return False
-        return self.sortkey[-3:-1] == other.sortkey[-3:-1] and super().startswith(other)
-
-    def _bound_keys(self, other):
-        if not isinstance(other, type(self)):
-            return None
-        n = min(other.sortkey[-1], self.MAX_FIELDS)
-        return (
-            (self.sortkey[:n], self.sortkey[-3:-1]),
-            (other.sortkey[:n], other.sortkey[-3:-1]),
-        )
+        if isinstance(other, str):
+            other = DescendingVersion(other)
+        if not isinstance(other, DescendingVersion) or self.suffix != other.suffix:
+            return False
+        return self.version.startswith(other.version)
 
     def matches_bound(self, other):
-        keys = self._bound_keys(other)
-        return keys is not None and keys[0] == keys[1]
+        if not isinstance(other, DescendingVersion) or self.suffix != other.suffix:
+            return False
+        k1, k2 = Version.get_comparable_tuples(self.version, other.version)
+        return k1 == k2
 
     def above_lower_bound(self, other):
         if other is None:
             return True
-        keys = self._bound_keys(other)
-        return keys is not None and keys[0] > keys[1]
+        if not isinstance(other, DescendingVersion) or self.suffix != other.suffix:
+            return False
+        k1, k2 = Version.get_comparable_tuples(self.version, other.version)
+        return k1 > k2
 
     def below_upper_bound(self, other):
         if other is None:
             return True
-        keys = self._bound_keys(other)
-        return keys is not None and keys[0] < keys[1]
+        if not isinstance(other, DescendingVersion) or self.suffix != other.suffix:
+            return False
+        k1, k2 = Version.get_comparable_tuples(self.version, other.version)
+        return k1 < k2
+
+    def __hash__(self):
+        # Omit the field count, as with Version
+        return hash((self.version.sortkey[:-1], self.suffix))
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        return (
+            self.version.sortkey[:-1] == other.version.sortkey[:-1]
+            and self.suffix == other.suffix
+        )
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __str__(self):
+        return str(self.version) + self.suffix
+
+    def __repr__(self):
+        return repr(str(self))
+
+    def _less(self, other):
+        # Versions descend, then suffixes ascend, then longer versions first
+        k1 = self.version.sortkey
+        k2 = other.version.sortkey
+        if k1[:-1] != k2[:-1]:
+            return k1[:-1] > k2[:-1]
+        if self.suffix != other.suffix:
+            return self.suffix < other.suffix
+        return k1[-1] > k2[-1]
 
     def __gt__(self, other):
         if other is None:
             return True
-        if not isinstance(other, type(self)):
+        if not isinstance(other, DescendingVersion):
             if isinstance(other, str):
-                other = type(self)(other)
+                other = DescendingVersion(other)
             else:
                 return False
-        return self.sortkey < other.sortkey
+        return other._less(self)
 
     def __lt__(self, other):
         if other is None:
             return False
-        if not isinstance(other, type(self)):
+        if not isinstance(other, DescendingVersion):
             if isinstance(other, str):
-                other = type(self)(other)
+                other = DescendingVersion(other)
             else:
                 return True
-        return self.sortkey > other.sortkey
+        return self._less(other)
+
+    def __le__(self, other):
+        return self < other or self == other
+
+    def __ge__(self, other):
+        return self > other or self == other
 
 
 def split_platform(tag):
@@ -269,8 +315,7 @@ def _sort_tag(tag):
     for bit in tag.split("-"):
         m = re.match(r"^(\d+(?:\.\d+)*(?:(?:a|b|rc)\d+)?)(.*)$", bit, re.I)
         if m:
-            key.append(DescendingVersion(m.group(1)))
-            key.append(_AscendingText(m.group(2)))
+            key.append(DescendingVersion(m.group(1), m.group(2)))
         else:
             key.append(_AscendingText(bit))
     return tuple(key)
@@ -289,7 +334,7 @@ class CompanyTag:
             self._company = company_or_tag
         self.tag, self.platform = split_platform(tag)
         self._sortkey = _sort_tag(self.tag)
-        self.prefers_prerelease = any(t == _AscendingText("dev") for t in self._sortkey)
+        self.prefers_prerelease = _AscendingText("dev") in self._sortkey
 
     @property
     def company(self):
@@ -365,19 +410,14 @@ class CompanyTag:
             return False
         if other.platform not in (self.platform, ""):
             return False
-        own_parts = iter(self._sortkey)
-        bound_parts = iter(other._sortkey)
-        for y in bound_parts:
-            x = next(own_parts, None)
-            if x is None or not x.compatible_with_bound(y):
+        for x, y in zip(self._sortkey, other._sortkey):
+            if not x.compatible_with_bound(y):
                 return False
-            if isinstance(x, DescendingVersion):
-                # Check the segment's text suffix before comparing its version.
-                if not next(own_parts).compatible_with_bound(next(bound_parts)):
-                    return False
-                if not x.matches_bound(y):
-                    return True
-        return True
+            if not x.matches_bound(y):
+                # First non-equal version decides (via the caller's bound
+                # check); its suffix was already checked as compatible.
+                return True
+        return len(self._sortkey) >= len(other._sortkey)
 
     def matches_bound(self, other):
         if other is None:

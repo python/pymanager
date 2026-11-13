@@ -63,13 +63,19 @@ def test_prefer_prerelease():
     assert not tag_or_range("3").prefers_prerelease
     assert not tag_or_range("3-64").prefers_prerelease
     assert not tag_or_range("3.13").prefers_prerelease
+    assert not tag_or_range("3.14dev").prefers_prerelease
+    assert not tag_or_range("3.14DEV-64").prefers_prerelease
+    assert not tag_or_range("3.14rc1dev").prefers_prerelease
+    assert not tag_or_range("3.14-devtools").prefers_prerelease
     assert tag_or_range("3-dev").prefers_prerelease
     assert tag_or_range("3.13-DEV").prefers_prerelease
     assert tag_or_range("3.13-dev-64").prefers_prerelease
+    assert tag_or_range("3.14dev-dev").prefers_prerelease
 
     assert not tag_or_range(">3").prefers_prerelease
     assert not tag_or_range("<3-64").prefers_prerelease
     assert not tag_or_range("==3.13").prefers_prerelease
+    assert not tag_or_range(">=3.14dev").prefers_prerelease
     assert not tag_or_range("!=3.13").prefers_prerelease
     assert not tag_or_range("!=3.13-dev").prefers_prerelease
     assert tag_or_range(">3-dev").prefers_prerelease

@@ -113,9 +113,30 @@ class Version:
         return k1[:n1] == k2[:n2]
 
     def startswith(self, other):
+        # Numeric fields of other are a prefix of ours, and prerelease markers
+        # are identical (so 3.14a1 does not start with 3.14)
         if not isinstance(other, type(self)):
             other = type(self)(other)
-        return self._are_equal(other, other_prefix_match=True, prerelease_match=False)
+        n = other.sortkey[-1]
+        if n > self.sortkey[-1]:
+            return False
+        n = min(n, self.MAX_FIELDS)
+        return (
+            self.sortkey[:n] == other.sortkey[:n]
+            and self.sortkey[-3:-1] == other.sortkey[-3:-1]
+        )
+
+    @classmethod
+    def get_comparable_tuples(cls, version, bound):
+        """Return comparison keys at the bound's numeric precision, including prereleases."""
+        if not isinstance(version, cls):
+            version = cls(version)
+        if not isinstance(bound, cls):
+            bound = cls(bound)
+        k1 = version.sortkey
+        k2 = bound.sortkey
+        n = min(k2[-1], cls.MAX_FIELDS)
+        return (k1[:n], k1[-3:-1]), (k2[:n], k2[-3:-1])
 
     def above_lower_bound(self, other):
         if other is None:

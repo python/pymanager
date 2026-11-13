@@ -29,10 +29,11 @@ def test_version(ver_str):
 def test_long_version(assert_log):
     v = "3.1.2.3.4.5.6.7.8.9"
     v2 = "3.1.2.3.4.5.6.7"
-    Version(v)
+    version = Version(v)
     assert_log(
         (".*is too long.*", (v, v2)),
     )
+    assert Version.get_comparable_tuples(v2, version) == Version.get_comparable_tuples(v2, v2)
 
 
 def test_sort_versions():
@@ -78,3 +79,15 @@ def test_version_startswith():
     assert Version("3.13.0").startswith(Version("3.13"))
     assert Version("3.13.0").startswith(Version("3.13.0"))
     assert not Version("3.13").startswith(Version("3.13.0"))
+    assert not Version("3.13a1").startswith(Version("3.13"))
+    assert Version("3.13.0a1").startswith(Version("3.13a1"))
+
+
+def test_version_comparable_tuples():
+    release, prerelease = Version.get_comparable_tuples("3.14", Version("3.14.0rc1"))
+    assert release == ((3, 14, 0), (Version.TEXT_MAP[""], 0))
+    assert prerelease == ((3, 14, 0), (Version.TEXT_MAP["rc"], 1))
+    assert release > prerelease
+
+    version, bound = Version.get_comparable_tuples(Version("3.14.1"), "3.14")
+    assert version == bound == ((3, 14), (Version.TEXT_MAP[""], 0))

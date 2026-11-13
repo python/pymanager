@@ -83,6 +83,14 @@ def test_get_default_install_prerelease_dev(patched_installs3):
                                     installs=inst)
     assert i["id"] == "PythonCore-3.1a1-64"
 
+    suffix_installs = [
+        {**i, "run-for": [{"tag": "3dev-64"}]}
+        for i in inst
+        if i["id"] in ("PythonCore-3.0-64", "PythonCore-3.1a1-64")
+    ]
+    m = installs.get_matching_install_tags(suffix_installs, "3dev", None, "-64", single_tag=True)
+    assert m[0][0]["id"] == "PythonCore-3.0-64"
+
     # Sanity check that explicit platforms always choose something matching
     m = installs.get_matching_install_tags(inst, "3-32", None, "-32", single_tag=True)
     assert m and m[0]

@@ -196,8 +196,18 @@ def test_tag_range_ambiguous_version_prefix():
     (">3.13-abc-123", "3.13-abc-124", True),
     (">3.13-abc-123", "3.13-def-123", False),
     (">3.13-abc-123", "3.13def-123", False),
+    (">3.13-abc-123", "3.14def", False),
     (">3.13-abc-123", "3.13-abc-123", False),
     (">3.13-abc-123", "3.13-abc", False),
+    (">=3.0", "3", True),
+    (">3.0", "3", False),
+    ("<4", "3", True),
+    ("<3.12", "3", False),
+    ("<=3.12", "3", False),
+    ("==3.0", "3", False),
+    ("==3.10", "3.10.1", True),
+    ("!=3.13", "3", False),
+    ("!=3.13t", "3", True),
 ])
 def test_tag_range_examples(spec, tag, expected):
     assert TagRange(spec).satisfied_by(CompanyTag(tag)) == expected

@@ -519,7 +519,8 @@ class TagRange:
             s = s.strip()
             if not s:
                 continue
-            for r_cls in self.Range.__subclasses__():
+            # Longest operators first, so '==' is not parsed as '=' + '=...'
+            for r_cls in sorted(self.Range.__subclasses__(), key=lambda c: -len(c.OP)):
                 if s.startswith(r_cls.OP):
                     ranges.append(r_cls(s[len(r_cls.OP):].strip()))
                     break

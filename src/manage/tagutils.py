@@ -8,39 +8,43 @@ one of those tags, the "best" install offering that tag is selected.
 
 Tags are matched using the following logic:
 * split at the last forward/backslash into company and tag parts
-* if the tag part ends with a known platform tag, capture it and remove it
+* if the tag part ends with a known platform suffix, capture it and remove it
+  (to avoid interpreting e.g. '-64' as a number)
 * split the tag part into segments at each hyphen
-* if a segment starts with some kind of version number, the version number is
-  parsed (including standard a#/b#/rc# prerelease suffixes) and the remainder is
-  treated as text
+* if a segment starts with a number, it is parsed as a version number (including
+  standard a#/b#/rc# prerelease suffixes) and the remainder is treated as text
 * otherwise, treat the entire segment as text
 * to be equal, two tags must have the same number of segments and they must
-  all be equal, and the company parts should be equal (case-insensitive)
-* to match, the company part should be a prefix
-* versions are numeric and zero-padded to the same length, so '01.2'=='1.2.0.0'
-* text is casefold()'d and must match exactly
-* requested tags only have to match the leading segments of offerred tags, that
-  is, if a user requests "a-b" and a package offers "a-b-c", it can match
-* company parts are casefold()'d and prefix matched; in accordance with PEP 514,
-  an empty company is treated as "PythonCore"
-* platform tags are casefold()'d and must fully match. The default platform is
-  handled by querying first with the default platform unconditionally appended,
-  and retrying without if no matches are found.
+  all be equal (according to either version or case-insensitive text
+  comparisons), the platform suffix is treated as text (or should be equally
+  absent), and the company part is treated as text or "PythonCore" if absent
+* to *satisfy* a tag, the requested tag only has to match the leading segments
+  of an offerred tags, that is, if a user requests "a-b" and a package offers
+  "a-b-c", it can match (note that "3.15" and "3.15.0" are each a single segment
+  and so "3.15.0" does not satisfy a request for "3.15"). Company parts also
+  need only be a prefix, but platform tags match as for equality.
+* the default platform is handled by querying first with the default platform
+  unconditionally appended, and retrying without if no matches are found.
+* there is no concept of "prerelease" in tags, even though version segments will
+  capture it, and any selection logic related to prereleases happens outside of
+  tag matching
 
-When sorting tags, later versions sort above earlier versions, and text sorts
-alphabetically.
+When sorting tags, text segments sort alphabetically, and versions sort in
+descending order (that is, the highest version will sort first).
 
 For ordered constraints (e.g. '>=3.14t'), hyphen-separated segments are compared
-from left to right. Text must match case-insensitively, including the text suffix
-of a version segment. Versions are compared at the constraint's numeric precision,
-zero-padding shorter versions. If a tag has fewer numeric fields than the
-constraint and those fields match, the tag may represent versions on either side
-of the constraint. It therefore does not satisfy an upper bound or equality, and
-an exclusion fails when the tag could match the excluded version. The first
-non-equal version otherwise determines the result, and remaining segments are
-ignored. Missing segments or mismatching text before that point fail the comparison.
-This means constraints are not complementary - 'x>=y' is not equivalent to
-'not(x<y)', e.g. '3.14t' satisfies neither '>=3.14' nor '<3.14'.
+from left to right. Text must be equal (case-insensitively), including the text
+suffix of a version segment. Version segments with fewer fields than the
+constraint are treated any version that may invalidate the constraint (e.g. '3t'
+can be treated as '3.100t' for comparison with '>=3.14t' and therefore does not
+meet the constraint). Those with more fields are compared as if the constraint
+is zero padded (e.g. '3.14.5t' must be greater than '3.14.0t' for the above
+example, and it is). The first non-equal version otherwise determines the
+overall result, and remaining segments are ignored. Missing segments or
+mismatching text before that point will also determine the comparison (as a
+failure). Constraints are not complementary - 'x>=y' is not equivalent to
+'not(x<y)', e.g. '3.14t' satisfies neither '>=3.14' nor '<3.14', since the text
+in the version suffix does not match.
 
 The logic for choosing the "best" install largely lives in installs.py and it
 varies based on context. In brief:

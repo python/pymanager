@@ -21,8 +21,10 @@ Tags are matched using the following logic:
 * to *satisfy* a tag, the requested tag only has to match the leading segments
   of an offerred tags, that is, if a user requests "a-b" and a package offers
   "a-b-c", it can match (note that "3.15" and "3.15.0" are each a single segment
-  and so "3.15.0" does not satisfy a request for "3.15"). Company parts also
-  need only be a prefix, but platform tags match as for equality.
+  and so "3.15.0" does not satisfy a request for "3.15"). Company parts are
+  always matched as a prefix (with the core company names all being equivalent),
+  but platform tags match as for equality. When selecting from a feed, an
+  exact company match is preferred over a prefix match.
 * the default platform is handled by querying first with the default platform
   unconditionally appended, and retrying without if no matches are found.
 * there is no concept of "prerelease" in tags, even though version segments will
@@ -71,22 +73,19 @@ SUPPORTED_PLATFORM_SUFFIXES = ("-64", "-32", "-arm64")
 class _CompanyKey:
     CORE_COMPANY_NAMES = frozenset(map(str.casefold, ["CPython", "PythonCore", ""]))
 
-    def __init__(self, company, allow_prefix=True):
+    def __init__(self, company):
         self.company = company or ""
         self._company = self.company.casefold()
         self.is_core = self._company in self.CORE_COMPANY_NAMES
         if self.is_core:
             self._company = ""
-        self.allow_prefix = allow_prefix
 
     def startswith(self, other):
         if self.is_core and other.is_core:
             return True
-        if self.allow_prefix:
-            if self.is_core:
-                return any(c.startswith(other._company) for c in self.CORE_COMPANY_NAMES)
-            return self._company.startswith(other._company)
-        return self._company == other._company
+        if self.is_core:
+            return any(c.startswith(other._company) for c in self.CORE_COMPANY_NAMES)
+        return self._company.startswith(other._company)
 
     def __hash__(self):
         return hash(self._company)
@@ -337,13 +336,13 @@ def _sort_tag(tag):
 
 
 class CompanyTag:
-    def __init__(self, company_or_tag, tag=None, *, loose_company=True):
+    def __init__(self, company_or_tag, tag=None):
         if isinstance(company_or_tag, str):
             if tag is not None:
                 company = company_or_tag
             else:
                 company, _, tag = (company_or_tag or "").replace("/", "\\").rpartition("\\")
-            self._company = _CompanyKey(company, allow_prefix=loose_company)
+            self._company = _CompanyKey(company)
         else:
             assert isinstance(company_or_tag, _CompanyKey)
             self._company = company_or_tag
@@ -358,6 +357,9 @@ class CompanyTag:
     @property
     def is_core(self):
         return self._company.is_core
+
+    def matches_company_exactly(self, company):
+        return self._company == _CompanyKey(company)
 
     def __add__(self, other):
         if isinstance(other, str):
@@ -538,6 +540,9 @@ class TagRange:
     def prefers_prerelease(self):
         return any(r.prefers_prerelease for r in self.ranges)
 
+    def matches_company_exactly(self, company):
+        return all(r.tag.matches_company_exactly(company) for r in self.ranges)
+
     def satisfied_by(self, tag):
         return all(r(tag) for r in self.ranges)
 
@@ -630,7 +635,6 @@ def install_matches_any(
     install,
     tags_or_ranges,
     *,
-    loose_company=False,
     for_install=True,
     for_run=False,
 ):
@@ -638,14 +642,13 @@ def install_matches_any(
         return True
 
     if for_run:
-        install_tags = [CompanyTag(install["company"], t["tag"], loose_company=loose_company)
+        install_tags = [CompanyTag(install["company"], t["tag"])
                         for t in install.get("run-for", ())]
     elif for_install:
-        install_tags = [CompanyTag(install["company"], t, loose_company=loose_company)
+        install_tags = [CompanyTag(install["company"], t)
                         for t in install.get("install-for", ())]
     if not install_tags:
-        install_tags.append(CompanyTag(install["company"], install["tag"],
-                                       loose_company=loose_company))
+        install_tags.append(CompanyTag(install["company"], install["tag"]))
 
     for f in tags_or_ranges:
         if not f:

@@ -384,7 +384,7 @@ def execute(cmd):
         if tags and installs:
             LOGGER.debug("Filtering to following items: %r", tags)
             installs = [i for i in installs
-                        if install_matches_any(i, tags, loose_company=True, for_run=True)]
+                        if install_matches_any(i, tags, for_run=True)]
             if any(t.prefers_prerelease for t in tags):
                 from .installs import make_sort_key_ignore_pre
                 installs.sort(key=make_sort_key_ignore_pre)

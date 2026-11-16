@@ -130,6 +130,9 @@ class _AscendingText:
     def matches_bound(self, other):
         return self == other
 
+    def is_shorter_prefix_of(self, other):
+        return False
+
     def above_lower_bound(self, other):
         if not isinstance(other, type(self)):
             return False

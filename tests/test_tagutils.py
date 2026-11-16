@@ -183,6 +183,16 @@ def test_tag_range_ambiguous_version_prefix():
     assert TagRange(">3.14.1").satisfied_by(CompanyTag("3.15"))
 
 
+def test_tag_range_text_segments():
+    assert not TagRange("<3.14-dev").satisfied_by(CompanyTag("3.14-dev"))
+    assert TagRange("<=3.14-dev").satisfied_by(CompanyTag("3.14-dev"))
+    assert TagRange("==3.14-dev").satisfied_by(CompanyTag("3.14-dev"))
+    assert not TagRange("!=3.14-dev").satisfied_by(CompanyTag("3.14-dev"))
+    assert TagRange("<3.14-dev").satisfied_by(CompanyTag("3.13-dev"))
+    assert not TagRange("<3.14-dev").satisfied_by(CompanyTag("3-dev"))
+    assert TagRange("!=3.14-dev").satisfied_by(CompanyTag("3.14-embed"))
+
+
 @pytest.mark.parametrize("spec, tag, expected", [
     (">=3.13", "3.13.4", True),
     (">=3.13", "3.14", True),

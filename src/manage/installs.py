@@ -3,7 +3,7 @@ import json
 from .exceptions import NoInstallFoundError, NoInstallsError
 from .logging import DEBUG, LOGGER
 from .pathutils import Path
-from .tagutils import CompanyTag, tag_or_range, companies_match, split_platform
+from .tagutils import CompanyTag, tag_or_range, companies_match, split_platform, DescendingVersion
 from .verutils import Version
 
 
@@ -14,6 +14,16 @@ def _make_sort_key(install):
         0 if not Version(install["sort-version"]).is_prerelease else 1,
         # Order by descending tags
         CompanyTag(install.get("company"), install.get("tag")),
+        # Disambiguate by sort version where necessary
+        DescendingVersion(install["sort-version"]),
+    )
+
+
+def make_sort_key_ignore_pre(install):
+    # Alternate sort key for "-dev" that treats prerelease as equal to release
+    return (
+        CompanyTag(install.get("company"), install.get("tag")),
+        DescendingVersion(install["sort-version"]),
     )
 
 
@@ -186,6 +196,8 @@ def get_install_alias_names(aliases, friendly=True, windowed=True, default_platf
         aliases = [a for a in aliases if not a.get("windowed")]
     if not friendly:
         return sorted(a["name"] for a in aliases)
+    if default_platform:
+        default_platform = default_platform.casefold()
 
     seen = {}
     has_w = {}
@@ -217,11 +229,11 @@ def _patch_install_to_run(i, run_for):
 
 
 def get_matching_install_tags(
-    installs,
-    tag,
-    windowed=None,
-    default_platform=None,
-    single_tag=False,
+    installs, # previously loaded from disk
+    tag, # provided by user
+    windowed=None, # inferred from context (e.g. launched via pyw.exe)
+    default_platform=None, # from config
+    single_tag=False, # "get the single best result for this tag"
 ):
     exact_matches = []
     core_matches = []
@@ -258,8 +270,6 @@ def get_matching_install_tags(
                 else:
                     matches.append((i, t))
                     matched_any = True
-            if single_tag and matched_any:
-                break
         if LOGGER.would_log_to_console(DEBUG):
             # Don't bother listing all installs unless the user has asked
             # for console output.
@@ -298,6 +308,8 @@ def get_matching_install_tags(
     # If none or only prereleases, keep them all
     if default_platform:
         default_platform = default_platform.casefold()
+        # Remember whether all source versions were prereleases, so we don't
+        # reset our results if all post-filter versions are prereleases.
         all_pre = all(Version(i["sort-version"]).is_prerelease for i, t in best)
         best2 = best
         best = [(i, t) for i, t in best
@@ -305,12 +317,21 @@ def get_matching_install_tags(
                 or t["tag"].casefold().endswith(default_platform)]
         LOGGER.debug("default_platform '%s' matched %s %s", default_platform,
                      len(best), "install" if len(best) == 1 else "installs")
-        if (
-            not best or
-            (not all_pre and all(Version(i["sort-version"]).is_prerelease for i, t in best))
-        ):
-            LOGGER.debug("Reusing unfiltered list")
+        if not best:
+            LOGGER.debug("Reusing unfiltered list because all candidates were "
+                         "excluded")
             best = best2
+        elif (not all_pre
+              and (not tag or not tag.prefers_prerelease)
+              and all(Version(i["sort-version"]).is_prerelease for i, t in best)):
+            LOGGER.debug("Reusing unfiltered list because all candidates were "
+                         "prereleases")
+            best = best2
+
+    if best and single_tag:
+        if tag and tag.prefers_prerelease:
+            best = sorted(best, key=lambda i_t: make_sort_key_ignore_pre(i_t[0]))
+        return best[:1]
 
     return best
 
@@ -323,19 +344,22 @@ def get_install_to_run(
     windowed=False,
     virtual_env=None,
     default_platform=None,
+    *,
+    installs=None,
 ):
     """Returns the first install matching 'tag'.
     """
-    installs = get_installs(
-        install_dir,
-        include_unmanaged=include_unmanaged,
-        virtual_env=virtual_env,
-    )
+    if installs is None:
+        installs = get_installs(
+            install_dir,
+            include_unmanaged=include_unmanaged,
+            virtual_env=virtual_env,
+        )
 
     if not installs:
         raise NoInstallsError
 
-    if not tag or tag.casefold() == "default".casefold():
+    if not tag or (isinstance(tag, str) and tag.casefold() == "default".casefold()):
         # We know we want default, so try filtering first. If any are explicitly
         # tagged (e.g. active venv), they will be the only candidates.
         # Otherwise, we'll do a regular search as if 'default_tag' was provided.
@@ -355,6 +379,7 @@ def get_install_to_run(
         tag,
         windowed=windowed,
         default_platform=default_platform,
+        single_tag=True,
     )
 
     if best:

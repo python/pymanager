@@ -75,9 +75,9 @@ class SortVersions:
         return tuple(bits)
 
     def _sort_key(self, v):
-        from manage.tagutils import _CompanyKey, _DescendingVersion
+        from manage.tagutils import _CompanyKey, DescendingVersion
         return (
-            _DescendingVersion(v["sort-version"]),
+            DescendingVersion(v["sort-version"]),
             _CompanyKey(v["company"]),
             self._number_sortkey(v["id"]),
         )

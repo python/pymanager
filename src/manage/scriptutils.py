@@ -322,7 +322,6 @@ def _maybe_quote(a):
             bits.append(b)
             if b[-1:] == "\\":
                 bits.append("\\" * (len(b) - len(b.rstrip("\\"))))
-        print(a.split('"'), bits)
         a = ''.join(bits)
     return f'"{a}"' if ' ' in a else a
 

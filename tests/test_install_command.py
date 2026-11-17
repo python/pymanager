@@ -501,7 +501,7 @@ def test_install_update_explicit(tmp_path, assert_log):
 
 
 def test_install_update_explicit_pre(tmp_path, assert_log):
-    cmd = InstallCommandTestCmd(tmp_path, "1rc", update=True, force=False,
+    cmd = InstallCommandTestCmd(tmp_path, "1.2", update=True, force=False,
         index_installs=[
             {"schema": 1, "id": "test-32", "sort-version": "1.2rc1",
              "display-name": "Test 1.2rc1 (32)",
@@ -512,7 +512,7 @@ def test_install_update_explicit_pre(tmp_path, assert_log):
 
     IC.execute(cmd)
     assert_log(
-        assert_log.skip_until("Searching for Python matching %s", ["1rc"]),
+        assert_log.skip_until("Searching for Python matching %s", ["1.2"]),
         assert_log.skip_until("Updating to %s", ["Test 1.2rc1 (32)"]),
     )
 

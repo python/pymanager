@@ -276,25 +276,45 @@ def make_install(tag, **kwargs):
 
 
 def fake_get_installs(install_dir):
-    yield make_install("1.0")
-    yield make_install("1.0-32", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-32.exe")])
-    yield make_install("1.0-64", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-64.exe")])
-    yield make_install("2.0-64", sort_version="2.0")
-    yield make_install("2.0-arm64", sort_version="2.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1")
-    yield make_install("3.0a1-64", sort_version="3.0a1")
-    yield make_install("1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("1.1-arm64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
-    yield make_install("2.1-64", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe")
+    installs = [
+        make_install("1.0"),
+        make_install("1.0-32", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-32.exe")]),
+        make_install("1.0-64", sort_version="1.0", alias=[dict(name="py1.0.exe"), dict(name="py1.0-64.exe")]),
+        make_install("2.0-64", sort_version="2.0"),
+        make_install("2.0-arm64", sort_version="2.0"),
+        make_install("3.0a1-32", sort_version="3.0a1"),
+        make_install("3.0a1-64", sort_version="3.0a1"),
+        make_install("1.1", company="Company", target="company.exe", targetw="companyw.exe"),
+        make_install("1.1-64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe"),
+        make_install("1.1-arm64", sort_version="1.1", company="Company", target="company.exe", targetw="companyw.exe"),
+        make_install("2.1", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe"),
+        make_install("2.1-64", sort_version="2.1", company="Company", target="company.exe", targetw="companyw.exe"),
+    ]
+    installs.sort(key=manage.installs._make_sort_key)
+    return installs
 
 
 def fake_get_installs2(install_dir):
-    yield make_install("1.0-32", sort_version="1.0")
-    yield make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32"])
-    yield make_install("3.0a1-64", sort_version="3.0a1", run_for=["3.0.1a1-64", "3.0-64", "3-64"])
-    yield make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64"])
+    installs = [
+        make_install("1.0-32", sort_version="1.0"),
+        make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32"]),
+        make_install("3.0a1-64", sort_version="3.0a1", run_for=["3.0.1a1-64", "3.0-64", "3-64"]),
+        make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64"]),
+    ]
+    installs.sort(key=manage.installs._make_sort_key)
+    return installs
+
+
+def fake_get_installs3(install_dir):
+    installs = [
+        make_install("1.0-32", sort_version="1.0"),
+        make_install("3.0-64", sort_version="3.0", run_for=["3.0.1-64", "3.0-64", "3-64", "3-dev-64"]),
+        make_install("3.0a1-32", sort_version="3.0a1", run_for=["3.0.1a1-32", "3.0-32", "3-32", "3-dev-32"]),
+        make_install("3.0a1-arm64", sort_version="3.0a1", run_for=["3.0.1a1-arm64", "3.0-arm64", "3-arm64", "3-dev-arm64"]),
+        make_install("3.1a1-64", sort_version="3.1a1", run_for=["3.1a1-64", "3.1-64", "3-64", "3-dev-64"]),
+    ]
+    installs.sort(key=manage.installs._make_sort_key)
+    return installs
 
 
 def fake_get_unmanaged_installs():
@@ -315,5 +335,12 @@ def patched_installs(monkeypatch):
 @pytest.fixture
 def patched_installs2(monkeypatch):
     monkeypatch.setattr(manage.installs, "_get_installs", fake_get_installs2)
+    monkeypatch.setattr(manage.installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
+    monkeypatch.setattr(manage.installs, "_get_venv_install", fake_get_venv_install)
+
+
+@pytest.fixture
+def patched_installs3(monkeypatch):
+    monkeypatch.setattr(manage.installs, "_get_installs", fake_get_installs3)
     monkeypatch.setattr(manage.installs, "_get_unmanaged_installs", fake_get_unmanaged_installs)
     monkeypatch.setattr(manage.installs, "_get_venv_install", fake_get_venv_install)

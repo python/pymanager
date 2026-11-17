@@ -163,11 +163,60 @@ def test_install_lookup():
     assert index.find_to_install("cpy/3")["tag"] == "3.13.1"
     assert index.find_to_install("3.12")["tag"] == "3.12.2"
 
+    # A generic "3" tag is ambiguous for upper bounds and exclusions.
     assert index.find_to_install("!=3.13")["tag"] == "3.12.2"
     assert index.find_to_install("<=3.12")["tag"] == "3.12.2"
     assert index.find_to_install("<3.12")["tag"] == "3.11.3"
     assert index.find_to_install("<3.12,!=3.11")["tag"] == "3.10.4"
     assert index.find_to_install("<3.12,!=3.10")["tag"] == "3.11.3"
+
+    # Every clause must match the same offered tag.
+    assert index.find_to_install(">=3.10,!=3.13")["tag"] == "3.12.2"
+    assert index.find_to_install(">=3.10,<=3.12")["tag"] == "3.12.2"
+    assert index.find_to_install(">=3.10,<3.12")["tag"] == "3.11.3"
+    assert index.find_to_install(">=3.10,<3.12,!=3.11")["tag"] == "3.10.4"
+    assert index.find_to_install(">=3.10,<3.12,!=3.10")["tag"] == "3.11.3"
+
+
+def test_install_lookup_feed_order():
+    from manage.install_command import select_package
+
+    index = iu.Index("https://localhost/", {
+        "versions": [
+            {**fake_install_data(v), "id": "PythonCore-3.13"}
+            for v in ("3.13.1", "3.13.3", "3.13.2")
+        ],
+    })
+    assert index.find_to_install("3.13")["tag"] == "3.13.1"
+    assert select_package([index], "PythonCore-3.13", by_id=True)["tag"] == "3.13.1"
+
+
+def test_install_lookup_company_fallback():
+    index = iu.Index("https://localhost/", {
+        "versions": [
+            fake_install_data("3.14.0a1", company="Company"),
+            fake_install_data("3.14.1", company="CompanyName"),
+            fake_install_data("3.13.2", company="CompanyName"),
+            fake_install_data("3.13.1", company="Company"),
+            fake_install_data("3.12.1"),
+        ],
+    })
+    # Exact company is preferred over an earlier prefix match
+    assert index.find_to_install("Company/3")["company"] == "Company"
+    assert index.find_to_install("Company/3")["tag"] == "3.13.1"
+    assert index.find_to_install(">=Company/3.13")["tag"] == "3.13.1"
+    # Prefix match is used when there's no exact match
+    assert index.find_to_install("CompanyN/3")["tag"] == "3.14.1"
+    # Stable prefix match is preferred over exact prerelease
+    assert index.find_to_install("Company/3.14")["tag"] == "3.14.1"
+    assert index.find_to_install("Company/3.14.0a1")["tag"] == "3.14.0a1"
+    # Core requests prefer core companies, but fall back to others
+    assert index.find_to_install("3")["tag"] == "3.12.1"
+    assert index.find_to_install("Py/3")["tag"] == "3.12.1"
+    assert index.find_to_install("3.13")["company"] == "CompanyName"
+    # Listing uses prefix matching only
+    assert [i["tag"] for i in index.find_all(["Py/3"])] == ["3.12.1"]
+    assert [i["tag"] for i in index.find_all(["Company/3"])] == ["3.14.1", "3.13.2", "3.13.1"]
 
 
 def test_select_package():

@@ -204,8 +204,8 @@ class Index:
             raise InvalidFeedError(feed_url=source_url) from ex
         self.source_url = source_url
         self.next_url = validated.get("next")
-        versions = [_patch(source_url, v) for v in validated["versions"]]
-        self.versions = sorted(versions, key=lambda v: v["sort-version"], reverse=True)
+        # Feed order is retained intentionally for package selection.
+        self.versions = [_patch(source_url, v) for v in validated["versions"]]
 
     def __repr__(self):
         return "<Index({!r}, next={!r}, versions=[...{} entries])>".format(
@@ -214,7 +214,7 @@ class Index:
             len(self.versions),
         )
 
-    def find_all(self, tags, *, seen_ids=None, loose_company=False, with_prerelease=False):
+    def find_all(self, tags, *, seen_ids=None, with_prerelease=False):
         filters = []
         for tag in tags:
             try:
@@ -226,20 +226,38 @@ class Index:
                 if i["id"].casefold() in seen_ids:
                     continue
             if with_prerelease or not i["sort-version"].is_prerelease:
-                if not filters or install_matches_any(i, filters, loose_company=loose_company):
+                if not filters or install_matches_any(i, filters):
                     if seen_ids is not None:
                         seen_ids.add(i["id"].casefold())
                     yield i
 
-    def find_to_install(self, tag, *, loose_company=False, prefer_prerelease=False):
-        tag_list = [tag] if tag else []
+    def find_to_install(self, tag, *, prefer_prerelease=None):
+        tag_list = [tag_or_range(tag)] if tag else []
         LOGGER.debug("Finding %s to install", tag_list)
-        for i in self.find_all(tag_list, loose_company=loose_company, with_prerelease=prefer_prerelease):
-            return {**i, "source": self.source_url}
-        if not loose_company:
-            return self.find_to_install(tag, loose_company=True, prefer_prerelease=prefer_prerelease)
-        if not prefer_prerelease:
-            for i in self.find_all(tag_list, loose_company=loose_company, with_prerelease=True):
+        if prefer_prerelease is None:
+            prefer_prerelease = any(t.prefers_prerelease for t in tag_list)
+        # We prioritise a full company name match (find_all only filters using
+        # the prefix) and stable releases (unless prefer_prerelease is True).
+        # The feed order is authoritative though, so we store our fallback
+        # options
+        fallback = []
+        for i in self.find_all(tag_list, with_prerelease=True):
+            if not prefer_prerelease and i["sort-version"].is_prerelease:
+                # It's a matching prerelease, but we prefer stable releases
+                fallback.append(i)
+            elif any(not t.matches_company_exactly(i["company"]) for t in tag_list):
+                # It's a prefix match, not a full match, so save it for later
+                fallback.append(i)
+            else:
+                # This is a perfect match, so let's return immediately
                 return {**i, "source": self.source_url}
+        if not prefer_prerelease:
+            # Need to use a fallback, so let's first look for a company prefix match
+            for i in fallback:
+                if not i["sort-version"].is_prerelease:
+                    return {**i, "source": self.source_url}
+        # Return the first fallback (if any)
+        for i in fallback:
+            return {**i, "source": self.source_url}
         LOGGER.debug("No install found for %s", tag_list)
         raise LookupError(tag)

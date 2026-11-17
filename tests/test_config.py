@@ -1,3 +1,4 @@
+import json
 import os
 import pytest
 
@@ -11,6 +12,8 @@ from manage.config import (
     config_dict_merge,
     config_split,
     config_split_append,
+    load_config,
+    load_one_config,
     merge_config,
     resolve_config,
     sanitise_config,
@@ -379,3 +382,85 @@ def test_config_sanitise_nested(assert_log):
     }
     actual = sanitise_config(cfg, schema)
     assert actual == expect
+
+
+@pytest.mark.parametrize("registry_override", [False, True])
+@pytest.mark.parametrize("explicit_override", [False, True])
+def test_load_config_layer_precedence(tmp_path, monkeypatch, registry_override, explicit_override):
+    schema = {
+        "base_config": (str, None),
+        "user_config": (str, None),
+        "additional_config": (str, None),
+        "registry_override_key": (str, None),
+        "_config_files": (str, config_append),
+        "value": (str, config_append),
+        "layers": {name: (str, None) for name in ("base", "user", "additional", "override")},
+    }
+    files = {}
+    for name in ("base", "user", "additional", "override"):
+        file = tmp_path / f"{name}.json"
+        file.write_text(json.dumps({"value": name, "layers": {name: name}}), encoding="utf-8")
+        files[name] = file
+
+    def global_config(cfg, schema):
+        cfg.update({
+            "registry_override_key": "test-only",
+            "base_config": files["base"],
+            "user_config": files["user"],
+            "additional_config": files["additional"],
+            "value": "global",
+        })
+
+    def registry_config(key, schema):
+        assert key == "test-only"
+        return {"value": "registry"} if registry_override else {}
+
+    monkeypatch.setattr("manage.config.load_global_config", global_config)
+    monkeypatch.setattr("manage.config.load_registry_config", registry_config)
+    override = files["override"] if explicit_override else None
+    actual = load_config(tmp_path, override, schema)
+
+    if explicit_override:
+        expected = "override"
+    elif registry_override:
+        expected = "registry"
+    else:
+        expected = ["base", "user", "additional"]
+    assert actual["value"] == expected
+    names = ["base", "user", "additional"]
+    if explicit_override:
+        names.append("override")
+    assert actual["layers"] == {name: name for name in names}
+    if explicit_override:
+        expected_files = str(files["override"])
+    else:
+        expected_files = [str(files[name]) for name in names]
+    assert actual["_config_files"] == expected_files
+
+
+@pytest.mark.parametrize("contents", [None, "{invalid json"], ids=["missing", "invalid-json"])
+def test_load_one_config_failed_layer_preserves_values(tmp_path, contents):
+    schema = {"value": (str, None), "_config_files": (str, config_append)}
+    file = tmp_path / "config.json"
+    if contents is not None:
+        file.write_text(contents, encoding="utf-8")
+    cfg = {"value": "earlier", "_config_files": ["earlier.json"]}
+
+    load_one_config(cfg, file, schema, overwrite=True)
+
+    assert cfg == {"value": "earlier", "_config_files": ["earlier.json"]}
+
+
+def test_load_one_config_bom_and_relative_path(tmp_path, monkeypatch):
+    config_dir = tmp_path / "configuration"
+    config_dir.mkdir()
+    file = config_dir / "config.json"
+    file.write_text(json.dumps({"download_dir": "cache"}), encoding="utf-8-sig")
+    monkeypatch.chdir(tmp_path)
+    schema = {"download_dir": (str, None, "path"), "_config_files": (str, config_append)}
+    cfg = {}
+
+    load_one_config(cfg, file, schema)
+
+    assert cfg["download_dir"] == config_dir / "cache"
+    assert cfg["_config_files"] == str(file)

@@ -627,7 +627,7 @@ def tag_or_range(tag):
     tag = tag.lstrip(" =")
     if not tag:
         return CompanyTag("", "")
-    if tag[:1] in "<>!":
+    if tag[:1] in "<>!~":
         return TagRange(tag)
     if tag.lower() in ("default", "latest", "help"):
         raise ValueError(f"'{tag}' is not a valid tag or filter.")

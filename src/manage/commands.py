@@ -41,6 +41,8 @@ if EXE_NAME.casefold() == "py-manager".casefold():
 
 WELCOME = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 
+Configuration and runtime tags have been hardened, which may cause some unusual
+(and likely incorrect) settings to fail.
 Please see !B!{CHANGELOG_URL}!W! for all changes.
 """
 
@@ -49,6 +51,8 @@ Please see !B!{CHANGELOG_URL}!W! for all changes.
 WELCOME_ARM64 = f"""!B!Python install manager was successfully updated to {__version__}.!W!
 
 The default platform on this PC is now !Y!-arm64!W! instead of !Y!-64!W!.
+Configuration and runtime tags have been hardened, which may cause some unusual
+(and likely incorrect) settings to fail.
 Please see !B!{CHANGELOG_URL}!W! for more details and all other changes.
 """
 
@@ -96,13 +100,14 @@ PYMANAGER_USAGE_DOCS = [
 
 
 GLOBAL_OPTIONS_HELP_TEXT = fr"""!G!Global options: !B!(options must follow the command)!W!
-    -v, --verbose    Increased output (!B!log_level={logging.INFO}!W!)
+    -v, --verbose    Increased output (!B!log_level={logging.VERBOSE}!W!)
     -vv              Further increased output (!B!log_level={logging.DEBUG}!W!)
     -q, --quiet      Less output (!B!log_level={logging.WARN}!W!)
     -qq              Even less output (!B!log_level={logging.ERROR}!W!)
     -y, --yes        Always accept confirmation prompts (!B!confirm=false!W!)
     -h, -?, --help   Show help for a specific command
     --config=!B!<PATH>!W!  Override configuration with JSON file
+    --log=!B!<PATH>!W!     Override log file location
 """
 
 
@@ -155,6 +160,8 @@ Each option is a string literal to enable special processing:
 * 'path' to make a Path object, resolved against the config file's location
 * 'uri' to call 'as_uri()' (so it chains with 'path'), and ensure the argument
   is vaguely URI-shaped and minimally exploitable.
+* 'sensitive' to avoid printing the value to logs files or consoles ('uri'
+  values always treat user/pass parts as sensitive)
 
 Arguments passed on the command line always override any config files.
 """
@@ -743,7 +750,7 @@ Shows installed Python runtimes, optionally filtered or formatted.
     -f, --format=!B!<table,json,jsonl,csv,exe,prefix,url,formats>!W!
                      Specify list format, defaults to !B!table!W!.
                      Pass !B!-f formats!W! for the full list of formats.
-    -1, --one        Only display first result that matches the filter
+    -1, --one        Display the default or best runtime matching the filter
     --online         List runtimes available to install from the default index
     -s, --source=!B!<URL>!W!
                      List runtimes from a particular index
@@ -837,6 +844,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
                      Prepare an offline index with one or more runtimes
     -f, --force      Re-download and overwrite existing install
     -u, --update     Overwrite existing install if a newer version is available.
+    --repair         Clean reinstalls an existing runtime
     --dry-run        Choose runtime but do not install
     --refresh        Update shortcuts and aliases for all installed versions.
     --configure      Re-run the system configuration helper.
@@ -850,7 +858,7 @@ Downloads new Python runtimes and sets up shortcuts and other registration.
 > py install --target=.\runtime 3.13-arm64
 
 !B!EXAMPLE:!W! Clean reinstall of 3.13
-> py install --force 3.13
+> py install --repair 3.13
 
 !B!EXAMPLE:!W! Refresh and replace all shortcuts
 > py install --refresh

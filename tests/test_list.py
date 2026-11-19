@@ -1,6 +1,8 @@
+import json
 import pytest
 import re
 
+from io import StringIO
 from itertools import zip_longest
 
 from manage import list_command
@@ -313,6 +315,39 @@ def test_format_csv_complex(assert_log):
 def test_format_csv_empty(assert_log):
     list_command.format_csv(None, [])
     assert_log(assert_log.end_of_log())
+
+
+@pytest.fixture(params=["populated", "empty"])
+def json_format_installs(request):
+    if request.param == "empty":
+        return [], []
+    prefix = r"C:\Python"
+    installs = [
+        {"id": "first", "prefix": Path(prefix)},
+        {"id": "second", "display-name": "Python\nPreview"},
+    ]
+    expected = [{**installs[0], "prefix": prefix}, installs[1]]
+    return installs, expected
+
+
+def test_format_json(monkeypatch, json_format_installs):
+    output = StringIO()
+    monkeypatch.setattr(list_command.LOGGER, "print_console", output)
+    installs, expected = json_format_installs
+
+    list_command.format_json(None, installs)
+
+    assert json.loads(output.getvalue()) == {"versions": expected}
+
+
+def test_format_json_lines(monkeypatch, json_format_installs):
+    output = StringIO()
+    monkeypatch.setattr(list_command.LOGGER, "print_console", output)
+    installs, expected = json_format_installs
+
+    list_command.format_json_lines(None, installs)
+
+    assert [json.loads(line) for line in output.getvalue().splitlines()] == expected
 
 
 def test_csv_exclude():

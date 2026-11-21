@@ -3,6 +3,10 @@
 
 #include "_launch.h"
 
+#ifndef PY_WINDOWED
+#define PY_WINDOWED 0
+#endif
+
 #define MAXLEN 32768
 
 // HRESULT-compatible error codes
@@ -250,6 +254,22 @@ launch_by_dll(void *main_func_ptr, wchar_t *executable, int argc, wchar_t **argv
     newArgv[0] = executable;
     for (int i = 1; i < argc; ++i) {
         newArgv[i] = argv[i];
+    }
+
+    // This launcher links the C runtime statically, so its startup code tells only
+    // its own copy what kind of app this is. Python uses the shared UCRT, which
+    // would otherwise stay "unknown", and then no longer updates the process's
+    // standard handles when Python swaps fds 0-2 (os.dup2, as pytest's capture
+    // does): GetStdHandle keeps returning a closed handle, and a subprocess that
+    // inherits it fails with WinError 6. Tell it what python.exe's startup would.
+    HMODULE ucrt = GetModuleHandleW(L"ucrtbase.dll");
+    if (ucrt) {
+        typedef void (__cdecl *set_app_type_t)(int);
+        set_app_type_t set_app_type = (set_app_type_t)GetProcAddress(ucrt, "_set_app_type");
+        if (set_app_type) {
+            // _crt_console_app (1) or _crt_gui_app (2), as for python.exe and pythonw.exe
+            (*set_app_type)(PY_WINDOWED ? 2 : 1);
+        }
     }
 
     // Our caller assumes that any error result happens before we launch. From

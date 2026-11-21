@@ -56,6 +56,7 @@ INSTALLS = [
 @pytest.mark.parametrize("script, expect", [
     ("", None),
     ("#! /usr/bin/test1.0\n#! /usr/bin/test2.0\n", "1.0"),
+    pytest.param("#! /usr/bin/test1.0\n".encode("utf-8-sig"), "1.0", id="utf8-bom"),
     ("#! /usr/bin/test2.0\n#! /usr/bin/test1.0\n", "2.0"),
     ("#! /usr/bin/test1.0.exe\n#! /usr/bin/test2.0\n", "1.0"),
     ("#!test1.0.exe\n", "1.0"),
